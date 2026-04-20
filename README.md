@@ -229,9 +229,9 @@ now exposes it as `--audit-mode auto|light`.
 
 PRAI's KB-pack pipeline CLI also supports:
 
-- `--anydoc2md-dir DIR` to persist findings and project-local hooks under a
+- `--adtm-dir DIR` to persist findings and project-local hooks under a
   chosen `.any-doc-to-md` directory
-- `--author-remediation-scaffolds` to write deterministic QA and in-house hook
+- `--write-scaffolds` to write deterministic QA and in-house hook
   scaffold files from persisted findings
 
 ## Judge Configuration
