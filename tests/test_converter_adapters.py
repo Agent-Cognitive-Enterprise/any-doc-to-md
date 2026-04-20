@@ -35,6 +35,7 @@ from anydoc2md.format_converters.adapters import docling, inhouse, markitdown, m
 from anydoc2md.format_converters.tournament.runner import (
     _ADAPTER_MODULES,
     _load_adapter,
+    available_adapter_names,
     run_tournament,
 )
 
@@ -356,12 +357,46 @@ class TestTournamentRunnerRegistry:
             module = _load_adapter(name)
             assert hasattr(module, "run"), name
 
+    def test_available_adapter_names_matches_registry_order(self) -> None:
+        assert available_adapter_names() == list(_ADAPTER_MODULES)
+
 
 # =========================================================================== #
 # Tournament runner
 # =========================================================================== #
 
 class TestTournamentRunner:
+    def test_default_selection_runs_all_implemented_adapters(self, tmp_path: Path) -> None:
+        src = _txt_source(tmp_path)
+        calls: list[str] = []
+
+        class _FakeAdapter:
+            def __init__(self, name: str) -> None:
+                self._name = name
+
+            def run(self, source_path: Path, staging_dir: Path) -> AdapterResult:
+                calls.append(self._name)
+                staging_dir.mkdir(parents=True, exist_ok=True)
+                (staging_dir / "index.md").write_text(f"# {self._name}", encoding="utf-8")
+                return AdapterResult(
+                    method_name=self._name,
+                    method_version="1",
+                    command_invoked="",
+                    exit_code=0,
+                    staging_dir=staging_dir,
+                    timing_ms=1,
+                    status="ok",
+                )
+
+        with patch(
+            "anydoc2md.format_converters.tournament.runner._load_adapter",
+            side_effect=lambda name: _FakeAdapter(name),
+        ):
+            results = run_tournament(src, tmp_path / "staging", adapters=None)
+
+        assert sorted(calls) == sorted(available_adapter_names())
+        assert {r.method_name for r in results} == set(available_adapter_names())
+
     def test_runs_all_adapters(self, tmp_path: Path) -> None:
         src = _txt_source(tmp_path)
         results = run_tournament(src, tmp_path / "staging", adapters=["inhouse"])

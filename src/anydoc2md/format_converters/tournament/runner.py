@@ -22,8 +22,6 @@ from types import ModuleType
 from anydoc2md.format_converters.adapters.base import AdapterResult
 
 # Registry of implemented adapters (module path suffix → module).
-# Planned adapters such as pandoc/marker stay out of the runtime registry
-# until their modules actually ship, so docs and behavior stay aligned.
 _ADAPTER_MODULES: dict[str, str] = {
     "inhouse":    "anydoc2md.format_converters.adapters.inhouse",
     "markitdown": "anydoc2md.format_converters.adapters.markitdown",
@@ -32,7 +30,13 @@ _ADAPTER_MODULES: dict[str, str] = {
     "marker":     "anydoc2md.format_converters.adapters.marker",
 }
 
-DEFAULT_ADAPTERS = ["inhouse", "markitdown", "docling"]
+
+def available_adapter_names() -> list[str]:
+    """Return all implemented adapters in stable registry order."""
+    return list(_ADAPTER_MODULES)
+
+
+DEFAULT_ADAPTERS = available_adapter_names()
 
 
 def run_tournament(
@@ -50,7 +54,7 @@ def run_tournament(
         source_path:  Source document to convert.
         staging_root: Root under which per-method dirs are created:
                       staging_root/{method_name}/
-        adapters:     List of adapter names to run (default: inhouse, markitdown, docling).
+        adapters:     List of adapter names to run (default: all implemented adapters).
         timeout_s:    Per-adapter subprocess timeout (passed to each adapter).
         max_workers:  Thread pool size for parallel execution.
 
@@ -58,7 +62,7 @@ def run_tournament(
         List of AdapterResult, one per adapter, in completion order.
         Failed adapters produce error AdapterResults (status != "ok") — never raise.
     """
-    names = adapters or DEFAULT_ADAPTERS
+    names = adapters or available_adapter_names()
     results: list[AdapterResult] = []
 
     def _run_one(name: str) -> AdapterResult:

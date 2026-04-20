@@ -32,6 +32,7 @@ from anydoc2md.format_converters.tournament.orchestrator import (
     run_full_tournament,
 )
 from anydoc2md.format_converters.tournament.remediation import RemediationPlan
+from anydoc2md.format_converters.tournament.selector import NEAR_TIE_THRESHOLD
 from anydoc2md.format_converters.tournament.selector import SelectionResult
 from anydoc2md.llm_judge import JudgeVerdict, JudgeViolation
 from anydoc2md.output_qa.scoring import ScoreCard
@@ -228,6 +229,34 @@ class TestTournamentResultContract:
 # =========================================================================== #
 
 class TestSingleWinner:
+    def test_default_selection_uses_all_implemented_adapters(self, tmp_path: Path) -> None:
+        source_path = tmp_path / "doc.pdf"
+        staging_root = tmp_path / "staging"
+        source_path.write_bytes(b"%PDF-1.4")
+        selection = _selection("inhouse", ["inhouse"], near_tie=False)
+
+        with patch(f"{MOCK_BASE}.available_adapter_names", return_value=["inhouse", "markitdown", "docling", "pandoc", "marker"]) as adapters_mock, \
+             patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament", return_value=[] ) as tournament_mock, \
+             patch(f"{MOCK_BASE}.select_winner", return_value=selection) as selector_mock, \
+             patch(f"{MOCK_BASE}.judge_near_tie") as judge_mock:
+            run_full_tournament(source_path, staging_root, adapters=None, promote=False)
+
+        adapters_mock.assert_called_once_with()
+        tournament_mock.assert_called_once_with(
+            source_path,
+            staging_root,
+            ["inhouse", "markitdown", "docling", "pandoc", "marker"],
+            timeout_s=600,
+        )
+        selector_mock.assert_called_once_with(
+            source_path,
+            staging_root,
+            ["inhouse", "markitdown", "docling", "pandoc", "marker"],
+            near_tie_threshold=NEAR_TIE_THRESHOLD,
+        )
+        judge_mock.assert_not_called()
+
     def test_winner_set_correctly(self, tmp_path: Path) -> None:
         sel = _selection("inhouse", ["inhouse", "markitdown"], near_tie=False)
         classify_p, tour_p, sel_p, judge_p, adapters, t = _patch_all(
