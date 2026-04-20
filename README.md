@@ -28,6 +28,22 @@ The package itself stops there. Host projects can optionally persist findings
 and feed project-local in-house overrides back into later runs via a local
 `.any-doc-to-md/` directory.
 
+TODO: The current implementation still uses the older near-tie judge trigger.
+The intended ADTM design is different:
+
+1. programmatic QA selects the current leading candidate
+2. an LLM audit compares the source artifact with a rendered PDF produced from
+   that candidate Markdown
+3. if the LLM finds only minor issues, the candidate becomes the winner
+4. if the LLM finds major issues, the candidate is penalized or disqualified
+   and the next ranked candidate is audited
+5. this loop is capped at 3 LLM audits per document, after which the document
+   is escalated for human review
+
+TODO: The current implementation persists findings and consumes project-local
+override files, but it does not yet generate rendered candidate PDFs for that
+final audit step and it does not yet run the post-selection audit loop above.
+
 ```mermaid
 flowchart TD
     A[Source document] --> B[classify_document]
@@ -44,19 +60,24 @@ flowchart TD
     C5 --> D
     D --> E[run_hard_gates]
     E --> F[run_all QA plus build_scorecard]
-    F --> G[select_winner]
-    G --> H{near tie?}
-    H -- no --> I[score winner]
-    H -- yes --> J[judge_near_tie]
-    J --> K{structured violations?}
-    K -- yes --> L[build_remediation_plan]
-    K -- no --> M[final winner]
-    I --> M
-    J --> M
-    L --> M
-    M --> N[promote to winner/]
+    F --> G[select_candidate]
+    G --> H[render candidate markdown to audit PDF]
+    H --> I[LLM audit against source]
+    I --> J{minor or major?}
+    J -- minor --> K[accept winner]
+    J -- major --> L[penalize or disqualify candidate]
+    L --> M[next ranked candidate]
+    M --> H
+    K --> N[promote to winner/]
     N --> O[host project may persist findings in .any-doc-to-md]
+    I --> P[build remediation plan]
+    P --> O
 ```
+
+TODO: The diagram above describes the intended ADTM end-state. The current code
+already has the adapter tournament, programmatic QA, winner promotion, and
+findings persistence pieces, but it still uses a near-tie LLM step instead of
+the full post-selection audit loop.
 
 Per-adapter staging layout:
 
@@ -73,6 +94,9 @@ Promoted winner layout:
 
 That normalized layout is what lets the tournament compare different
 converters uniformly and lets host projects ingest one stable winner path.
+
+TODO: Once rendered candidate PDF audit is implemented, document the audit
+artifacts here too.
 
 ## Scope
 
