@@ -15,9 +15,9 @@ This package owns reusable conversion and judging logic.
 
 This package does not own:
 
-- host-application `.env` loading
+- application-specific `.env` loading
 - process exit behavior
-- PRAI-specific orchestration outside the shared conversion/judge surfaces
+- project-specific orchestration outside the shared conversion/judge surfaces
 
 Host applications are expected to provide runtime configuration through environment variables or explicit `JudgeSettings`.
 
@@ -62,4 +62,4 @@ cd packages/any-doc-to-md
 python -m pip install -e .
 ```
 
-Within PRAI, the backend keeps this submodule importable through `backend/sitecustomize.py` for the usual `cd backend && PYTHONPATH=. ...` workflow.
+Host applications can either install the package normally or put `src/` on `PYTHONPATH` during development.

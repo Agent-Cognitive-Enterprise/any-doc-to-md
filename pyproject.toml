@@ -13,6 +13,15 @@ authors = [
   { name = "Agent Cognitive Enterprise" },
 ]
 
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "Pillow",
+  "PyMuPDF",
+  "python-docx",
+  "requests",
+]
+
 [tool.setuptools]
 package-dir = { "" = "src" }
 
