@@ -9,6 +9,11 @@
 
 Source lives under `src/anydoc2md/`.
 
+The canonical ADTM specification lives at
+[`docs/specs/multi-method-converter-tournament.md`](docs/specs/multi-method-converter-tournament.md).
+Parent projects should reference that package-owned spec instead of maintaining
+their own copies.
+
 ## How It Works
 
 `anydoc2md` owns the reusable conversion tournament itself. A typical run goes
