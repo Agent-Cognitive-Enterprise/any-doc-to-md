@@ -29,14 +29,13 @@ Implemented today:
 - hard gates for missing/empty output, broken image refs, charset plausibility, and sampled PDF text coverage
 - weighted programmatic QA scoring
 - score-based candidate selection
-- near-tie LLM judging with bounded Markdown excerpts and structured violations
+- post-selection LLM audit loop over ranked candidates with bounded Markdown excerpts and structured violations
 - persisted ADTM findings under project-local `.any-doc-to-md/` state when the host project enables it
 - winner promotion into a stable `winner/` staging dir
 
 Still planned, not implemented yet:
 
 - the richer violation schema described below (`severity`, `violation_type`, `confidence` per programmatic check)
-- source-vs-rendered-candidate LLM audit after candidate selection
 - rendered candidate PDF generation for final fidelity audits
 - evidence-packet judging with page/block-level violation output
 - automated coding-agent extension authoring from judge findings
@@ -285,7 +284,7 @@ Selection policy:
 - keep ranking order for retry
 - stop early only if no viable candidates remain
 
-The implementation should rename `select_winner` to `select_candidate` when the post-selection audit loop lands, because the current score leader is only a candidate until the source-fidelity audit passes.
+The score-selected leader is only a candidate until the source-fidelity audit passes. The runtime now exposes `select_candidate`, while keeping `select_winner` as a backward-compatible alias.
 
 ---
 
@@ -329,7 +328,7 @@ Suggested control flow:
 7. allow at most 3 LLM audits per document
 8. escalate to human review when the audit budget is exhausted
 
-The current implementation still uses the older near-tie trigger rather than this post-selection audit loop.
+The current implementation now runs this post-selection audit loop, but it still audits against source metadata plus candidate Markdown excerpts rather than a rendered candidate PDF.
 
 ---
 

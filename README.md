@@ -24,8 +24,9 @@ through these stages:
 3. Hard-disqualify obviously broken outputs.
 4. Run programmatic QA on surviving candidates and rank them by weighted score.
 5. Select the current leading candidate.
-6. Audit that candidate against the source via an LLM, using a rendered PDF
-   from the candidate Markdown as the audit surface.
+6. Audit that candidate against the source via an LLM.
+   Current implementation uses source metadata, document traits, and the
+   candidate Markdown evidence block.
 7. If the LLM finds major issues, optionally build a remediation plan, persist
    findings in `.any-doc-to-md/`, penalize or disqualify the candidate, and
    retry with the next ranked candidate.
@@ -36,8 +37,7 @@ The package owns the reusable tournament logic. Host projects may optionally
 persist findings and feed project-local in-house overrides back into later runs
 via a local `.any-doc-to-md/` directory.
 
-TODO: The current implementation still uses the older near-tie judge trigger.
-The intended ADTM design is different:
+The intended end-state is slightly richer than the current implementation:
 
 1. programmatic QA selects the current leading candidate
 2. an LLM audit compares the source artifact with a rendered PDF produced from
@@ -50,7 +50,7 @@ The intended ADTM design is different:
 
 TODO: The current implementation persists findings and consumes project-local
 override files, but it does not yet generate rendered candidate PDFs for that
-final audit step and it does not yet run the post-selection audit loop above.
+final audit step.
 
 ```mermaid
 flowchart TD
@@ -82,9 +82,9 @@ flowchart TD
 ```
 
 TODO: The diagram above describes the intended ADTM end-state. The current code
-already has the adapter tournament, programmatic QA, winner promotion, and
-findings persistence pieces, but it still uses a near-tie LLM step instead of
-the full post-selection audit loop.
+already has the post-selection audit loop, winner promotion, remediation-plan
+persistence, and project-local findings flow. What still lags is the rendered
+candidate PDF audit surface shown in the diagram.
 
 Per-adapter staging layout:
 
@@ -212,12 +212,12 @@ Optional environment variables:
 - `ANYDOC2MD_JUDGE_DISABLE_THINKING`
 - `ANYDOC2MD_JUDGE_TEMPERATURE`
 
-If required values are missing, the library raises `AnyDocToMdConfigError` when loading settings explicitly, or returns an error verdict when `judge_near_tie()` attempts to load them implicitly.
+If required values are missing, the library raises `AnyDocToMdConfigError` when loading settings explicitly, or returns an error verdict when `judge_candidate_against_source()` or `judge_near_tie()` attempts to load them implicitly.
 
 ## Example
 
 ```python
-from anydoc2md.llm_judge import judge_near_tie
+from anydoc2md.llm_judge import judge_candidate_against_source
 from anydoc2md.settings import JudgeSettings
 
 settings = JudgeSettings(
@@ -225,7 +225,12 @@ settings = JudgeSettings(
     model="qwen/qwen3.6-35b-a3b",
 )
 
-verdict = judge_near_tie(candidates, source_path, traits, settings=settings)
+verdict = judge_candidate_against_source(
+    candidate,
+    source_path,
+    traits,
+    settings=settings,
+)
 ```
 
 ## Development

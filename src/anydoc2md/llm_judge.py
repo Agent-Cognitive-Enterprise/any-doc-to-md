@@ -1,9 +1,11 @@
 """
-LLM judge — break near-ties between converter adapter outputs.
+LLM judge — audit candidate outputs and break ties when needed.
 
-When the selector flags two or more adapters as near-tied (score delta ≤
-NEAR_TIE_THRESHOLD), this module sends their markdown excerpts + document
-traits to an LM Studio instance and returns a structured verdict.
+This module currently supports two related tasks:
+
+- auditing a selected candidate against source metadata and document traits
+- breaking ties between multiple candidate outputs when callers still need that
+  older behavior
 
 Context strategy:
   - Default model: qwen/qwen3.6-35b-a3b (8K context)
@@ -16,13 +18,11 @@ is returned with confidence="error" and an error message.  Callers should
 fall back to the score-based winner.
 
 Usage:
-    from anydoc2md.llm_judge import judge_near_tie
+    from anydoc2md.llm_judge import judge_candidate_against_source
 
-    verdict = judge_near_tie(candidates, source_path, traits)
+    verdict = judge_candidate_against_source(candidate, source_path, traits)
     if verdict.confidence != "error":
-        winner = verdict.preferred_adapter
-    else:
-        winner = score_ranked[0].adapter_name   # score fallback
+        handle_structured_findings(verdict)
 """
 from __future__ import annotations
 
@@ -232,6 +232,55 @@ def build_prompt(
     return system, user
 
 
+def build_audit_prompt(
+    candidate: AdapterResult,
+    source_path: Path,
+    traits: DocumentTraits,
+) -> tuple[str, str]:
+    """Build a prompt that audits one selected candidate against source context."""
+    system = (
+        "You are an expert document-conversion quality evaluator. "
+        "You will be shown one selected Markdown conversion plus source-document "
+        "metadata. Audit whether this candidate appears acceptable or contains "
+        "material issues that should trigger remediation work.\n\n"
+        "Return ONLY valid JSON with this exact shape:\n"
+        "{\n"
+        '  "preferred": "<candidate_name>",\n'
+        '  "confidence": "high|medium|low",\n'
+        '  "reasoning": "<one paragraph>",\n'
+        '  "notes": {"<candidate_name>": "<brief note>"},\n'
+        '  "violations": [\n'
+        "    {\n"
+        '      "type": "<violation_type>",\n'
+        '      "severity": "critical|major|minor",\n'
+        '      "count": 1,\n'
+        '      "pages": [1, 2],\n'
+        '      "confidence": 0.0,\n'
+        '      "evidence": "<short evidence>",\n'
+        '      "root_cause": "<likely root cause>"\n'
+        "    }\n"
+        "  ],\n"
+        '  "overall_confidence": 0.0,\n'
+        '  "uncertainty_note": "<optional uncertainty note>"\n'
+        "}\n\n"
+        "If the candidate appears acceptable, return an empty violations list. "
+        "Only include violations that are concrete enough for a coding agent to "
+        "turn into tests or converter fixes."
+    )
+
+    user = (
+        f"## Source document\n"
+        f"Path: {source_path}\n"
+        f"{_traits_summary(traits)}\n\n"
+        f"## Selected candidate\n\n{_evidence_block(candidate)}\n\n"
+        "## Task\n"
+        f"Audit candidate {candidate.method_name!r}. Return JSON with "
+        f'"preferred" set to exactly "{candidate.method_name}". '
+        "Flag material issues only."
+    )
+    return system, user
+
+
 # ---------------------------------------------------------------------------
 # LLM call
 # ---------------------------------------------------------------------------
@@ -421,3 +470,40 @@ def judge_near_tie(
         )
 
     return _parse_verdict(raw, candidates, judge_settings.model, tokens)
+
+
+def judge_candidate_against_source(
+    candidate: AdapterResult,
+    source_path: Path,
+    traits: DocumentTraits,
+    *,
+    settings: JudgeSettings | None = None,
+) -> JudgeVerdict:
+    """Audit one selected candidate against source context."""
+    try:
+        judge_settings = settings or load_judge_settings_from_env()
+    except AnyDocToMdConfigError as exc:
+        return JudgeVerdict(
+            preferred_adapter="",
+            confidence="error",
+            reasoning="",
+            notes={},
+            model_used="",
+            tokens_used=0,
+            error=str(exc),
+        )
+
+    system, user = build_audit_prompt(candidate, source_path, traits)
+    try:
+        raw, tokens = _call_lm_studio(system, user, judge_settings)
+    except Exception as exc:
+        return JudgeVerdict(
+            preferred_adapter="",
+            confidence="error",
+            reasoning="",
+            notes={},
+            model_used=judge_settings.model,
+            tokens_used=0,
+            error=f"LM Studio call failed: {exc}",
+        )
+    return _parse_verdict(raw, [candidate], judge_settings.model, tokens)

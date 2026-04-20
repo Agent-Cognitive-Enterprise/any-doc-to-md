@@ -112,9 +112,7 @@ def build_remediation_plan(
         return None
 
     candidate_names = [candidate.method_name for candidate in candidates]
-    effective_target = target_adapter if target_adapter in candidate_names else (
-        verdict.preferred_adapter or candidate_names[0]
-    )
+    effective_target = target_adapter or (verdict.preferred_adapter or candidate_names[0])
     compare_against = verdict.preferred_adapter or next(
         (name for name in candidate_names if name != effective_target),
         effective_target,

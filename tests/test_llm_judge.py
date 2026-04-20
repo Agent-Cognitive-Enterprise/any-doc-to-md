@@ -32,7 +32,9 @@ from anydoc2md.llm_judge import (
     _parse_verdict,
     _parse_violations,
     _traits_summary,
+    build_audit_prompt,
     build_prompt,
+    judge_candidate_against_source,
     judge_near_tie,
     EXCERPT_CHARS_PER_ADAPTER,
 )
@@ -280,6 +282,15 @@ class TestBuildPrompt:
         assert "table" in user.lower()
 
 
+class TestBuildAuditPrompt:
+    def test_contains_source_path_and_candidate_name(self, tmp_path: Path) -> None:
+        candidate = _adapter_result("inhouse", tmp_path, "# Inhouse")
+        system, user = build_audit_prompt(candidate, Path("/src/doc.pdf"), _traits())
+        assert '"preferred"' in system
+        assert "/src/doc.pdf" in user
+        assert "inhouse" in user
+
+
 # =========================================================================== #
 # _parse_verdict
 # =========================================================================== #
@@ -455,6 +466,34 @@ class TestJudgeNearTie:
 
         url_called = mock_req.post.call_args[0][0]
         assert "localhost:9999" in url_called
+
+
+class TestJudgeCandidateAgainstSource:
+    def test_happy_path(self, tmp_path: Path) -> None:
+        candidate = _adapter_result("inhouse", tmp_path, "# Inhouse")
+        with patch("anydoc2md.llm_judge.requests") as mock_req:
+            mock_req.post.return_value = _mock_response("inhouse")
+            verdict = judge_candidate_against_source(
+                candidate,
+                Path("/src/doc.pdf"),
+                _traits(),
+                settings=_judge_settings(),
+            )
+        assert verdict.succeeded is True
+        assert verdict.preferred_adapter == "inhouse"
+
+    def test_call_failure_returns_error_verdict(self, tmp_path: Path) -> None:
+        candidate = _adapter_result("inhouse", tmp_path, "# Inhouse")
+        with patch("anydoc2md.llm_judge.requests") as mock_req:
+            mock_req.post.side_effect = RuntimeError("boom")
+            verdict = judge_candidate_against_source(
+                candidate,
+                Path("/src/doc.pdf"),
+                _traits(),
+                settings=_judge_settings(),
+            )
+        assert verdict.succeeded is False
+        assert "boom" in verdict.error
 
 
 class TestJudgeSettings:

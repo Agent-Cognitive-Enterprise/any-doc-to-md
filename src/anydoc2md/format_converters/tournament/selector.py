@@ -11,9 +11,9 @@ This module contains pure selection logic (select_from_results) for easy testing
 plus an integration entry-point (select_winner) that wires the full pipeline.
 
 Usage:
-    from anydoc2md.format_converters.tournament.selector import select_winner
+    from anydoc2md.format_converters.tournament.selector import select_candidate
 
-    result = select_winner(source_path, staging_root, adapter_names=["inhouse", "docling"])
+    result = select_candidate(source_path, staging_root, adapter_names=["inhouse", "docling"])
     if result.winner:
         print(result.winner, result.winner_score)
     else:
@@ -70,6 +70,11 @@ class SelectionResult:
             "ranked": [c.to_dict() for c in self.ranked],
             "disqualified": self.disqualified,
         }
+
+    @property
+    def candidate(self) -> str | None:
+        """Preferred name for the score-selected adapter before later audit."""
+        return self.winner
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +144,7 @@ def select_from_results(
 # Integration entry-point
 # ---------------------------------------------------------------------------
 
-def select_winner(
+def select_candidate(
     source_path: Path,
     staging_root: Path,
     adapter_names: list[str],
@@ -147,7 +152,7 @@ def select_winner(
     near_tie_threshold: float = NEAR_TIE_THRESHOLD,
 ) -> SelectionResult:
     """
-    Run gates + scoring against all adapter staging dirs and select a winner.
+    Run gates + scoring against all adapter staging dirs and select a candidate.
 
     Each adapter's staging dir is expected at staging_root/{adapter_name}/.
     Adapters whose staging dir has no index.md are automatically disqualified
@@ -160,7 +165,7 @@ def select_winner(
         near_tie_threshold: Score delta for near-tie detection.
 
     Returns:
-        SelectionResult.  Never raises — errors in individual adapters produce
+        SelectionResult. Never raises; errors in individual adapters produce
         disqualified entries.
     """
     gate_results: dict[str, list[HardGateResult]] = {}
@@ -190,4 +195,20 @@ def select_winner(
 
     return select_from_results(
         scorecards, gate_results, near_tie_threshold=near_tie_threshold,
+    )
+
+
+def select_winner(
+    source_path: Path,
+    staging_root: Path,
+    adapter_names: list[str],
+    *,
+    near_tie_threshold: float = NEAR_TIE_THRESHOLD,
+) -> SelectionResult:
+    """Backward-compatible alias for older callers."""
+    return select_candidate(
+        source_path,
+        staging_root,
+        adapter_names,
+        near_tie_threshold=near_tie_threshold,
     )

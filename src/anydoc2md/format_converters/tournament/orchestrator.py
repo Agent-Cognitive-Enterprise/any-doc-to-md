@@ -2,7 +2,7 @@
 Tournament orchestrator — full pipeline for one source document.
 
 Wires together:
-    classify → run_tournament → select_winner → [judge_near_tie] → promote_winner
+    classify → run_tournament → select_candidate → post-selection LLM audit → promote_winner
 
 The winner's staging dir is copied to ``staging_root/winner/`` so downstream
 code always reads from a stable path regardless of which adapter won.
@@ -35,19 +35,20 @@ from anydoc2md.format_converters.tournament.runner import (
     available_adapter_names,
     run_tournament,
 )
+from anydoc2md.format_converters.tournament.audit import (
+    CandidateAudit,
+    MAX_AUDIT_ATTEMPTS,
+    run_post_selection_audit_loop,
+)
 from anydoc2md.format_converters.tournament.remediation import (
     RemediationPlan,
-    build_remediation_plan,
 )
 from anydoc2md.format_converters.tournament.selector import (
     NEAR_TIE_THRESHOLD,
     SelectionResult,
-    select_winner,
+    select_candidate,
 )
-from anydoc2md.llm_judge import (
-    JudgeVerdict,
-    judge_near_tie,
-)
+from anydoc2md.llm_judge import JudgeVerdict
 from anydoc2md.settings import JudgeSettings
 
 WINNER_DIR_NAME = "winner"
@@ -65,12 +66,13 @@ class TournamentResult:
     traits: DocumentTraits
     adapter_results: list[AdapterResult]
     selection: SelectionResult
-    judge_verdict: JudgeVerdict | None     # None when no near-tie or judging skipped
+    judge_verdict: JudgeVerdict | None
     remediation_plan: RemediationPlan | None
-    winner: str | None                     # final adapter name (may differ from selection.winner
-                                           # when the judge overrides the score-based winner)
-    winner_staging_dir: Path | None        # staging_root/winner/ after promotion; None if no winner
-    promoted: bool                         # True when winner dir was copied to winner/
+    audit_history: list[CandidateAudit]
+    winner: str | None
+    winner_staging_dir: Path | None
+    promoted: bool
+    escalated: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -82,9 +84,11 @@ class TournamentResult:
             "selection": self.selection.to_dict(),
             "judge_verdict": self.judge_verdict.to_dict() if self.judge_verdict else None,
             "remediation_plan": self.remediation_plan.to_dict() if self.remediation_plan else None,
+            "audit_history": [audit.to_dict() for audit in self.audit_history],
             "adapter_timing_ms": {
                 r.method_name: r.timing_ms for r in self.adapter_results
             },
+            "escalated": self.escalated,
         }
 
 
@@ -101,6 +105,7 @@ def run_full_tournament(
     judge_settings: JudgeSettings | None = None,
     promote: bool = True,
     timeout_s: int = 600,
+    max_audit_attempts: int = MAX_AUDIT_ATTEMPTS,
 ) -> TournamentResult:
     """
     Run the complete converter tournament for one source document.
@@ -108,19 +113,20 @@ def run_full_tournament(
     Pipeline stages:
       1. classify(source_path)              → DocumentTraits
       2. run_tournament(...)                → list[AdapterResult]
-      3. select_winner(...)                 → SelectionResult
-      4. judge_near_tie(...) if near_tie    → JudgeVerdict (winner override)
-      5. promote_winner(...)  if promote    → copy winner dir to staging_root/winner/
+      3. select_candidate(...)              → SelectionResult
+      4. audit ranked candidates            → final audited winner or escalation
+      5. promote_winner(...) if promote     → copy winner dir to staging_root/winner/
 
     Args:
         source_path:        Source document to convert.
         staging_root:       Root dir; each adapter writes to staging_root/{name}/;
                             winner is promoted to staging_root/winner/.
         adapters:           Adapter names to run (default: all implemented adapters).
-        near_tie_threshold: Score delta below which the LLM judge is invoked.
-        judge_settings:     Optional explicit settings for the near-tie judge.
+        near_tie_threshold: Score delta retained for backward-compatible ranking metadata.
+        judge_settings:     Optional explicit settings for the LLM audit.
         promote:            Copy winner staging dir to staging_root/winner/.
         timeout_s:          Per-adapter conversion timeout (seconds).
+        max_audit_attempts: Maximum number of ranked candidates to audit before escalation.
 
     Returns:
         TournamentResult.  Never raises — failures are captured in result fields.
@@ -137,30 +143,22 @@ def run_full_tournament(
     )
 
     # Stage 3: gate + score → select winner
-    selection = select_winner(source_path, staging_root, adapter_names,
-                              near_tie_threshold=near_tie_threshold)
+    selection = select_candidate(source_path, staging_root, adapter_names,
+                                 near_tie_threshold=near_tie_threshold)
 
-    # Stage 4: LLM judge for near-ties
-    judge_verdict: JudgeVerdict | None = None
-    remediation_plan: RemediationPlan | None = None
-    winner = selection.winner
-
-    if selection.near_tie and winner is not None:
-        tie_names = {winner} | set(selection.near_tie_adapters)
-        candidates = [r for r in adapter_results if r.method_name in tie_names]
-        judge_verdict = judge_near_tie(
-            candidates, source_path, traits,
-            settings=judge_settings,
-        )
-        if judge_verdict.succeeded and judge_verdict.violations:
-            remediation_plan = build_remediation_plan(
-                source_path=source_path,
-                candidates=candidates,
-                verdict=judge_verdict,
-                target_adapter="inhouse",
-            )
-        if judge_verdict.succeeded:
-            winner = judge_verdict.preferred_adapter
+    # Stage 4: audit the selected candidate, then retry lower-ranked candidates if needed.
+    audit_result = run_post_selection_audit_loop(
+        selection=selection,
+        adapter_results=adapter_results,
+        source_path=source_path,
+        traits=traits,
+        settings=judge_settings,
+        max_attempts=max_audit_attempts,
+        remediation_target_adapter="inhouse",
+    )
+    judge_verdict = audit_result.final_verdict
+    remediation_plan = audit_result.remediation_plan
+    winner = audit_result.winner
 
     # Stage 5: promote winner
     winner_staging_dir: Path | None = None
@@ -184,9 +182,11 @@ def run_full_tournament(
         selection=selection,
         judge_verdict=judge_verdict,
         remediation_plan=remediation_plan,
+        audit_history=audit_result.audits,
         winner=winner,
         winner_staging_dir=winner_staging_dir,
         promoted=promoted,
+        escalated=audit_result.escalated,
     )
 
 
