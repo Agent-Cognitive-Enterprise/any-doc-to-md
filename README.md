@@ -51,8 +51,8 @@ flowchart TD
     C --> C1[inhouse]
     C --> C2[markitdown]
     C --> C3[docling]
-    C --> C4[pandoc opt-in]
-    C --> C5[marker opt-in]
+    C --> C4[pandoc]
+    C --> C5[marker]
     C1 --> D[Adapter staging dirs]
     C2 --> D
     C3 --> D
@@ -63,6 +63,7 @@ flowchart TD
     F --> G[Select candidate]
     G --> H[Render candidate Markdown to audit PDF]
     H --> I[LLM audit against source]
+    I --> P[Build remediation plan]
     I --> J{Minor or major?}
     J -- minor --> K[Accept winner]
     J -- major --> L[Penalize or disqualify candidate]
@@ -70,7 +71,6 @@ flowchart TD
     M --> H
     K --> N[Promote to winner]
     N --> O[Host project may persist findings in .any-doc-to-md]
-    I --> P[Build remediation plan]
     P --> O
 ```
 
