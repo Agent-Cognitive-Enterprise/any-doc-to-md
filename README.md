@@ -195,6 +195,11 @@ Supported patterns today:
 - `inhouse-extensions/<doc-key>.py` for project-local in-house post-processing
   hooks that can patch the converted staging output for that document
 
+Deterministic scaffold authoring is also available through
+`anydoc2md.remediation_authoring.author_project_local_scaffolds(...)`. It
+turns a persisted remediation plan into reviewable `qa-extensions/*.py` and
+`inhouse-extensions/*.py` stubs without overwriting existing files by default.
+
 This keeps parent-project-specific ADTM learnings out of package source while
 still making them easy to review or share.
 
@@ -221,6 +226,13 @@ The tournament orchestrator supports two audit modes:
 
 Host CLIs can expose that as a user-facing switch. PRAI's KB-pack pipeline CLI
 now exposes it as `--audit-mode auto|light`.
+
+PRAI's KB-pack pipeline CLI also supports:
+
+- `--anydoc2md-dir DIR` to persist findings and project-local hooks under a
+  chosen `.any-doc-to-md` directory
+- `--author-remediation-scaffolds` to write deterministic QA and in-house hook
+  scaffold files from persisted findings
 
 ## Judge Configuration
 

@@ -435,6 +435,11 @@ Likely future additions:
 
 - `evidence-packets/`
 
+Deterministic scaffold authoring is implemented via
+`anydoc2md.remediation_authoring.author_project_local_scaffolds(...)`, which
+translates persisted remediation plans into reviewable hook stubs without
+overwriting existing local files by default.
+
 This keeps parent-project-specific ADTM learnings out of package source while still making them easy to review or share.
 
 ---
