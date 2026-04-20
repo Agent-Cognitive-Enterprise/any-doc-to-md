@@ -120,6 +120,12 @@ Current tournament adapters:
 - `pandoc`
 - `marker`
 
+Adapter selection policy:
+
+- default behavior: run all implemented adapters
+- explicit adapter list: run exactly the adapters requested by the host project or user
+- adapter failures such as missing CLIs are treated as candidate-level failures, not fatal tournament errors
+
 External tools used:
 
 | Adapter | External package / tool | Interface used | Typical input support |
@@ -162,9 +168,10 @@ It differs from the external adapters in two important ways:
 The external adapters are useful as competing opinions in the tournament.
 The in-house path is useful as the package-controlled baseline.
 
-`pandoc` and `marker` are implemented as opt-in adapters. They are available in
-the runtime registry, but they are not part of `DEFAULT_ADAPTERS`, so host
-projects can enable them selectively based on packaging and license posture.
+`pandoc` and `marker` are implemented adapters, not second-class placeholders.
+By design, the default tournament policy should run all implemented adapters.
+Hosts that want tighter control should pass an explicit adapter list instead of
+relying on a partial default set.
 
 ## Project-local ADTM state
 
