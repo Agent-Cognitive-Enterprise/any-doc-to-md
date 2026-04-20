@@ -5,7 +5,7 @@
 - document-to-Markdown conversion
 - structural and fidelity QA over conversion outputs
 - multi-adapter converter tournaments
-- near-tie LLM judging between competing Markdown outputs
+- LLM-assisted source-fidelity auditing of selected candidates
 
 Source lives under `src/anydoc2md/`.
 
@@ -18,15 +18,18 @@ through these stages:
 2. Run the requested adapters into method-scoped staging directories.
 3. Hard-disqualify obviously broken outputs.
 4. Run programmatic QA on surviving candidates and rank them by weighted score.
-5. If the top candidates are near-tied, call the LLM judge.
-6. If the judge returns structured violations, derive a remediation plan aimed
-   at the in-house converter.
-7. Promote the final winner to `winner/` so downstream ingestion reads from one
-   stable location.
+5. Select the current leading candidate.
+6. Audit that candidate against the source via an LLM, using a rendered PDF
+   from the candidate Markdown as the audit surface.
+7. If the LLM finds major issues, optionally build a remediation plan, persist
+   findings in `.any-doc-to-md/`, penalize or disqualify the candidate, and
+   retry with the next ranked candidate.
+8. If the candidate passes the audit, promote it to `winner/`, optionally
+   persist host-project findings, and accept the winner.
 
-The package itself stops there. Host projects can optionally persist findings
-and feed project-local in-house overrides back into later runs via a local
-`.any-doc-to-md/` directory.
+The package owns the reusable tournament logic. Host projects may optionally
+persist findings and feed project-local in-house overrides back into later runs
+via a local `.any-doc-to-md/` directory.
 
 TODO: The current implementation still uses the older near-tie judge trigger.
 The intended ADTM design is different:
@@ -190,7 +193,7 @@ still making them easy to review or share.
 
 ## Judge Configuration
 
-The near-tie judge is configured via `anydoc2md.settings`.
+The current LLM judge configuration is exposed via `anydoc2md.settings`.
 
 Required environment variables:
 
