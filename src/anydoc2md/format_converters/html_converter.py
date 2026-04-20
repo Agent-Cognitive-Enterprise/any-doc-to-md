@@ -7,11 +7,17 @@ and downloads/copies all images into staging_dir/images/.
 Overrides:
     base_url    str     override for resolving relative image URLs
     min_text_len int    10   discard text nodes shorter than this
+    max_image_bytes int  8388608 max bytes to read for any one image
+    allow_network_images bool True allow http(s) image downloads
+    allow_private_network_images bool False allow localhost/private-network image URLs
+    allow_file_outside_html_dir bool False allow file:// images outside the HTML dir
 """
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import re
+import socket
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -49,7 +55,12 @@ def convert(
 
     cfg = load_overrides(staging_dir, overrides)
     min_text_len: int = int(cfg.get("min_text_len", 10))
-    base_url: str = str(cfg.get("base_url", source_url or source_path.parent.as_uri()))
+    default_base_url = source_url or (source_path.parent.as_uri() + "/")
+    base_url: str = str(cfg.get("base_url", default_base_url))
+    max_image_bytes: int = int(cfg.get("max_image_bytes", 8 * 1024 * 1024))
+    allow_network_images: bool = bool(cfg.get("allow_network_images", True))
+    allow_private_network_images: bool = bool(cfg.get("allow_private_network_images", False))
+    allow_file_outside_html_dir: bool = bool(cfg.get("allow_file_outside_html_dir", False))
 
     html = source_path.read_text(encoding="utf-8", errors="replace")
     soup = BeautifulSoup(html, "html.parser")
@@ -72,26 +83,120 @@ def convert(
 
     md_lines: list[str] = [f"# {resolved_title}\n", f"**Source:** {resolved_url}\n", ""]
 
+    html_dir = source_path.parent.resolve()
+
+    def _is_within_root(path: Path, root: Path) -> bool:
+        try:
+            path.relative_to(root)
+        except ValueError:
+            return False
+        return True
+
+    def _is_disallowed_host(hostname: str) -> bool:
+        lowered = hostname.lower().strip(".")
+        if lowered in {"localhost"} or lowered.endswith(".localhost"):
+            return True
+        try:
+            ip = ipaddress.ip_address(hostname)
+            return bool(
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+            )
+        except ValueError:
+            pass
+        try:
+            infos = socket.getaddrinfo(hostname, None)
+        except OSError:
+            return True
+        for info in infos:
+            try:
+                ip = ipaddress.ip_address(info[4][0])
+            except ValueError:
+                continue
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+            ):
+                return True
+        return False
+
+    def _read_limited(resp, limit: int) -> bytes:
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = resp.read(min(64 * 1024, limit - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total >= limit:
+                break
+        return b"".join(chunks)
+
     def _fetch_image(src: str) -> str | None:
         """Download/copy image to images_dir, return relative path or None."""
         nonlocal image_count
         try:
             abs_url = urllib.parse.urljoin(base_url, src)
             if abs_url.startswith("file://"):
-                img_path = Path(urllib.parse.unquote(abs_url[7:]))
+                img_path = Path(urllib.parse.unquote(abs_url[7:])).resolve()
+                if not allow_file_outside_html_dir and not _is_within_root(img_path, html_dir):
+                    warnings.append(
+                        f"Skipping file:// image outside HTML directory: {src!r}"
+                    )
+                    return None
+                try:
+                    size = img_path.stat().st_size
+                except OSError as exc:
+                    warnings.append(f"Could not stat image {src!r}: {exc}")
+                    return None
+                if size > max_image_bytes:
+                    warnings.append(f"Skipping large image {src!r}: {size} bytes")
+                    return None
                 img_bytes = img_path.read_bytes()
                 ext = img_path.suffix or ".png"
             elif abs_url.startswith(("http://", "https://")):
+                if not allow_network_images:
+                    warnings.append(f"Skipping network image (disabled): {src!r}")
+                    return None
+                hostname = urllib.parse.urlparse(abs_url).hostname or ""
+                if hostname and not allow_private_network_images and _is_disallowed_host(hostname):
+                    warnings.append(f"Skipping disallowed network image host: {hostname}")
+                    return None
                 with urllib.request.urlopen(abs_url, timeout=15) as resp:
-                    img_bytes = resp.read()
+                    final_url = resp.geturl()
+                    parsed = urllib.parse.urlparse(final_url)
+                    if parsed.scheme not in {"http", "https"}:
+                        warnings.append(f"Skipping redirected image URL: {final_url}")
+                        return None
+                    final_host = parsed.hostname or ""
+                    if final_host and not allow_private_network_images and _is_disallowed_host(final_host):
+                        warnings.append(f"Skipping redirected disallowed host: {final_host}")
+                        return None
+                    img_bytes = _read_limited(resp, max_image_bytes + 1)
+                if len(img_bytes) > max_image_bytes:
+                    warnings.append(f"Skipping large network image {src!r}: {len(img_bytes)} bytes")
+                    return None
                 ext = "." + abs_url.rsplit(".", 1)[-1].split("?")[0] if "." in abs_url else ".png"
             elif abs_url.startswith("data:"):
                 # inline base64 — decode and save
                 import base64
                 header, data = abs_url.split(",", 1)
                 mime = header.split(";")[0].split(":")[1]
+                if not mime.startswith("image/"):
+                    warnings.append(f"Skipping non-image data URI: {mime}")
+                    return None
                 ext = "." + mime.split("/")[-1]
                 img_bytes = base64.b64decode(data)
+                if len(img_bytes) > max_image_bytes:
+                    warnings.append(f"Skipping large data URI image {src!r}: {len(img_bytes)} bytes")
+                    return None
             else:
                 return None
 

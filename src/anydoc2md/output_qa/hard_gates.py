@@ -31,15 +31,15 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 MIN_MARKDOWN_CHARS: int = 100
-MIN_PRINTABLE_RATIO: float = 0.70   # fraction of chars that must be printable ASCII
+MIN_PRINTABLE_RATIO: float = 0.70   # fraction of chars that must be printable (Unicode)
 MIN_WORD_COVERAGE: float = 0.40     # minimum sampled-word hit-rate vs source PDF
 COVERAGE_SAMPLE_SIZE: int = 12
 
-# Regex shared with checks.py (kept local to avoid coupling)
-_IMG_TAG_RE = re.compile(r'<img\s[^>]*>', re.IGNORECASE)
-_IMG_SRC_RE = re.compile(r'src="([^"]+)"', re.IGNORECASE)
-
 _PRINTABLE = set(string.printable)
+_REPLACEMENT_CHAR = "\ufffd"
+_CONTENT_WORD_RE = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
+
+from anydoc2md.output_qa.image_refs import extract_image_srcs, resolve_local_image_ref
 
 
 # ---------------------------------------------------------------------------
@@ -86,16 +86,13 @@ def gate_not_empty(md_text: str, *, min_chars: int = MIN_MARKDOWN_CHARS) -> Hard
 
 
 def gate_no_broken_image_refs(md_text: str, staging_dir: Path) -> HardGateResult:
-    """Every <img src="..."> must resolve to an existing file under staging_dir."""
+    """Every local image reference must resolve to an existing file under staging_dir."""
     missing: list[str] = []
-    for m in _IMG_TAG_RE.finditer(md_text):
-        src_m = _IMG_SRC_RE.search(m.group(0))
-        if not src_m:
-            continue
-        src = src_m.group(1)
-        if not (staging_dir / src).exists():
-            missing.append(src)
-    passed = len(missing) == 0
+    for src in extract_image_srcs(md_text):
+        _path, reason = resolve_local_image_ref(staging_dir, src)
+        if reason is not None:
+            missing.append(reason)
+    passed = not missing
     return HardGateResult(
         gate_name="no_broken_image_refs",
         passed=passed,
@@ -108,23 +105,31 @@ def gate_no_broken_image_refs(md_text: str, staging_dir: Path) -> HardGateResult
 
 def gate_charset_plausible(md_text: str, *, min_ratio: float = MIN_PRINTABLE_RATIO) -> HardGateResult:
     """
-    Fraction of printable ASCII chars must be >= min_ratio.
+    Fraction of printable characters must be >= min_ratio.
 
-    A very low ratio indicates encoding corruption or binary junk leaking
-    into the markdown (common with some docx → md converters on Windows files).
+    A very low ratio indicates encoding corruption or binary junk leaking into
+    the markdown (common with some docx → md converters on Windows files).
     Short documents (< 200 chars) are skipped — too few chars to be reliable.
     """
     if len(md_text) < 200:
         return HardGateResult(gate_name="charset_plausible", passed=True,
                               reason="Document too short for reliable charset check — skipped.")
-    printable_count = sum(1 for c in md_text if c in _PRINTABLE)
-    ratio = printable_count / len(md_text)
+
+    def _good_char(c: str) -> bool:
+        if c in "\n\r\t":
+            return True
+        if c == _REPLACEMENT_CHAR:
+            return False
+        return c.isprintable()
+
+    good_count = sum(1 for c in md_text if _good_char(c))
+    ratio = good_count / len(md_text)
     passed = ratio >= min_ratio
     return HardGateResult(
         gate_name="charset_plausible",
         passed=passed,
         reason="" if passed else (
-            f"Only {ratio*100:.1f}% printable ASCII chars "
+            f"Only {ratio*100:.1f}% printable chars "
             f"(minimum {min_ratio*100:.0f}%) — likely encoding corruption."
         ),
     )
@@ -170,9 +175,7 @@ def gate_text_coverage_minimum(
             reason=f"Could not read source PDF ({exc}) — gate skipped.",
         )
 
-    unique_words = sorted(set(
-        w.lower() for w in re.findall(r'\b[A-Za-z]{5,}\b', source_text)
-    ))
+    unique_words = sorted(set(w.casefold() for w in _CONTENT_WORD_RE.findall(source_text)))
     if not unique_words:
         return HardGateResult(
             gate_name="text_coverage_minimum",
@@ -183,8 +186,8 @@ def gate_text_coverage_minimum(
     step = max(1, len(unique_words) // COVERAGE_SAMPLE_SIZE)
     sample = unique_words[::step][:COVERAGE_SAMPLE_SIZE]
 
-    md_lower = md_text.lower()
-    hits = sum(1 for w in sample if w in md_lower)
+    md_folded = md_text.casefold()
+    hits = sum(1 for w in sample if w in md_folded)
     coverage = hits / len(sample)
 
     passed = coverage >= min_coverage

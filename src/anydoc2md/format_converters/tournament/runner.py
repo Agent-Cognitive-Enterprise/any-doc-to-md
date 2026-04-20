@@ -69,7 +69,11 @@ def run_tournament(
         module = _load_adapter(name)
         staging_dir = staging_root / name
         staging_dir.mkdir(parents=True, exist_ok=True)
-        return module.run(source_path, staging_dir)
+        try:
+            return module.run(source_path, staging_dir, timeout_s=timeout_s)
+        except TypeError:
+            # Backward compatibility for adapters that haven't been updated yet.
+            return module.run(source_path, staging_dir)
 
     with ThreadPoolExecutor(max_workers=min(max_workers, len(names))) as pool:
         futures = {pool.submit(_run_one, name): name for name in names}

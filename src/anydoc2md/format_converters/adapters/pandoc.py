@@ -47,7 +47,12 @@ def supports(source_path: Path) -> bool:
     return source_path.suffix.lower() in _INPUT_FORMATS
 
 
-def run(source_path: Path, staging_dir: Path) -> AdapterResult:
+def run(
+    source_path: Path,
+    staging_dir: Path,
+    *,
+    timeout_s: int = 300,
+) -> AdapterResult:
     """Convert source_path with pandoc, writing index.md into staging_dir."""
     staging_dir.mkdir(parents=True, exist_ok=True)
     (staging_dir / "images").mkdir(exist_ok=True)
@@ -80,7 +85,7 @@ def run(source_path: Path, staging_dir: Path) -> AdapterResult:
         "-o", str(output_path),
     ]
     command_str = " ".join(cmd)
-    exit_code, _stdout, stderr, timing_ms = run_subprocess(cmd, timeout_s=300)
+    exit_code, _stdout, stderr, timing_ms = run_subprocess(cmd, timeout_s=timeout_s)
 
     if exit_code == -2:
         return error_result(

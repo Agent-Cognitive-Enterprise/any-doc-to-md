@@ -66,6 +66,11 @@ def test_numbered_list_sequential_single_item_passes() -> None:
     result = check_numbered_list_sequential(md)
     assert result.status == "pass"
 
+def test_numbered_list_sequential_restart_after_blank_line_passes() -> None:
+    md = "1. First\n2. Second\n\n1. Restart\n2. Next\n"
+    result = check_numbered_list_sequential(md)
+    assert result.status == "pass"
+
 
 # ---------------------------------------------------------------------------
 # check_heading_not_fragmented
@@ -194,12 +199,27 @@ def test_images_locally_resolvable_pass(tmp_path: Path) -> None:
     result = check_images_locally_resolvable(md, tmp_path)
     assert result.status == "pass"
 
+def test_images_locally_resolvable_markdown_pass(tmp_path: Path) -> None:
+    img_dir = tmp_path / "images"
+    img_dir.mkdir()
+    (img_dir / "fig1.png").write_bytes(b"fake")
+    md = "![Figure](images/fig1.png)\n"
+    result = check_images_locally_resolvable(md, tmp_path)
+    assert result.status == "pass"
+
 
 def test_images_locally_resolvable_fail_missing(tmp_path: Path) -> None:
     md = '<img src="images/missing.png" style="width:10em" />\n'
     result = check_images_locally_resolvable(md, tmp_path)
     assert result.status == "fail"
     assert "missing.png" in result.details[0]
+
+def test_images_locally_resolvable_fails_on_traversal(tmp_path: Path) -> None:
+    (tmp_path / "secret.png").write_bytes(b"fake")
+    md = "![x](../secret.png)\n"
+    result = check_images_locally_resolvable(md, tmp_path)
+    assert result.status == "fail"
+    assert "escapes" in result.details[0].lower()
 
 
 def test_images_locally_resolvable_no_images_pass(tmp_path: Path) -> None:

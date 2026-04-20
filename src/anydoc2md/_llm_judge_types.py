@@ -1,0 +1,64 @@
+"""Types shared by the LLM judge helpers."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class JudgeViolation:
+    """Structured issue identified by the LLM judge."""
+
+    type: str
+    severity: str
+    count: int = 1
+    pages: list[int] = field(default_factory=list)
+    confidence: float = 0.0
+    evidence: str = ""
+    root_cause: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type,
+            "severity": self.severity,
+            "count": self.count,
+            "pages": list(self.pages),
+            "confidence": self.confidence,
+            "evidence": self.evidence,
+            "root_cause": self.root_cause,
+        }
+
+
+@dataclass(frozen=True)
+class JudgeVerdict:
+    """Structured output from the LLM judge."""
+
+    preferred_adapter: str  # winner adapter name; "" when confidence=="error"
+    confidence: str  # "high" | "medium" | "low" | "error"
+    reasoning: str  # prose explanation
+    notes: dict[str, str]  # {adapter_name: brief_note}
+    model_used: str
+    tokens_used: int
+    violations: list[JudgeViolation] = field(default_factory=list)
+    overall_confidence: float | None = None
+    uncertainty_note: str = ""
+    error: str = ""  # non-empty only on failure
+
+    @property
+    def succeeded(self) -> bool:
+        return self.confidence != "error"
+
+    def to_dict(self) -> dict:
+        return {
+            "preferred_adapter": self.preferred_adapter,
+            "confidence": self.confidence,
+            "reasoning": self.reasoning,
+            "notes": self.notes,
+            "model_used": self.model_used,
+            "tokens_used": self.tokens_used,
+            "violations": [violation.to_dict() for violation in self.violations],
+            "overall_confidence": self.overall_confidence,
+            "uncertainty_note": self.uncertainty_note,
+            "error": self.error,
+        }
+

@@ -15,6 +15,11 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from anydoc2md.output_qa.image_refs import (
+    extract_image_srcs,
+    image_ref_key,
+    resolve_local_image_ref,
+)
 
 # ---------------------------------------------------------------------------
 # Result model
@@ -44,6 +49,7 @@ DOUBLE_BULLET_RE = re.compile(r'^[-*]\s+[•\-\*]\s+', re.MULTILINE)
 # Figure/Fig. captions only — Table captions may legitimately be text tables
 CAPTION_RE = re.compile(r'^\*(Figure|Fig\.)\s+\d+(\.\d+)*\.\s', re.MULTILINE | re.IGNORECASE)
 BOX_HEADING_RE = re.compile(r'^#{1,6}\s+Box\s+\d+(\.\d+)*\.', re.MULTILINE | re.IGNORECASE)
+_CONTENT_WORD_RE = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
 
 
 def _lines(md_text: str) -> list[str]:
@@ -79,12 +85,20 @@ def check_numbered_list_sequential(md_text: str) -> CheckResult:
             continue
         run = [int(m.group(1))]
         j = i + 1
+        saw_blank = False
         while j < len(lines):
             m2 = re.match(r'^(\d+)\.\s+\S', lines[j])
             if m2:
-                run.append(int(m2.group(1)))
+                value = int(m2.group(1))
+                # Two separate lists often restart at 1 after a blank line.
+                # Treat that as a new list boundary to avoid false positives.
+                if saw_blank and value == 1:
+                    break
+                run.append(value)
                 j += 1
+                saw_blank = False
             elif lines[j].strip() == "":
+                saw_blank = True
                 j += 1
             else:
                 break
@@ -221,17 +235,14 @@ def check_no_repeated_headings(md_text: str) -> CheckResult:
 
 def check_images_locally_resolvable(md_text: str, staging_dir: Path) -> CheckResult:
     """
-    Every <img src="images/..."> in the MD must resolve to an existing file
-    in staging_dir.  Catches write failures and path mismatches.
+    Every local image reference in the MD must resolve to an existing file in
+    staging_dir. Catches write failures and path mismatches.
     """
     missing: list[str] = []
-    for m in IMG_TAG_RE.finditer(md_text):
-        src_m = IMG_SRC_RE.search(m.group(0))
-        if not src_m:
-            continue
-        src = src_m.group(1)
-        if not (staging_dir / src).exists():
-            missing.append(src)
+    for src in extract_image_srcs(md_text):
+        _path, reason = resolve_local_image_ref(staging_dir, src)
+        if reason is not None:
+            missing.append(reason)
     if missing:
         return CheckResult(
             name="images_locally_resolvable", layer=1, status="fail",
@@ -281,8 +292,9 @@ def check_image_count_match(md_text: str, source_path: Path) -> CheckResult:
     doc.close()
 
     source_count = len(seen)
-    # Count both HTML <img> tags and Markdown ![]() refs (union, not double-count)
-    md_count = len(IMG_TAG_RE.findall(md_text)) + len(_MD_IMG_REF_RE.findall(md_text))
+    # Count unique image references across both HTML and Markdown syntaxes.
+    md_refs = {image_ref_key(src) for src in extract_image_srcs(md_text)}
+    md_count = len(md_refs)
 
     if source_count == 0 and md_count == 0:
         return CheckResult(name="image_count_match", layer=2, status="pass",
@@ -318,9 +330,7 @@ def check_text_coverage(md_text: str, source_path: Path, sample_size: int = 12) 
     source_text = "\n".join(page.get_text("text", sort=True) for page in doc)
     doc.close()
 
-    unique_words = sorted(set(
-        w.lower() for w in re.findall(r'\b[A-Za-z]{5,}\b', source_text)
-    ))
+    unique_words = sorted(set(w.casefold() for w in _CONTENT_WORD_RE.findall(source_text)))
     if not unique_words:
         return CheckResult(name="text_coverage", layer=2, status="pass",
                            message="No content words found in source — skipping.")
@@ -328,8 +338,8 @@ def check_text_coverage(md_text: str, source_path: Path, sample_size: int = 12) 
     step = max(1, len(unique_words) // sample_size)
     sample = unique_words[::step][:sample_size]
 
-    md_lower = md_text.lower()
-    missing = [w for w in sample if w not in md_lower]
+    md_folded = md_text.casefold()
+    missing = [w for w in sample if w not in md_folded]
     n = len(sample)
     coverage = (n - len(missing)) / n if n else 1.0
 

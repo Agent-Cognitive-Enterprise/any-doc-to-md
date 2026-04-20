@@ -25,12 +25,18 @@ def supports(source_path: Path) -> bool:
     return source_path.suffix.lower() in SUPPORTED_EXTENSIONS
 
 
-def run(source_path: Path, staging_dir: Path) -> AdapterResult:
+def run(
+    source_path: Path,
+    staging_dir: Path,
+    *,
+    timeout_s: int = 0,
+) -> AdapterResult:
     """
     Convert source_path using the existing in-house converter pipeline.
 
     Writes index.md + images/ into staging_dir.
     """
+    _ = timeout_s  # in-house conversion is in-process; no subprocess timeout applies.
     staging_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()
 
@@ -48,7 +54,7 @@ def run(source_path: Path, staging_dir: Path) -> AdapterResult:
         apply_inhouse_extension(
             source_path=source_path,
             staging_dir=staging_dir,
-            converter_name=converter.__class__.__name__,
+            converter_name=converter.__name__.split(".")[-1],
         )
         timing_ms = int((time.monotonic() - t0) * 1000)
     except Exception as exc:

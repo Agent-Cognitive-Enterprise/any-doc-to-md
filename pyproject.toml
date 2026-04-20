@@ -12,14 +12,18 @@ license = { text = "MIT" }
 authors = [
   { name = "Agent Cognitive Enterprise" },
 ]
+dependencies = [
+  "PyMuPDF",
+  "PyYAML",
+  "beautifulsoup4",
+  "requests",
+]
 
 [project.optional-dependencies]
 test = [
   "pytest",
   "Pillow",
-  "PyMuPDF",
   "python-docx",
-  "requests",
 ]
 
 [tool.setuptools]

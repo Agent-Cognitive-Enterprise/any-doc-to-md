@@ -135,12 +135,33 @@ class TestGateNoBrokenImageRefs:
         md = '<img src="images/fig.png" alt="x" width="10" height="10">'
         assert gate_no_broken_image_refs(md, d).passed is True
 
+    def test_pass_when_markdown_image_ref_exists(self, tmp_path: Path) -> None:
+        d = _staging(tmp_path)
+        _write_png(d / "images" / "fig.png")
+        md = "![Figure](images/fig.png)\n"
+        assert gate_no_broken_image_refs(md, d).passed is True
+
     def test_fail_when_ref_missing(self, tmp_path: Path) -> None:
         d = _staging(tmp_path)
         md = '<img src="images/missing.png" alt="x" width="10" height="10">'
         r = gate_no_broken_image_refs(md, d)
         assert r.passed is False
         assert "missing.png" in r.reason
+
+    def test_fail_when_markdown_image_ref_missing(self, tmp_path: Path) -> None:
+        d = _staging(tmp_path)
+        md = "![x](images/missing.png)\n"
+        r = gate_no_broken_image_refs(md, d)
+        assert r.passed is False
+        assert "missing.png" in r.reason
+
+    def test_fail_when_image_ref_escapes_staging_dir(self, tmp_path: Path) -> None:
+        d = _staging(tmp_path)
+        (tmp_path / "secret.png").write_bytes(b"fake")
+        md = "![x](../secret.png)\n"
+        r = gate_no_broken_image_refs(md, d)
+        assert r.passed is False
+        assert "escapes" in r.reason.lower()
 
     def test_reason_truncates_at_3_missing(self, tmp_path: Path) -> None:
         d = _staging(tmp_path)
@@ -184,6 +205,10 @@ class TestGateCharsetPlausible:
         # Real docs mix ASCII + unicode — let's confirm majority-ASCII passes
         md = "Normal markdown text with some unicode: café, naïve. " * 10
         # cafe, naive etc are mostly ASCII — should pass at 0.70 threshold
+        assert gate_charset_plausible(md).passed is True
+
+    def test_non_latin_docs_pass(self) -> None:
+        md = "这是一段中文内容，用于测试字符集门禁。 " * 20
         assert gate_charset_plausible(md).passed is True
 
 

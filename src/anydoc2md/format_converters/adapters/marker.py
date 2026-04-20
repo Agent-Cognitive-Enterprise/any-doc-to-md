@@ -39,7 +39,12 @@ def supports(source_path: Path) -> bool:
     return source_path.suffix.lower() in SUPPORTED_EXTENSIONS
 
 
-def run(source_path: Path, staging_dir: Path) -> AdapterResult:
+def run(
+    source_path: Path,
+    staging_dir: Path,
+    *,
+    timeout_s: int = 900,
+) -> AdapterResult:
     """Convert source_path with marker, normalizing output into staging layout."""
     staging_dir.mkdir(parents=True, exist_ok=True)
 
@@ -68,7 +73,7 @@ def run(source_path: Path, staging_dir: Path) -> AdapterResult:
         "--output_format", "markdown",
     ]
     command_str = " ".join(cmd)
-    exit_code, _stdout, stderr, timing_ms = run_subprocess(cmd, timeout_s=900)
+    exit_code, _stdout, stderr, timing_ms = run_subprocess(cmd, timeout_s=timeout_s)
 
     if exit_code == -2:
         return error_result(

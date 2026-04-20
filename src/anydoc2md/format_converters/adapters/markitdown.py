@@ -41,8 +41,23 @@ def supports(source_path: Path) -> bool:
     return source_path.suffix.lower() in SUPPORTED_EXTENSIONS
 
 
-def run(source_path: Path, staging_dir: Path) -> AdapterResult:
+def run(
+    source_path: Path,
+    staging_dir: Path,
+    *,
+    timeout_s: int = 300,
+) -> AdapterResult:
     """Convert source_path with markitdown, writing index.md into staging_dir."""
+    return run_with_timeout(source_path, staging_dir, timeout_s=timeout_s)
+
+
+def run_with_timeout(
+    source_path: Path,
+    staging_dir: Path,
+    *,
+    timeout_s: int = 300,
+) -> AdapterResult:
+    """Convert source_path with markitdown, honoring a per-run timeout."""
     staging_dir.mkdir(parents=True, exist_ok=True)
     (staging_dir / "images").mkdir(exist_ok=True)
 
@@ -68,7 +83,7 @@ def run(source_path: Path, staging_dir: Path) -> AdapterResult:
     cmd = [cli, str(source_path), "-o", str(output_path)]
     command_str = " ".join(cmd)
 
-    exit_code, _stdout, stderr, timing_ms = run_subprocess(cmd, timeout_s=300)
+    exit_code, _stdout, stderr, timing_ms = run_subprocess(cmd, timeout_s=timeout_s)
 
     if exit_code == -2:
         return error_result(
