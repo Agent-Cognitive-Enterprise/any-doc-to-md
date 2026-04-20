@@ -11,43 +11,68 @@ Source lives under `src/anydoc2md/`.
 
 ## How It Works
 
-At a high level, `anydoc2md` classifies a source document, runs one or more
-converter methods, applies hard quality gates, scores the surviving outputs,
-and optionally asks an LLM judge to break near-ties. When the host project
-provides a project-local `.any-doc-to-md/` directory, tournament findings can
-also be persisted there for LLM-only review loops or for coding-agent follow-up
-via in-house override files.
+`anydoc2md` owns the reusable conversion tournament itself. A typical run goes
+through these stages:
+
+1. Classify the source document to capture rough structural traits.
+2. Run the requested adapters into method-scoped staging directories.
+3. Hard-disqualify obviously broken outputs.
+4. Run programmatic QA on surviving candidates and rank them by weighted score.
+5. If the top candidates are near-tied, call the LLM judge.
+6. If the judge returns structured violations, derive a remediation plan aimed
+   at the in-house converter.
+7. Promote the final winner to `winner/` so downstream ingestion reads from one
+   stable location.
+
+The package itself stops there. Host projects can optionally persist findings
+and feed project-local in-house overrides back into later runs via a local
+`.any-doc-to-md/` directory.
 
 ```mermaid
 flowchart TD
     A[Source document] --> B[classify_document]
-    B --> C[Run adapters]
+    B --> C[run_tournament]
     C --> C1[inhouse]
     C --> C2[markitdown]
     C --> C3[docling]
-    C --> C4[pandoc]
-    C --> C5[marker]
-    C1 --> D[Normalized staging dirs]
+    C --> C4[pandoc opt-in]
+    C --> C5[marker opt-in]
+    C1 --> D[adapter staging dirs]
     C2 --> D
     C3 --> D
-    D --> E[Hard gates]
-    E --> F[Weighted QA scoring]
-    F --> G{Near tie?}
-    G -- No --> H[Score winner]
-    G -- Yes --> I[LLM judge]
-    I --> J[Final winner]
-    H --> J
-    J --> K[winner/ promoted output]
+    C4 --> D
+    C5 --> D
+    D --> E[run_hard_gates]
+    E --> F[run_all QA plus build_scorecard]
+    F --> G[select_winner]
+    G --> H{near tie?}
+    H -- no --> I[score winner]
+    H -- yes --> J[judge_near_tie]
+    J --> K{structured violations?}
+    K -- yes --> L[build_remediation_plan]
+    K -- no --> M[final winner]
+    I --> M
+    J --> M
+    L --> M
+    M --> N[promote to winner/]
+    N --> O[host project may persist findings in .any-doc-to-md]
 ```
 
-Standard staging layout for each method:
+Per-adapter staging layout:
 
 - `index.md`
 - `images/`
-- `result.json`
+- `adapter_result.json`
+
+Promoted winner layout:
+
+- `winner/index.md`
+- `winner/images/`
+- `winner/qa_report.json`
+- `winner/remediation_plan.json` when judge findings produced one
 
 That normalized layout is what lets the tournament compare different
-converters uniformly.
+converters uniformly and lets host projects ingest one stable winner path.
 
 ## Scope
 
