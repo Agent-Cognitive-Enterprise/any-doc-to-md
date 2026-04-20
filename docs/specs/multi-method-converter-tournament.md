@@ -30,6 +30,8 @@ Implemented today:
 - weighted programmatic QA scoring
 - score-based candidate selection
 - post-selection LLM audit loop over ranked candidates with a compact source evidence packet, a rendered candidate PDF, and bounded supporting evidence
+- major-finding penalty and rescore of the currently audited candidate before advancing to the next ranked candidate
+- `auto` vs `light` audit modes, where `auto` falls back to score-only selection if no judge is configured
 - persisted ADTM findings under project-local `.any-doc-to-md/` state when the host project enables it
 - winner promotion into a stable `winner/` staging dir
 
@@ -68,8 +70,9 @@ Stage 2: Hard disqualification gates (blank output, major content loss, etc.)
 Stage 3: Weighted QA scoring (structured violation report per candidate)
 Stage 4: Candidate selection (lowest weighted score, log losers)
 Stage 5: LLM source-fidelity audit of the selected candidate
-Stage 6: Fix-learning loop (coding agent codifies failures as tests + rules)
-Stage 7: Human escalation (if max retries exhausted)
+Stage 6: Penalty/rescore current candidate and continue only if it no longer leads
+Stage 7: Fix-learning loop (coding agent codifies failures as tests + rules)
+Stage 8: Human escalation (if max retries exhausted)
 ```
 
 ---
@@ -321,11 +324,12 @@ Suggested control flow:
 1. rank candidates programmatically
 2. select current leading candidate
 3. render candidate Markdown to audit PDF
-4. run LLM audit against source
+4. run LLM audit against source unless the host selected light mode
 5. if only minor issues are found, promote and accept winner
-6. if major issues are found, persist findings, penalize or disqualify the candidate, and move to the next ranked candidate
-7. allow at most 3 LLM audits per document
-8. escalate to human review when the audit budget is exhausted
+6. if major issues are found, persist findings and rescore the current candidate with an LLM penalty
+7. if the rescored candidate still leads, accept it with findings; otherwise move to the next ranked candidate
+8. allow at most 3 LLM audits per document
+9. escalate to human review when the audit budget is exhausted
 
 The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and builds a compact sampled source evidence packet with page-oriented snippets. It still lacks broader page/block coverage and richer evidence packets for large documents.
 

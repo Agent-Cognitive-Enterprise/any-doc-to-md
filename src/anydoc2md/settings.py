@@ -12,6 +12,10 @@ ENV_JUDGE_MAX_TOKENS = "ANYDOC2MD_JUDGE_MAX_TOKENS"
 ENV_JUDGE_DISABLE_THINKING = "ANYDOC2MD_JUDGE_DISABLE_THINKING"
 ENV_JUDGE_TEMPERATURE = "ANYDOC2MD_JUDGE_TEMPERATURE"
 
+AUDIT_MODE_AUTO = "auto"
+AUDIT_MODE_LIGHT = "light"
+VALID_AUDIT_MODES = frozenset({AUDIT_MODE_AUTO, AUDIT_MODE_LIGHT})
+
 DEFAULT_JUDGE_TIMEOUT_S = 90
 DEFAULT_JUDGE_MAX_TOKENS = 4096
 DEFAULT_JUDGE_DISABLE_THINKING = True
@@ -32,6 +36,17 @@ class JudgeSettings:
     max_tokens: int = DEFAULT_JUDGE_MAX_TOKENS
     disable_thinking: bool = DEFAULT_JUDGE_DISABLE_THINKING
     temperature: float = DEFAULT_JUDGE_TEMPERATURE
+
+
+def normalize_audit_mode(value: str) -> str:
+    """Validate and normalize a requested tournament audit mode."""
+    normalized = value.strip().lower()
+    if normalized not in VALID_AUDIT_MODES:
+        valid = ", ".join(sorted(VALID_AUDIT_MODES))
+        raise AnyDocToMdConfigError(
+            f"Unsupported anydoc2md audit mode {value!r}; expected one of: {valid}"
+        )
+    return normalized
 
 
 def load_judge_settings_from_env() -> JudgeSettings:

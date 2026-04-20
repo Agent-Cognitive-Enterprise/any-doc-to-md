@@ -49,7 +49,14 @@ from anydoc2md.format_converters.tournament.selector import (
     select_candidate,
 )
 from anydoc2md.llm_judge import JudgeVerdict
-from anydoc2md.settings import JudgeSettings
+from anydoc2md.settings import (
+    AUDIT_MODE_AUTO,
+    AUDIT_MODE_LIGHT,
+    AnyDocToMdConfigError,
+    JudgeSettings,
+    load_judge_settings_from_env,
+    normalize_audit_mode,
+)
 
 WINNER_DIR_NAME = "winner"
 
@@ -69,6 +76,7 @@ class TournamentResult:
     judge_verdict: JudgeVerdict | None
     remediation_plan: RemediationPlan | None
     audit_history: list[CandidateAudit]
+    audit_mode: str
     winner: str | None
     winner_staging_dir: Path | None
     promoted: bool
@@ -85,6 +93,7 @@ class TournamentResult:
             "judge_verdict": self.judge_verdict.to_dict() if self.judge_verdict else None,
             "remediation_plan": self.remediation_plan.to_dict() if self.remediation_plan else None,
             "audit_history": [audit.to_dict() for audit in self.audit_history],
+            "audit_mode": self.audit_mode,
             "adapter_timing_ms": {
                 r.method_name: r.timing_ms for r in self.adapter_results
             },
@@ -103,6 +112,7 @@ def run_full_tournament(
     *,
     near_tie_threshold: float = NEAR_TIE_THRESHOLD,
     judge_settings: JudgeSettings | None = None,
+    audit_mode: str = AUDIT_MODE_AUTO,
     promote: bool = True,
     timeout_s: int = 600,
     max_audit_attempts: int = MAX_AUDIT_ATTEMPTS,
@@ -124,6 +134,9 @@ def run_full_tournament(
         adapters:           Adapter names to run (default: all implemented adapters).
         near_tie_threshold: Score delta retained for backward-compatible ranking metadata.
         judge_settings:     Optional explicit settings for the LLM audit.
+        audit_mode:         "auto" uses the judge when configured, otherwise
+                            falls back to score-only light mode. "light" skips
+                            the LLM audit and accepts the selected candidate.
         promote:            Copy winner staging dir to staging_root/winner/.
         timeout_s:          Per-adapter conversion timeout (seconds).
         max_audit_attempts: Maximum number of ranked candidates to audit before escalation.
@@ -132,6 +145,7 @@ def run_full_tournament(
         TournamentResult.  Never raises — failures are captured in result fields.
     """
     adapter_names = adapters or available_adapter_names()
+    normalized_audit_mode = normalize_audit_mode(audit_mode)
     staging_root.mkdir(parents=True, exist_ok=True)
 
     # Stage 1: classify
@@ -147,18 +161,28 @@ def run_full_tournament(
                                  near_tie_threshold=near_tie_threshold)
 
     # Stage 4: audit the selected candidate, then retry lower-ranked candidates if needed.
-    audit_result = run_post_selection_audit_loop(
-        selection=selection,
-        adapter_results=adapter_results,
-        source_path=source_path,
-        traits=traits,
-        settings=judge_settings,
-        max_attempts=max_audit_attempts,
-        remediation_target_adapter="inhouse",
+    resolved_judge_settings = _resolve_judge_settings(
+        audit_mode=normalized_audit_mode,
+        judge_settings=judge_settings,
     )
-    judge_verdict = audit_result.final_verdict
-    remediation_plan = audit_result.remediation_plan
-    winner = audit_result.winner
+    if normalized_audit_mode == AUDIT_MODE_LIGHT or resolved_judge_settings is None:
+        audit_result = None
+        judge_verdict = None
+        remediation_plan = None
+        winner = selection.candidate
+    else:
+        audit_result = run_post_selection_audit_loop(
+            selection=selection,
+            adapter_results=adapter_results,
+            source_path=source_path,
+            traits=traits,
+            settings=resolved_judge_settings,
+            max_attempts=max_audit_attempts,
+            remediation_target_adapter="inhouse",
+        )
+        judge_verdict = audit_result.final_verdict
+        remediation_plan = audit_result.remediation_plan
+        winner = audit_result.winner
 
     # Stage 5: promote winner
     winner_staging_dir: Path | None = None
@@ -182,11 +206,12 @@ def run_full_tournament(
         selection=selection,
         judge_verdict=judge_verdict,
         remediation_plan=remediation_plan,
-        audit_history=audit_result.audits,
+        audit_history=[] if audit_result is None else audit_result.audits,
+        audit_mode=normalized_audit_mode if resolved_judge_settings is not None else AUDIT_MODE_LIGHT,
         winner=winner,
         winner_staging_dir=winner_staging_dir,
         promoted=promoted,
-        escalated=audit_result.escalated,
+        escalated=False if audit_result is None else audit_result.escalated,
     )
 
 
@@ -199,3 +224,18 @@ def _promote(src: Path, dst: Path) -> None:
     if dst.exists():
         shutil.rmtree(dst)
     shutil.copytree(src, dst)
+
+
+def _resolve_judge_settings(
+    *,
+    audit_mode: str,
+    judge_settings: JudgeSettings | None,
+) -> JudgeSettings | None:
+    if audit_mode == AUDIT_MODE_LIGHT:
+        return None
+    if judge_settings is not None:
+        return judge_settings
+    try:
+        return load_judge_settings_from_env()
+    except AnyDocToMdConfigError:
+        return None

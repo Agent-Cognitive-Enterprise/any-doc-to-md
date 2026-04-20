@@ -31,6 +31,7 @@ from anydoc2md.format_converters.tournament.selector import (
 )
 from anydoc2md.llm_judge import JudgeVerdict, JudgeViolation
 from anydoc2md.output_qa.scoring import ScoreCard
+from anydoc2md.settings import AUDIT_MODE_AUTO, AUDIT_MODE_LIGHT, JudgeSettings
 
 MOCK_BASE = "anydoc2md.format_converters.tournament.orchestrator"
 
@@ -100,6 +101,10 @@ def _verdict(name: str, confidence: str = "high") -> JudgeVerdict:
     )
 
 
+def _judge_settings() -> JudgeSettings:
+    return JudgeSettings(url="http://judge.local/v1/chat/completions", model="test-model")
+
+
 def _verdict_with_major(name: str) -> JudgeVerdict:
     return JudgeVerdict(
         preferred_adapter=name,
@@ -164,6 +169,7 @@ class TestTournamentResultContract:
             judge_verdict=None,
             remediation_plan=None,
             audit_history=[],
+            audit_mode=AUDIT_MODE_LIGHT,
             winner="inhouse",
             winner_staging_dir=tmp_path / WINNER_DIR_NAME,
             promoted=True,
@@ -179,6 +185,7 @@ class TestTournamentResultContract:
             "selection",
             "judge_verdict",
             "audit_history",
+            "audit_mode",
             "adapter_timing_ms",
             "escalated",
         ):
@@ -198,7 +205,13 @@ class TestOrchestratorFlow:
              patch(f"{MOCK_BASE}.run_tournament", return_value=[]) as tournament_mock, \
              patch(f"{MOCK_BASE}.select_candidate", return_value=selection) as selector_mock, \
              patch(f"{MOCK_BASE}.run_post_selection_audit_loop", return_value=audit_result) as audit_mock:
-            run_full_tournament(source_path, staging_root, adapters=None, promote=False)
+            run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=None,
+                judge_settings=_judge_settings(),
+                promote=False,
+            )
 
         adapters_mock.assert_called_once_with()
         tournament_mock.assert_called_once_with(
@@ -225,10 +238,15 @@ class TestOrchestratorFlow:
             audit_result=audit_result,
         )
         with classify_p, tour_p, sel_p, audit_p:
-            result = run_full_tournament(tmp_path / "doc.pdf", tmp_path / "staging")
+            result = run_full_tournament(
+                tmp_path / "doc.pdf",
+                tmp_path / "staging",
+                judge_settings=_judge_settings(),
+            )
         assert result.winner == "inhouse"
         assert result.judge_verdict is not None
         assert result.judge_verdict.preferred_adapter == "inhouse"
+        assert result.audit_mode == AUDIT_MODE_AUTO
 
     def test_remediation_plan_and_audit_history_are_stored(self, tmp_path: Path) -> None:
         selection = _selection("docling", "docling", "inhouse")
@@ -257,7 +275,11 @@ class TestOrchestratorFlow:
             audit_result=audit_result,
         )
         with classify_p, tour_p, sel_p, audit_p:
-            result = run_full_tournament(tmp_path / "doc.pdf", tmp_path / "staging")
+            result = run_full_tournament(
+                tmp_path / "doc.pdf",
+                tmp_path / "staging",
+                judge_settings=_judge_settings(),
+            )
         assert result.remediation_plan is not None
         assert result.remediation_plan.target_adapter == "inhouse"
         assert len(result.audit_history) == 2
@@ -278,10 +300,38 @@ class TestOrchestratorFlow:
             audit_result=audit_result,
         )
         with classify_p, tour_p, sel_p, audit_p:
-            result = run_full_tournament(tmp_path / "doc.pdf", tmp_path / "staging")
+            result = run_full_tournament(
+                tmp_path / "doc.pdf",
+                tmp_path / "staging",
+                judge_settings=_judge_settings(),
+            )
         assert result.winner is None
         assert result.escalated is True
         assert result.promoted is False
+
+    def test_light_mode_skips_llm_audit(self, tmp_path: Path) -> None:
+        source_path = tmp_path / "doc.pdf"
+        staging_root = tmp_path / "staging"
+        source_path.write_bytes(b"%PDF-1.4")
+        selection = _selection("inhouse", "docling")
+
+        with patch(f"{MOCK_BASE}.available_adapter_names", return_value=["inhouse", "docling"]), \
+             patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament", return_value=[]), \
+             patch(f"{MOCK_BASE}.select_candidate", return_value=selection), \
+             patch(f"{MOCK_BASE}.run_post_selection_audit_loop") as audit_mock:
+            result = run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=None,
+                audit_mode=AUDIT_MODE_LIGHT,
+                promote=False,
+            )
+
+        audit_mock.assert_not_called()
+        assert result.winner == "inhouse"
+        assert result.judge_verdict is None
+        assert result.audit_mode == AUDIT_MODE_LIGHT
 
 
 class TestPromotionBehavior:
@@ -296,7 +346,11 @@ class TestPromotionBehavior:
              patch(f"{MOCK_BASE}.run_tournament", return_value=[_adapter_result("inhouse", staging)]), \
              patch(f"{MOCK_BASE}.select_candidate", return_value=selection), \
              patch(f"{MOCK_BASE}.run_post_selection_audit_loop", return_value=audit_result):
-            result = run_full_tournament(tmp_path / "doc.pdf", staging)
+            result = run_full_tournament(
+                tmp_path / "doc.pdf",
+                staging,
+                judge_settings=_judge_settings(),
+            )
 
         assert result.promoted is True
         assert result.winner_staging_dir == staging / WINNER_DIR_NAME
@@ -313,7 +367,12 @@ class TestPromotionBehavior:
             audit_result=audit_result,
         )
         with classify_p, tour_p, sel_p, audit_p:
-            result = run_full_tournament(tmp_path / "doc.pdf", staging, promote=False)
+            result = run_full_tournament(
+                tmp_path / "doc.pdf",
+                staging,
+                judge_settings=_judge_settings(),
+                promote=False,
+            )
         assert result.promoted is False
         assert result.winner_staging_dir == staging / "inhouse"
 
@@ -334,7 +393,11 @@ class TestPromotionBehavior:
             audit_result=audit_result,
         )
         with classify_p, tour_p, sel_p, audit_p:
-            result = run_full_tournament(tmp_path / "doc.pdf", tmp_path / "staging")
+            result = run_full_tournament(
+                tmp_path / "doc.pdf",
+                tmp_path / "staging",
+                judge_settings=_judge_settings(),
+            )
         assert result.winner is None
         assert result.winner_staging_dir is None
         assert result.promoted is False

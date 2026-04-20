@@ -31,25 +31,15 @@ through these stages:
    evidence packet, the rendered candidate PDF, and the candidate Markdown as
    supporting detail.
 9. If the LLM finds major issues, optionally build a remediation plan, persist
-   findings in `.any-doc-to-md/`, penalize or disqualify the candidate, and
-   retry with the next ranked candidate.
+   findings in `.any-doc-to-md/`, penalize and rescore the candidate, and
+   retry with the next ranked candidate only if the rescored candidate is no
+   longer leading.
 10. If the candidate passes the audit, promote it to `winner/`, optionally
    persist host-project findings, and accept the winner.
 
 The package owns the reusable tournament logic. Host projects may optionally
 persist findings and feed project-local in-house overrides back into later runs
 via a local `.any-doc-to-md/` directory.
-
-The intended end-state is still slightly richer than the current implementation:
-
-1. programmatic QA selects the current leading candidate
-2. an LLM audit compares the source artifact with a rendered PDF produced from
-   that candidate Markdown
-3. if the LLM finds only minor issues, the candidate becomes the winner
-4. if the LLM finds major issues, the candidate is penalized or disqualified
-   and the next ranked candidate is audited
-5. this loop is capped at 3 LLM audits per document, after which the document
-   is escalated for human review
 
 TODO: The current implementation builds a compact sampled source evidence
 packet, but it does not yet carry a richer full-document evidence packet with
@@ -77,7 +67,7 @@ flowchart TD
     I --> J{Minor or major?}
     J -- minor --> N[Promote to winner]
     J -- major --> P[Build remediation plan optional and persist findings in .any-doc-to-md]
-    P --> L[Penalize or disqualify candidate]
+    P --> L[Penalize and rescore candidate]
     L --> M[Next ranked candidate]
     M --> H
     N --> O[Host project may persist findings in .any-doc-to-md]
@@ -204,6 +194,17 @@ Supported patterns today:
 This keeps parent-project-specific ADTM learnings out of package source while
 still making them easy to review or share.
 
+## Audit Modes
+
+The tournament orchestrator supports two audit modes:
+
+- `auto`: use the LLM audit when judge settings are available; otherwise fall
+  back to score-only light mode
+- `light`: skip the LLM audit and accept the score-selected candidate directly
+
+Host CLIs can expose that as a user-facing switch. PRAI's KB-pack pipeline CLI
+now exposes it as `--audit-mode auto|light`.
+
 ## Judge Configuration
 
 The current LLM judge configuration is exposed via `anydoc2md.settings`.
@@ -220,7 +221,12 @@ Optional environment variables:
 - `ANYDOC2MD_JUDGE_DISABLE_THINKING`
 - `ANYDOC2MD_JUDGE_TEMPERATURE`
 
-If required values are missing, the library raises `AnyDocToMdConfigError` when loading settings explicitly, or returns an error verdict when `judge_candidate_against_source()` or `judge_near_tie()` attempts to load them implicitly.
+If required values are missing, the library raises `AnyDocToMdConfigError`
+when loading settings explicitly, or returns an error verdict when
+`judge_candidate_against_source()` or `judge_near_tie()` attempts to load them
+implicitly. The tournament orchestrator's `audit_mode="auto"` path treats
+missing judge settings as a signal to fall back to light mode instead of
+failing the run.
 
 ## Example
 

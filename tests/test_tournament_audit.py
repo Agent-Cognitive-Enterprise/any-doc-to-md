@@ -102,6 +102,28 @@ def _major_verdict(name: str) -> JudgeVerdict:
     )
 
 
+def _major_verdict_many(name: str, count: int) -> JudgeVerdict:
+    return JudgeVerdict(
+        preferred_adapter=name,
+        confidence="high",
+        reasoning="Material issues detected.",
+        notes={name: "major issues"},
+        model_used="test-model",
+        tokens_used=100,
+        violations=[
+            JudgeViolation(
+                type="reading_order",
+                severity="major",
+                count=count,
+                pages=[2],
+                confidence=0.9,
+                evidence="Paragraphs are out of order.",
+                root_cause="multicolumn merge",
+            )
+        ],
+    )
+
+
 def _error_verdict() -> JudgeVerdict:
     return JudgeVerdict(
         preferred_adapter="",
@@ -143,7 +165,7 @@ class TestAuditLoop:
             side_effect=lambda markdown_path, output_path: output_path,
         ), patch(
             "anydoc2md.format_converters.tournament.audit.judge_candidate_against_source",
-            side_effect=[_major_verdict("docling"), _accepted_verdict("inhouse")],
+            side_effect=[_major_verdict_many("docling", 2), _accepted_verdict("inhouse")],
         ):
             result = run_post_selection_audit_loop(
                 selection=selection,
@@ -155,6 +177,35 @@ class TestAuditLoop:
         assert [audit.status for audit in result.audits] == ["rejected_major", "accepted"]
         assert result.remediation_plan is not None
         assert result.remediation_plan.target_adapter == "inhouse"
+        assert result.audits[0].penalty_points == 24.0
+        assert result.audits[0].rescored_total == 24.0
+
+    def test_accepts_penalized_major_candidate_when_it_stays_ahead(self, tmp_path: Path) -> None:
+        selection = SelectionResult(
+            winner="docling",
+            winner_score=0.0,
+            ranked=[_scorecard("docling", 0.0), _scorecard("inhouse", 20.0)],
+            disqualified={},
+            near_tie=False,
+            near_tie_adapters=[],
+        )
+        adapters = [_adapter_result("docling", tmp_path), _adapter_result("inhouse", tmp_path)]
+        with patch(
+            "anydoc2md.format_converters.tournament.audit.render_markdown_to_audit_pdf",
+            side_effect=lambda markdown_path, output_path: output_path,
+        ), patch(
+            "anydoc2md.format_converters.tournament.audit.judge_candidate_against_source",
+            return_value=_major_verdict("docling"),
+        ):
+            result = run_post_selection_audit_loop(
+                selection=selection,
+                adapter_results=adapters,
+                source_path=tmp_path / "doc.pdf",
+                traits=_traits(),
+            )
+        assert result.winner == "docling"
+        assert [audit.status for audit in result.audits] == ["accepted_penalized_major"]
+        assert result.remediation_plan is not None
 
     def test_escalates_when_major_findings_exhaust_audit_budget(self, tmp_path: Path) -> None:
         selection = _selection("docling", "markitdown", "inhouse", "pandoc")
