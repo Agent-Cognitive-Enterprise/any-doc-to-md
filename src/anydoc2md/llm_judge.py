@@ -28,17 +28,19 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import requests
 
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
+from anydoc2md.settings import (
+    AnyDocToMdConfigError,
+    JudgeSettings,
+    load_judge_settings_from_env,
+)
 
-DEFAULT_LM_STUDIO_URL: str = "http://192.168.0.57:1234/v1"
-DEFAULT_MODEL: str = "qwen/qwen3.6-35b-a3b"
-JUDGE_TIMEOUT_S: int = 90
 EXCERPT_CHARS_PER_ADAPTER: int = 2000  # chars sampled from each adapter output
 
 # Chars sampled from each position: front / middle / end
@@ -192,8 +194,7 @@ def build_prompt(
 def _call_lm_studio(
     system: str,
     user: str,
-    url: str,
-    model: str,
+    settings: JudgeSettings,
 ) -> tuple[str, int]:
     """
     Send a chat completion request to an OpenAI-compatible endpoint.
@@ -202,22 +203,22 @@ def _call_lm_studio(
     Raises on network failure.
     """
     payload = {
-        "model": model,
+        "model": settings.model,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        "temperature": 0.1,
-        "max_tokens": 4096,   # thinking tokens count against budget; 8K ctx → 4K safe ceiling
+        "temperature": settings.temperature,
+        "max_tokens": settings.max_tokens,
         # chat_template_kwargs disables thinking mode on Qwen3 models,
         # ensuring the JSON response lands in content (not reasoning_content).
-        "chat_template_kwargs": {"thinking": False},
+        "chat_template_kwargs": {"thinking": False} if settings.disable_thinking else {},
     }
 
     resp = requests.post(
-        f"{url.rstrip('/')}/chat/completions",
+        f"{settings.url.rstrip('/')}/chat/completions",
         json=payload,
-        timeout=JUDGE_TIMEOUT_S,
+        timeout=settings.timeout_s,
     )
     resp.raise_for_status()
     data = resp.json()
@@ -290,8 +291,7 @@ def judge_near_tie(
     source_path: Path,
     traits: DocumentTraits,
     *,
-    lm_studio_url: str = DEFAULT_LM_STUDIO_URL,
-    model: str = DEFAULT_MODEL,
+    settings: JudgeSettings | None = None,
 ) -> JudgeVerdict:
     """
     Ask the LLM judge to select the best conversion among near-tied adapters.
@@ -300,8 +300,8 @@ def judge_near_tie(
         candidates:     AdapterResults for the near-tied adapters (≥ 2).
         source_path:    Original source file path (used only for context display).
         traits:         DocumentTraits from classify_document.classify().
-        lm_studio_url:  Base URL of the LM Studio OpenAI-compatible endpoint.
-        model:          Model ID to use for judging.
+        settings:       Judge runtime settings. When omitted, they are read
+                        from environment variables via anydoc2md.settings.
 
     Returns:
         JudgeVerdict.  On network/parse failure, confidence=="error" and
@@ -313,18 +313,31 @@ def judge_near_tie(
         return JudgeVerdict(
             preferred_adapter=name, confidence="high",
             reasoning="Only one candidate — no judging needed.",
-            notes={}, model_used=model, tokens_used=0,
+            notes={}, model_used="", tokens_used=0,
+        )
+
+    try:
+        judge_settings = settings or load_judge_settings_from_env()
+    except AnyDocToMdConfigError as exc:
+        return JudgeVerdict(
+            preferred_adapter="",
+            confidence="error",
+            reasoning="",
+            notes={},
+            model_used="",
+            tokens_used=0,
+            error=str(exc),
         )
 
     system, user = build_prompt(candidates, traits)
 
     try:
-        raw, tokens = _call_lm_studio(system, user, lm_studio_url, model)
+        raw, tokens = _call_lm_studio(system, user, judge_settings)
     except Exception as exc:
         return JudgeVerdict(
             preferred_adapter="", confidence="error", reasoning="",
-            notes={}, model_used=model, tokens_used=0,
+            notes={}, model_used=judge_settings.model, tokens_used=0,
             error=f"LM Studio call failed: {exc}",
         )
 
-    return _parse_verdict(raw, candidates, model, tokens)
+    return _parse_verdict(raw, candidates, judge_settings.model, tokens)

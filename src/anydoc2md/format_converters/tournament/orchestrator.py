@@ -41,11 +41,10 @@ from anydoc2md.format_converters.tournament.selector import (
     select_winner,
 )
 from anydoc2md.llm_judge import (
-    DEFAULT_LM_STUDIO_URL,
-    DEFAULT_MODEL,
     JudgeVerdict,
     judge_near_tie,
 )
+from anydoc2md.settings import JudgeSettings
 
 WINNER_DIR_NAME = "winner"
 
@@ -93,8 +92,7 @@ def run_full_tournament(
     adapters: list[str] | None = None,
     *,
     near_tie_threshold: float = NEAR_TIE_THRESHOLD,
-    lm_studio_url: str = DEFAULT_LM_STUDIO_URL,
-    model: str = DEFAULT_MODEL,
+    judge_settings: JudgeSettings | None = None,
     promote: bool = True,
     timeout_s: int = 600,
 ) -> TournamentResult:
@@ -114,8 +112,7 @@ def run_full_tournament(
                             winner is promoted to staging_root/winner/.
         adapters:           Adapter names to run (default: inhouse, markitdown, docling).
         near_tie_threshold: Score delta below which the LLM judge is invoked.
-        lm_studio_url:      LM Studio endpoint for the judge.
-        model:              Judge model ID.
+        judge_settings:     Optional explicit settings for the near-tie judge.
         promote:            Copy winner staging dir to staging_root/winner/.
         timeout_s:          Per-adapter conversion timeout (seconds).
 
@@ -146,7 +143,7 @@ def run_full_tournament(
         candidates = [r for r in adapter_results if r.method_name in tie_names]
         judge_verdict = judge_near_tie(
             candidates, source_path, traits,
-            lm_studio_url=lm_studio_url, model=model,
+            settings=judge_settings,
         )
         if judge_verdict.succeeded:
             winner = judge_verdict.preferred_adapter
