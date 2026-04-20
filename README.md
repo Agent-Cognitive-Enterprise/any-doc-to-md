@@ -63,10 +63,10 @@ flowchart TD
     F --> G[Select candidate]
     G --> H[Render candidate Markdown to audit PDF]
     H --> I[LLM audit against source]
-    I --> P[Build remediation plan]
     I --> J{Minor or major?}
     J -- minor --> K[Accept winner]
-    J -- major --> L[Penalize or disqualify candidate]
+    J -- major --> P[Build remediation plan (optional)]
+    P --> L[Penalize or disqualify candidate]
     L --> M[Next ranked candidate]
     M --> H
     K --> N[Promote to winner]
