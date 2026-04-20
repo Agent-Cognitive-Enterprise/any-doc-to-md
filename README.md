@@ -65,7 +65,7 @@ flowchart TD
     H --> I[LLM audit against source]
     I --> J{Minor or major?}
     J -- minor --> N[Promote to winner]
-    J -- major --> P[Build remediation plan optional]
+    J -- major --> P[Build remediation plan optional and persist findings in .any-doc-to-md]
     P --> L[Penalize or disqualify candidate]
     L --> M[Next ranked candidate]
     M --> H
