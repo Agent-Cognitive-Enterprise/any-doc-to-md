@@ -300,3 +300,31 @@ def test_run_all_to_dict_structure(tmp_path: Path) -> None:
     assert "summary" in d
     assert "checks" in d
     assert d["summary"]["pass"] + d["summary"]["warn"] + d["summary"]["fail"] == len(report.checks)
+
+
+def test_run_all_loads_parent_qa_extension(tmp_path: Path) -> None:
+    doc_root = tmp_path / "doc"
+    staging = doc_root / "inhouse"
+    staging.mkdir(parents=True)
+    (staging / "index.md").write_text("- • bad bullet\n", encoding="utf-8")
+    (doc_root / "qa_extension.py").write_text(
+        """
+from anydoc2md.output_qa.checks import CheckResult
+
+def get_disabled_checks():
+    return ["check_no_double_bullets"]
+
+def get_additional_md_only_checks():
+    def custom_check(md_text):
+        return CheckResult("custom_parent_extension", 1, "pass", "Loaded parent extension.")
+    return [custom_check]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = run_all(staging)
+
+    check_names = [check.name for check in report.checks]
+    assert "no_double_bullets" not in check_names
+    assert "custom_parent_extension" in check_names

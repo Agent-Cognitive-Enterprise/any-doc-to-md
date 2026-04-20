@@ -190,9 +190,26 @@ Supported patterns today:
 - `inhouse-overrides/<doc-key>.override.yaml` for coding-agent-authored
   in-house conversion overrides that get staged into `document.override.yaml`
   before the in-house converter runs
+- `qa-extensions/<doc-key>.py` for project-local QA hook modules that can add
+  checks or disable selected built-in checks for that document
+- `inhouse-extensions/<doc-key>.py` for project-local in-house post-processing
+  hooks that can patch the converted staging output for that document
 
 This keeps parent-project-specific ADTM learnings out of package source while
 still making them easy to review or share.
+
+### Coding-agent operating modes
+
+Recommended split:
+
+- read-only consumer mode: the coding agent writes document-specific hooks and
+  overrides under `.any-doc-to-md/`, then reruns ADTM
+- maintainer mode: the coding agent may patch package code directly, but only
+  after adding a failing regression test first and rerunning the full package
+  test suite
+
+The runtime does not self-edit package code. Package maintenance remains an
+explicit coding-agent or human action above the ADTM runtime.
 
 ## Audit Modes
 

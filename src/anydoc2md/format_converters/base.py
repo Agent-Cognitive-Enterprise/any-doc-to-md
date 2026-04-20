@@ -16,6 +16,7 @@ from typing import Any
 
 import yaml
 
+from anydoc2md.project_extensions import resolve_override_path
 
 OVERRIDE_FILENAME = "document.override.yaml"
 INDEX_FILENAME = "index.md"
@@ -41,12 +42,13 @@ class ConversionResult:
 
 def load_overrides(staging_dir: Path, extra: dict[str, Any] | None = None) -> dict[str, Any]:
     """
-    Load document.override.yaml from staging_dir (if present) and merge with
-    any explicitly supplied overrides.  Explicit overrides win on conflict.
+    Load document.override.yaml from staging_dir or its parent document root
+    (if present) and merge with any explicitly supplied overrides. Explicit
+    overrides win on conflict.
     """
     overrides: dict[str, Any] = {}
-    override_path = staging_dir / OVERRIDE_FILENAME
-    if override_path.exists():
+    override_path = resolve_override_path(staging_dir, OVERRIDE_FILENAME)
+    if override_path is not None:
         raw = yaml.safe_load(override_path.read_text(encoding="utf-8")) or {}
         if isinstance(raw, dict):
             overrides.update(raw)

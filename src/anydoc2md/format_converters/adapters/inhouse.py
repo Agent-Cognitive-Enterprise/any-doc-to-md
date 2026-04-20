@@ -13,6 +13,7 @@ from pathlib import Path
 from anydoc2md.format_converters import get_converter
 from anydoc2md.format_converters.adapters.base import AdapterResult, error_result
 from anydoc2md.format_converters.adapters.image_utils import annotate_image_dimensions
+from anydoc2md.project_extensions import apply_inhouse_extension
 
 METHOD_NAME = "inhouse"
 METHOD_VERSION = "1.0"
@@ -44,6 +45,11 @@ def run(source_path: Path, staging_dir: Path) -> AdapterResult:
     try:
         converter = get_converter(source_path)
         converter.convert(source_path, staging_dir)
+        apply_inhouse_extension(
+            source_path=source_path,
+            staging_dir=staging_dir,
+            converter_name=converter.__class__.__name__,
+        )
         timing_ms = int((time.monotonic() - t0) * 1000)
     except Exception as exc:
         timing_ms = int((time.monotonic() - t0) * 1000)

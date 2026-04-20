@@ -213,6 +213,29 @@ class TestInhouseAdapter:
     def test_supports_returns_false_for_unknown(self) -> None:
         assert inhouse.supports(Path("doc.xyz")) is False
 
+    def test_parent_inhouse_extension_can_modify_output(self, tmp_path: Path) -> None:
+        src = _txt_source(tmp_path)
+        doc_root = tmp_path / "doc"
+        staging = doc_root / "inhouse"
+        doc_root.mkdir()
+        (doc_root / "inhouse_extension.py").write_text(
+            """
+def apply_inhouse_extension(source_path, staging_dir, converter_name):
+    index_md = staging_dir / "index.md"
+    index_md.write_text(
+        index_md.read_text(encoding="utf-8") + "\\n\\nExtension footer.\\n",
+        encoding="utf-8",
+    )
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+
+        r = inhouse.run(src, staging)
+
+        assert r.succeeded
+        assert "Extension footer." in r.markdown_text
+
 
 # =========================================================================== #
 # markitdown adapter (CLI-missing path)

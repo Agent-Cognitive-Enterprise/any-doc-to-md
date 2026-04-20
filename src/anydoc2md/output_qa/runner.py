@@ -26,6 +26,7 @@ from anydoc2md.output_qa.checks import (
     check_heading_not_fragmented,
     check_text_coverage,
 )
+from anydoc2md.project_extensions import load_qa_extension
 
 _LAYER1_CHECKS_MD_ONLY = [
     check_no_double_bullets,
@@ -100,15 +101,43 @@ def run_all(
 
     md_text = index_md.read_text(encoding="utf-8")
     results: list[CheckResult] = []
+    extension = load_qa_extension(staging_dir)
+    disabled_checks = extension.disabled_checks
 
     for fn in _LAYER1_CHECKS_MD_ONLY:
+        if fn.__name__ in disabled_checks:
+            continue
         results.append(fn(md_text))
 
     for fn in _LAYER1_CHECKS_WITH_DIR:
+        if fn.__name__ in disabled_checks:
+            continue
         results.append(fn(md_text, staging_dir))
 
     if source_path is not None:
         for fn in _LAYER2_CHECKS:
+            if fn.__name__ in disabled_checks:
+                continue
+            results.append(fn(md_text, source_path))
+
+    for message in extension.load_errors:
+        results.append(
+            CheckResult(
+                name="qa_extension_loader",
+                layer=1,
+                status="warn",
+                message=message,
+            )
+        )
+
+    for fn in extension.md_only_checks:
+        results.append(fn(md_text))
+
+    for fn in extension.md_with_dir_checks:
+        results.append(fn(md_text, staging_dir))
+
+    if source_path is not None:
+        for fn in extension.source_checks:
             results.append(fn(md_text, source_path))
 
     return QAReport(

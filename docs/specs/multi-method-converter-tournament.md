@@ -33,6 +33,7 @@ Implemented today:
 - major-finding penalty and rescore of the currently audited candidate before advancing to the next ranked candidate
 - `auto` vs `light` audit modes, where `auto` falls back to score-only selection if no judge is configured
 - persisted ADTM findings under project-local `.any-doc-to-md/` state when the host project enables it
+- staged project-local `qa_extension.py` and `inhouse_extension.py` hooks loaded from `.any-doc-to-md/` in read-only consumer mode
 - winner promotion into a stable `winner/` staging dir
 
 Still planned, not implemented yet:
@@ -375,6 +376,7 @@ When the package is installed read-only:
 
 - do not patch package source
 - store project-local extensions, overrides, and findings under `.any-doc-to-md/`
+- rely on staged document-root files such as `document.override.yaml`, `qa_extension.py`, and `inhouse_extension.py`
 - prefer additive extensions over full replacements
 
 #### Maintainer writable mode
@@ -426,11 +428,11 @@ Supported patterns today:
 
 - `llm-findings/<doc-key>.json` for persisted judge findings and remediation plans
 - `inhouse-overrides/<doc-key>.override.yaml` for coding-agent-authored in-house conversion overrides that get staged into `document.override.yaml`
+- `qa-extensions/<doc-key>.py` for document-local QA hook modules that can add checks or disable selected built-in checks
+- `inhouse-extensions/<doc-key>.py` for document-local in-house post-processing hooks
 
 Likely future additions:
 
-- `qa-extensions/`
-- `inhouse-extensions/`
 - `evidence-packets/`
 
 This keeps parent-project-specific ADTM learnings out of package source while still making them easy to review or share.
