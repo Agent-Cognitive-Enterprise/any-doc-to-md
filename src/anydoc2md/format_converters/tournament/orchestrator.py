@@ -35,6 +35,10 @@ from anydoc2md.format_converters.tournament.runner import (
     DEFAULT_ADAPTERS,
     run_tournament,
 )
+from anydoc2md.format_converters.tournament.remediation import (
+    RemediationPlan,
+    build_remediation_plan,
+)
 from anydoc2md.format_converters.tournament.selector import (
     NEAR_TIE_THRESHOLD,
     SelectionResult,
@@ -62,6 +66,7 @@ class TournamentResult:
     adapter_results: list[AdapterResult]
     selection: SelectionResult
     judge_verdict: JudgeVerdict | None     # None when no near-tie or judging skipped
+    remediation_plan: RemediationPlan | None
     winner: str | None                     # final adapter name (may differ from selection.winner
                                            # when the judge overrides the score-based winner)
     winner_staging_dir: Path | None        # staging_root/winner/ after promotion; None if no winner
@@ -76,6 +81,7 @@ class TournamentResult:
             "traits": self.traits.to_dict(),
             "selection": self.selection.to_dict(),
             "judge_verdict": self.judge_verdict.to_dict() if self.judge_verdict else None,
+            "remediation_plan": self.remediation_plan.to_dict() if self.remediation_plan else None,
             "adapter_timing_ms": {
                 r.method_name: r.timing_ms for r in self.adapter_results
             },
@@ -136,6 +142,7 @@ def run_full_tournament(
 
     # Stage 4: LLM judge for near-ties
     judge_verdict: JudgeVerdict | None = None
+    remediation_plan: RemediationPlan | None = None
     winner = selection.winner
 
     if selection.near_tie and winner is not None:
@@ -145,6 +152,13 @@ def run_full_tournament(
             candidates, source_path, traits,
             settings=judge_settings,
         )
+        if judge_verdict.succeeded and judge_verdict.violations:
+            remediation_plan = build_remediation_plan(
+                source_path=source_path,
+                candidates=candidates,
+                verdict=judge_verdict,
+                target_adapter="inhouse",
+            )
         if judge_verdict.succeeded:
             winner = judge_verdict.preferred_adapter
 
@@ -169,6 +183,7 @@ def run_full_tournament(
         adapter_results=adapter_results,
         selection=selection,
         judge_verdict=judge_verdict,
+        remediation_plan=remediation_plan,
         winner=winner,
         winner_staging_dir=winner_staging_dir,
         promoted=promoted,

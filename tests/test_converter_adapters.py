@@ -31,8 +31,12 @@ from anydoc2md.format_converters.adapters.base import (
     find_cli,
     run_subprocess,
 )
-from anydoc2md.format_converters.adapters import inhouse, markitdown, docling
-from anydoc2md.format_converters.tournament.runner import run_tournament
+from anydoc2md.format_converters.adapters import docling, inhouse, markitdown, marker, pandoc
+from anydoc2md.format_converters.tournament.runner import (
+    _ADAPTER_MODULES,
+    _load_adapter,
+    run_tournament,
+)
 
 
 # =========================================================================== #
@@ -287,6 +291,70 @@ class TestDoclingAdapter:
 
     def test_supports_pdf(self) -> None:
         assert docling.supports(Path("doc.pdf")) is True
+
+
+# =========================================================================== #
+# pandoc adapter
+# =========================================================================== #
+
+class TestPandocAdapter:
+    def test_cli_missing_returns_error(self, tmp_path: Path) -> None:
+        with patch("anydoc2md.format_converters.adapters.pandoc.find_cli", return_value=None):
+            r = pandoc.run(_txt_source(tmp_path), tmp_path / "staging")
+        assert r.status == "error"
+        assert "not found" in r.error_message.lower()
+
+    def test_supports_html(self) -> None:
+        assert pandoc.supports(Path("doc.html")) is True
+
+    def test_supports_pdf_is_false(self) -> None:
+        assert pandoc.supports(Path("doc.pdf")) is False
+
+
+# =========================================================================== #
+# marker adapter
+# =========================================================================== #
+
+class TestMarkerAdapter:
+    def test_cli_missing_returns_error(self, tmp_path: Path) -> None:
+        pdf = tmp_path / "doc.pdf"
+        pdf.write_bytes(b"%PDF-1.4")
+        with patch("anydoc2md.format_converters.adapters.marker.find_cli", return_value=None):
+            r = marker.run(pdf, tmp_path / "staging")
+        assert r.status == "error"
+        assert "not found" in r.error_message.lower()
+
+    def test_normalise_output_moves_images_and_rewrites_paths(self, tmp_path: Path) -> None:
+        staging = tmp_path / "staging"
+        nested = staging / "doc"
+        nested.mkdir(parents=True)
+        (nested / "page1.md").write_text(
+            "# Title\n\n![Figure](doc/images/fig1.png)\n",
+            encoding="utf-8",
+        )
+        (nested / "images").mkdir()
+        (nested / "images" / "fig1.png").write_bytes(b"PNG")
+
+        marker._normalise_output(staging)
+
+        assert (staging / "index.md").exists()
+        assert (staging / "images" / "fig1.png").exists()
+        content = (staging / "index.md").read_text(encoding="utf-8")
+        assert "images/fig1.png" in content
+
+    def test_supports_pdf(self) -> None:
+        assert marker.supports(Path("doc.pdf")) is True
+
+
+# =========================================================================== #
+# Tournament runner registry
+# =========================================================================== #
+
+class TestTournamentRunnerRegistry:
+    def test_every_registered_adapter_module_is_importable(self) -> None:
+        for name in _ADAPTER_MODULES:
+            module = _load_adapter(name)
+            assert hasattr(module, "run"), name
 
 
 # =========================================================================== #

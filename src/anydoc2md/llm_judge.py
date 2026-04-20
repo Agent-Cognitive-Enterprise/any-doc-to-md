@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import requests
@@ -54,6 +54,30 @@ _END = 500
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
+class JudgeViolation:
+    """Structured issue identified by the LLM judge."""
+
+    type: str
+    severity: str
+    count: int = 1
+    pages: list[int] = field(default_factory=list)
+    confidence: float = 0.0
+    evidence: str = ""
+    root_cause: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type,
+            "severity": self.severity,
+            "count": self.count,
+            "pages": list(self.pages),
+            "confidence": self.confidence,
+            "evidence": self.evidence,
+            "root_cause": self.root_cause,
+        }
+
+
+@dataclass(frozen=True)
 class JudgeVerdict:
     """Structured output from the LLM judge."""
 
@@ -63,6 +87,9 @@ class JudgeVerdict:
     notes: dict[str, str]           # {adapter_name: brief_note}
     model_used: str
     tokens_used: int
+    violations: list[JudgeViolation] = field(default_factory=list)
+    overall_confidence: float | None = None
+    uncertainty_note: str = ""
     error: str = ""                 # non-empty only on failure
 
     @property
@@ -77,6 +104,9 @@ class JudgeVerdict:
             "notes": self.notes,
             "model_used": self.model_used,
             "tokens_used": self.tokens_used,
+            "violations": [violation.to_dict() for violation in self.violations],
+            "overall_confidence": self.overall_confidence,
+            "uncertainty_note": self.uncertainty_note,
             "error": self.error,
         }
 
@@ -168,7 +198,20 @@ def build_prompt(
         '  "preferred": "<adapter_name>",\n'
         '  "confidence": "high|medium|low",\n'
         '  "reasoning": "<one paragraph>",\n'
-        '  "notes": {"<adapter>": "<brief note>", ...}\n'
+        '  "notes": {"<adapter>": "<brief note>", ...},\n'
+        '  "violations": [\n'
+        "    {\n"
+        '      "type": "<violation_type>",\n'
+        '      "severity": "critical|major|minor",\n'
+        '      "count": 1,\n'
+        '      "pages": [1, 2],\n'
+        '      "confidence": 0.0,\n'
+        '      "evidence": "<short evidence>",\n'
+        '      "root_cause": "<likely root cause>"\n'
+        "    }\n"
+        "  ],\n"
+        '  "overall_confidence": 0.0,\n'
+        '  "uncertainty_note": "<optional uncertainty note>"\n'
         "}"
     )
 
@@ -181,7 +224,9 @@ def build_prompt(
         f"## Conversion outputs\n\n{evidence_blocks}\n\n"
         f"## Task\n"
         f"Select the best conversion from: {adapter_names}.\n"
-        f'Return JSON with "preferred" set to exactly one of those names.'
+        'Return JSON with "preferred" set to exactly one of those names, and include '
+        "only material violations that a coding agent should turn into tests or "
+        "in-house conversion fixes."
     )
 
     return system, user
@@ -232,6 +277,34 @@ def _call_lm_studio(
 # Response parsing
 # ---------------------------------------------------------------------------
 
+
+def _parse_violations(raw_violations: object) -> list[JudgeViolation]:
+    if not isinstance(raw_violations, list):
+        return []
+
+    violations: list[JudgeViolation] = []
+    for item in raw_violations:
+        if not isinstance(item, dict):
+            continue
+        raw_pages = item.get("pages", [])
+        pages = [int(page) for page in raw_pages if isinstance(page, (int, float))]
+        raw_confidence = item.get("confidence", 0.0)
+        confidence = float(raw_confidence) if isinstance(raw_confidence, (int, float)) else 0.0
+        raw_count = item.get("count", 1)
+        count = int(raw_count) if isinstance(raw_count, (int, float)) else 1
+        violations.append(
+            JudgeViolation(
+                type=str(item.get("type", "unknown")),
+                severity=str(item.get("severity", "major")),
+                count=max(1, count),
+                pages=pages,
+                confidence=confidence,
+                evidence=str(item.get("evidence", "")),
+                root_cause=str(item.get("root_cause", "")),
+            )
+        )
+    return violations
+
 def _parse_verdict(
     raw: str,
     candidates: list[AdapterResult],
@@ -271,6 +344,10 @@ def _parse_verdict(
     if confidence not in ("high", "medium", "low"):
         confidence = "medium"
 
+    overall_confidence = data.get("overall_confidence")
+    if not isinstance(overall_confidence, (int, float)):
+        overall_confidence = None
+
     return JudgeVerdict(
         preferred_adapter=preferred,
         confidence=confidence,
@@ -278,6 +355,9 @@ def _parse_verdict(
         notes=data.get("notes", {}),
         model_used=model,
         tokens_used=tokens,
+        violations=_parse_violations(data.get("violations", [])),
+        overall_confidence=float(overall_confidence) if overall_confidence is not None else None,
+        uncertainty_note=str(data.get("uncertainty_note", "")),
         error="",
     )
 

@@ -13,7 +13,10 @@ Source lives under `src/anydoc2md/`.
 
 At a high level, `anydoc2md` classifies a source document, runs one or more
 converter methods, applies hard quality gates, scores the surviving outputs,
-and optionally asks an LLM judge to break near-ties.
+and optionally asks an LLM judge to break near-ties. When the host project
+provides a project-local `.any-doc-to-md/` directory, tournament findings can
+also be persisted there for LLM-only review loops or for coding-agent follow-up
+via in-house override files.
 
 ```mermaid
 flowchart TD
@@ -22,6 +25,8 @@ flowchart TD
     C --> C1[inhouse]
     C --> C2[markitdown]
     C --> C3[docling]
+    C --> C4[pandoc]
+    C --> C5[marker]
     C1 --> D[Normalized staging dirs]
     C2 --> D
     C3 --> D
@@ -63,6 +68,8 @@ Current tournament adapters:
 - `inhouse`
 - `markitdown`
 - `docling`
+- `pandoc`
+- `marker`
 
 External tools used:
 
@@ -71,6 +78,8 @@ External tools used:
 | `inhouse` | none beyond Python libraries used internally | direct Python call | PDF, DOCX, HTML, TXT |
 | `markitdown` | `markitdown` CLI | subprocess | PDF, DOCX, PPTX, XLSX, HTML, TXT, EPUB, ZIP |
 | `docling` | `docling` CLI | subprocess | PDF, DOCX, PPTX, XLSX, HTML, Markdown, AsciiDoc, TXT |
+| `pandoc` | `pandoc` CLI | subprocess | HTML, DOCX, Markdown, TXT, RST, AsciiDoc |
+| `marker` | `marker_single` CLI | subprocess | PDF |
 
 ### In-house vs External Adapters
 
@@ -103,6 +112,26 @@ It differs from the external adapters in two important ways:
 
 The external adapters are useful as competing opinions in the tournament.
 The in-house path is useful as the package-controlled baseline.
+
+`pandoc` and `marker` are implemented as opt-in adapters. They are available in
+the runtime registry, but they are not part of `DEFAULT_ADAPTERS`, so host
+projects can enable them selectively based on packaging and license posture.
+
+## Project-local ADTM state
+
+Host projects can optionally keep project-specific tournament state under a
+local `.any-doc-to-md/` directory.
+
+Supported patterns today:
+
+- `llm-findings/<doc-key>.json` for persisted judge findings and remediation
+  plans generated from tournament runs
+- `inhouse-overrides/<doc-key>.override.yaml` for coding-agent-authored
+  in-house conversion overrides that get staged into `document.override.yaml`
+  before the in-house converter runs
+
+This keeps parent-project-specific ADTM learnings out of package source while
+still making them easy to review or share.
 
 ## Judge Configuration
 

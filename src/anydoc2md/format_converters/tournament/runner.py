@@ -21,7 +21,9 @@ from types import ModuleType
 
 from anydoc2md.format_converters.adapters.base import AdapterResult
 
-# Registry of available adapters (module path suffix → module)
+# Registry of implemented adapters (module path suffix → module).
+# Planned adapters such as pandoc/marker stay out of the runtime registry
+# until their modules actually ship, so docs and behavior stay aligned.
 _ADAPTER_MODULES: dict[str, str] = {
     "inhouse":    "anydoc2md.format_converters.adapters.inhouse",
     "markitdown": "anydoc2md.format_converters.adapters.markitdown",

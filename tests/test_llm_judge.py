@@ -26,9 +26,11 @@ from anydoc2md.format_converters.classification.classify_document import (
 )
 from anydoc2md.llm_judge import (
     JudgeVerdict,
+    JudgeViolation,
     _evidence_block,
     _excerpt,
     _parse_verdict,
+    _parse_violations,
     _traits_summary,
     build_prompt,
     judge_near_tie,
@@ -81,6 +83,17 @@ def _mock_response(preferred: str, confidence: str = "high", reasoning: str = "G
                     "confidence": confidence,
                     "reasoning": reasoning,
                     "notes": {preferred: "Best output."},
+                    "violations": [{
+                        "type": "reading_order",
+                        "severity": "major",
+                        "count": 1,
+                        "pages": [2],
+                        "confidence": 0.91,
+                        "evidence": "Paragraphs are out of order.",
+                        "root_cause": "multicolumn merge",
+                    }],
+                    "overall_confidence": 0.87,
+                    "uncertainty_note": "",
                 })
             }
         }],
@@ -126,8 +139,23 @@ class TestJudgeVerdict:
         )
         d = v.to_dict()
         for k in ("preferred_adapter", "confidence", "reasoning", "notes",
-                  "model_used", "tokens_used", "error"):
+                  "model_used", "tokens_used", "violations",
+                  "overall_confidence", "uncertainty_note", "error"):
             assert k in d
+
+
+class TestJudgeViolation:
+    def test_to_dict_round_trips_fields(self) -> None:
+        violation = JudgeViolation(
+            type="reading_order",
+            severity="major",
+            count=2,
+            pages=[3, 4],
+            confidence=0.91,
+            evidence="caption before paragraph",
+            root_cause="multicolumn merge",
+        )
+        assert violation.to_dict()["type"] == "reading_order"
 
 
 # =========================================================================== #
@@ -236,6 +264,7 @@ class TestBuildPrompt:
         system, _ = build_prompt([a, b], _traits())
         assert '"preferred"' in system
         assert '"confidence"' in system
+        assert '"violations"' in system
 
     def test_user_contains_adapter_names(self, tmp_path: Path) -> None:
         a = _adapter_result("inhouse", tmp_path, "# In-house")
@@ -304,6 +333,37 @@ class TestParseVerdict:
         v = _parse_verdict(raw, self._candidates(tmp_path), "model", 999)
         assert v.tokens_used == 999
 
+    def test_parses_structured_violations(self, tmp_path: Path) -> None:
+        raw = json.dumps({
+            "preferred": "alpha",
+            "confidence": "high",
+            "reasoning": "alpha wins",
+            "notes": {},
+            "violations": [{
+                "type": "caption_detachment",
+                "severity": "major",
+                "count": 2,
+                "pages": [3],
+                "confidence": 0.9,
+                "evidence": "caption separated from image",
+                "root_cause": "image ordering",
+            }],
+            "overall_confidence": 0.88,
+            "uncertainty_note": "check page 3",
+        })
+        v = _parse_verdict(raw, self._candidates(tmp_path), "model", 5)
+        assert len(v.violations) == 1
+        assert v.violations[0].type == "caption_detachment"
+        assert v.overall_confidence == 0.88
+        assert v.uncertainty_note == "check page 3"
+
+
+class TestParseViolations:
+    def test_ignores_non_dict_items(self) -> None:
+        violations = _parse_violations(["bad", {"type": "reading_order", "severity": "major"}])
+        assert len(violations) == 1
+        assert violations[0].type == "reading_order"
+
 
 # =========================================================================== #
 # judge_near_tie
@@ -347,6 +407,7 @@ class TestJudgeNearTie:
         assert v.confidence == "high"
         assert v.succeeded is True
         assert v.tokens_used == 512
+        assert v.violations[0].type == "reading_order"
 
     def test_network_failure_returns_error_verdict(self, tmp_path: Path) -> None:
         import requests as req

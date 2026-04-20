@@ -31,8 +31,9 @@ from anydoc2md.format_converters.tournament.orchestrator import (
     TournamentResult,
     run_full_tournament,
 )
+from anydoc2md.format_converters.tournament.remediation import RemediationPlan
 from anydoc2md.format_converters.tournament.selector import SelectionResult
-from anydoc2md.llm_judge import JudgeVerdict
+from anydoc2md.llm_judge import JudgeVerdict, JudgeViolation
 from anydoc2md.output_qa.scoring import ScoreCard
 from anydoc2md.settings import JudgeSettings
 
@@ -99,6 +100,29 @@ def _verdict(preferred: str, confidence: str = "high") -> JudgeVerdict:
     )
 
 
+def _verdict_with_violation(preferred: str) -> JudgeVerdict:
+    return JudgeVerdict(
+        preferred_adapter=preferred,
+        confidence="high",
+        reasoning="Good output.",
+        notes={preferred: "Best."},
+        model_used="test-model",
+        tokens_used=100,
+        violations=[
+            JudgeViolation(
+                type="reading_order",
+                severity="major",
+                count=1,
+                pages=[2],
+                confidence=0.9,
+                evidence="Paragraphs are out of order.",
+                root_cause="multicolumn merge",
+            )
+        ],
+        overall_confidence=0.88,
+    )
+
+
 def _judge_settings() -> JudgeSettings:
     return JudgeSettings(
         url="http://localhost:1234/v1",
@@ -156,6 +180,7 @@ class TestTournamentResultContract:
             adapter_results=[],
             selection=_selection("a", ["a"]),
             judge_verdict=None,
+            remediation_plan=None,
             winner="a",
             winner_staging_dir=tmp_path / WINNER_DIR_NAME,
             promoted=True,
@@ -172,6 +197,7 @@ class TestTournamentResultContract:
             adapter_results=[],
             selection=_selection("a", ["a"]),
             judge_verdict=None,
+            remediation_plan=None,
             winner="a",
             winner_staging_dir=None,
             promoted=False,
@@ -189,6 +215,7 @@ class TestTournamentResultContract:
             adapter_results=[],
             selection=sel,
             judge_verdict=None,
+            remediation_plan=None,
             winner=None,
             winner_staging_dir=None,
             promoted=False,
@@ -291,6 +318,19 @@ class TestNearTieWithJudge:
             result = run_full_tournament(tmp_path / "doc.pdf", tmp_path / "staging")
         assert result.judge_verdict is not None
         assert result.judge_verdict.confidence == "medium"
+
+    def test_remediation_plan_created_for_inhouse_findings(self, tmp_path: Path) -> None:
+        sel = _selection("inhouse", ["inhouse", "docling"],
+                         near_tie=True, near_tie_adapters=["docling"])
+        v = _verdict_with_violation("docling")
+        classify_p, tour_p, sel_p, judge_p, _, _ = _patch_all(
+            tmp_path, adapter_names=["inhouse", "docling"], selection=sel, verdict=v,
+        )
+        with classify_p, tour_p, sel_p, judge_p:
+            result = run_full_tournament(tmp_path / "doc.pdf", tmp_path / "staging")
+        assert result.remediation_plan is not None
+        assert result.remediation_plan.target_adapter == "inhouse"
+        assert result.to_dict()["remediation_plan"] is not None
 
     def test_near_tie_candidates_include_score_winner(self, tmp_path: Path) -> None:
         """The judge must receive the score winner + near-tie adapters as candidates."""
@@ -441,4 +481,3 @@ class TestPromoteFilesystem:
             run_full_tournament(tmp_path / "doc.pdf", staging)
 
         assert (staging / WINNER_DIR_NAME / "index.md").read_text() == "# Inhouse v2"
-
