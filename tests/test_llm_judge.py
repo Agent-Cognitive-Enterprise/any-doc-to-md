@@ -285,9 +285,12 @@ class TestBuildPrompt:
 class TestBuildAuditPrompt:
     def test_contains_source_path_and_candidate_name(self, tmp_path: Path) -> None:
         candidate = _adapter_result("inhouse", tmp_path, "# Inhouse")
-        system, user = build_audit_prompt(candidate, Path("/src/doc.pdf"), _traits())
+        audit_pdf = tmp_path / "audit.pdf"
+        audit_pdf.write_bytes(b"%PDF-1.4\n%%EOF")
+        system, user = build_audit_prompt(candidate, Path("/src/doc.pdf"), _traits(), audit_pdf)
         assert '"preferred"' in system
-        assert "/src/doc.pdf" in user
+        assert "Source PDF" in user
+        assert "Rendered candidate PDF" in user
         assert "inhouse" in user
 
 
@@ -471,12 +474,15 @@ class TestJudgeNearTie:
 class TestJudgeCandidateAgainstSource:
     def test_happy_path(self, tmp_path: Path) -> None:
         candidate = _adapter_result("inhouse", tmp_path, "# Inhouse")
+        audit_pdf = tmp_path / "audit.pdf"
+        audit_pdf.write_bytes(b"%PDF-1.4\n%%EOF")
         with patch("anydoc2md.llm_judge.requests") as mock_req:
             mock_req.post.return_value = _mock_response("inhouse")
             verdict = judge_candidate_against_source(
                 candidate,
                 Path("/src/doc.pdf"),
                 _traits(),
+                audit_pdf_path=audit_pdf,
                 settings=_judge_settings(),
             )
         assert verdict.succeeded is True
@@ -484,12 +490,15 @@ class TestJudgeCandidateAgainstSource:
 
     def test_call_failure_returns_error_verdict(self, tmp_path: Path) -> None:
         candidate = _adapter_result("inhouse", tmp_path, "# Inhouse")
+        audit_pdf = tmp_path / "audit.pdf"
+        audit_pdf.write_bytes(b"%PDF-1.4\n%%EOF")
         with patch("anydoc2md.llm_judge.requests") as mock_req:
             mock_req.post.side_effect = RuntimeError("boom")
             verdict = judge_candidate_against_source(
                 candidate,
                 Path("/src/doc.pdf"),
                 _traits(),
+                audit_pdf_path=audit_pdf,
                 settings=_judge_settings(),
             )
         assert verdict.succeeded is False

@@ -119,6 +119,9 @@ class TestAuditLoop:
         selection = _selection("inhouse", "docling")
         adapters = [_adapter_result("inhouse", tmp_path), _adapter_result("docling", tmp_path)]
         with patch(
+            "anydoc2md.format_converters.tournament.audit.render_markdown_to_audit_pdf",
+            side_effect=lambda markdown_path, output_path: output_path,
+        ), patch(
             "anydoc2md.format_converters.tournament.audit.judge_candidate_against_source",
             return_value=_accepted_verdict("inhouse"),
         ) as judge_mock:
@@ -136,6 +139,9 @@ class TestAuditLoop:
         selection = _selection("docling", "inhouse")
         adapters = [_adapter_result("docling", tmp_path), _adapter_result("inhouse", tmp_path)]
         with patch(
+            "anydoc2md.format_converters.tournament.audit.render_markdown_to_audit_pdf",
+            side_effect=lambda markdown_path, output_path: output_path,
+        ), patch(
             "anydoc2md.format_converters.tournament.audit.judge_candidate_against_source",
             side_effect=[_major_verdict("docling"), _accepted_verdict("inhouse")],
         ):
@@ -154,6 +160,9 @@ class TestAuditLoop:
         selection = _selection("docling", "markitdown", "inhouse", "pandoc")
         adapters = [_adapter_result(name, tmp_path) for name in ("docling", "markitdown", "inhouse", "pandoc")]
         with patch(
+            "anydoc2md.format_converters.tournament.audit.render_markdown_to_audit_pdf",
+            side_effect=lambda markdown_path, output_path: output_path,
+        ), patch(
             "anydoc2md.format_converters.tournament.audit.judge_candidate_against_source",
             side_effect=[
                 _major_verdict("docling"),
@@ -176,6 +185,9 @@ class TestAuditLoop:
         selection = _selection("inhouse", "docling")
         adapters = [_adapter_result("inhouse", tmp_path), _adapter_result("docling", tmp_path)]
         with patch(
+            "anydoc2md.format_converters.tournament.audit.render_markdown_to_audit_pdf",
+            side_effect=lambda markdown_path, output_path: output_path,
+        ), patch(
             "anydoc2md.format_converters.tournament.audit.judge_candidate_against_source",
             return_value=_error_verdict(),
         ):
@@ -187,3 +199,22 @@ class TestAuditLoop:
             )
         assert result.winner == "inhouse"
         assert result.audits[0].status == "audit_error_fallback"
+
+    def test_rendered_audit_pdf_path_is_passed_to_judge(self, tmp_path: Path) -> None:
+        selection = _selection("inhouse")
+        adapters = [_adapter_result("inhouse", tmp_path)]
+        rendered_pdf = tmp_path / "inhouse" / "audit_candidate.pdf"
+        with patch(
+            "anydoc2md.format_converters.tournament.audit.render_markdown_to_audit_pdf",
+            return_value=rendered_pdf,
+        ), patch(
+            "anydoc2md.format_converters.tournament.audit.judge_candidate_against_source",
+            return_value=_accepted_verdict("inhouse"),
+        ) as judge_mock:
+            run_post_selection_audit_loop(
+                selection=selection,
+                adapter_results=adapters,
+                source_path=tmp_path / "doc.pdf",
+                traits=_traits(),
+            )
+        assert judge_mock.call_args.kwargs["audit_pdf_path"] == rendered_pdf

@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import requests
+import fitz
 
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
@@ -155,6 +156,39 @@ def _evidence_block(result: AdapterResult) -> str:
     )
 
 
+def _pdf_evidence_block(label: str, pdf_path: Path) -> str:
+    """Extract compact text evidence from a PDF for the audit prompt."""
+    if not pdf_path.exists():
+        return f"### {label}\nPDF missing: {pdf_path}"
+
+    try:
+        with fitz.open(pdf_path) as doc:
+            pages = [page.get_text("text").strip() for page in doc]
+    except Exception as exc:
+        return f"### {label}\nPath: {pdf_path}\nUnable to read PDF evidence: {exc}"
+    joined = "\n\n".join(text for text in pages if text)
+    excerpt = _excerpt(joined) if joined else ""
+    return (
+        f"### {label}\n"
+        f"Path: {pdf_path}\n"
+        f"Pages: {len(pages)}\n\n"
+        f"```text\n{excerpt}\n```"
+    )
+
+
+def _source_evidence_block(source_path: Path) -> str:
+    if source_path.suffix.lower() == ".pdf":
+        return _pdf_evidence_block("Source PDF", source_path)
+    try:
+        text = source_path.read_text(encoding="utf-8")
+    except Exception:
+        return f"### Source document\nPath: {source_path}\nUnable to extract text directly."
+    return (
+        f"### Source document\nPath: {source_path}\n\n"
+        f"```text\n{_excerpt(text)}\n```"
+    )
+
+
 def _traits_summary(traits: DocumentTraits) -> str:
     """One-line summary of document traits for the judge."""
     flags = []
@@ -236,6 +270,7 @@ def build_audit_prompt(
     candidate: AdapterResult,
     source_path: Path,
     traits: DocumentTraits,
+    audit_pdf_path: Path,
 ) -> tuple[str, str]:
     """Build a prompt that audits one selected candidate against source context."""
     system = (
@@ -270,13 +305,15 @@ def build_audit_prompt(
 
     user = (
         f"## Source document\n"
-        f"Path: {source_path}\n"
         f"{_traits_summary(traits)}\n\n"
-        f"## Selected candidate\n\n{_evidence_block(candidate)}\n\n"
+        f"{_source_evidence_block(source_path)}\n\n"
+        f"## Rendered candidate audit PDF\n\n{_pdf_evidence_block('Rendered candidate PDF', audit_pdf_path)}\n\n"
+        f"## Candidate Markdown\n\n{_evidence_block(candidate)}\n\n"
         "## Task\n"
         f"Audit candidate {candidate.method_name!r}. Return JSON with "
         f'"preferred" set to exactly "{candidate.method_name}". '
-        "Flag material issues only."
+        "Compare the rendered candidate PDF against the source evidence first. "
+        "Use the Markdown block only as supporting detail. Flag material issues only."
     )
     return system, user
 
@@ -477,6 +514,7 @@ def judge_candidate_against_source(
     source_path: Path,
     traits: DocumentTraits,
     *,
+    audit_pdf_path: Path,
     settings: JudgeSettings | None = None,
 ) -> JudgeVerdict:
     """Audit one selected candidate against source context."""
@@ -493,7 +531,7 @@ def judge_candidate_against_source(
             error=str(exc),
         )
 
-    system, user = build_audit_prompt(candidate, source_path, traits)
+    system, user = build_audit_prompt(candidate, source_path, traits, audit_pdf_path)
     try:
         raw, tokens = _call_lm_studio(system, user, judge_settings)
     except Exception as exc:

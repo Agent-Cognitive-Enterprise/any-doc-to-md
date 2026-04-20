@@ -16,6 +16,7 @@ from anydoc2md.format_converters.tournament.remediation import (
     RemediationPlan,
     build_remediation_plan,
 )
+from anydoc2md.format_converters.tournament.render import render_markdown_to_audit_pdf
 from anydoc2md.format_converters.tournament.selector import SelectionResult
 from anydoc2md.llm_judge import JudgeVerdict, judge_candidate_against_source
 from anydoc2md.settings import JudgeSettings
@@ -82,10 +83,15 @@ def run_post_selection_audit_loop(
             continue
 
         attempts += 1
+        audit_pdf_path = render_markdown_to_audit_pdf(
+            candidate.staging_dir / "index.md",
+            candidate.staging_dir / "audit_candidate.pdf",
+        )
         verdict = judge_candidate_against_source(
             candidate,
             source_path,
             traits,
+            audit_pdf_path=audit_pdf_path,
             settings=settings,
         )
         final_verdict = verdict

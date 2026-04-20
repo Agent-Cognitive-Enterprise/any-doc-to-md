@@ -29,14 +29,13 @@ Implemented today:
 - hard gates for missing/empty output, broken image refs, charset plausibility, and sampled PDF text coverage
 - weighted programmatic QA scoring
 - score-based candidate selection
-- post-selection LLM audit loop over ranked candidates with bounded Markdown excerpts and structured violations
+- post-selection LLM audit loop over ranked candidates with a rendered candidate PDF plus bounded supporting evidence
 - persisted ADTM findings under project-local `.any-doc-to-md/` state when the host project enables it
 - winner promotion into a stable `winner/` staging dir
 
 Still planned, not implemented yet:
 
 - the richer violation schema described below (`severity`, `violation_type`, `confidence` per programmatic check)
-- rendered candidate PDF generation for final fidelity audits
 - evidence-packet judging with page/block-level violation output
 - automated coding-agent extension authoring from judge findings
 - coding-agent maintainer-vs-read-only operating modes
@@ -328,7 +327,7 @@ Suggested control flow:
 7. allow at most 3 LLM audits per document
 8. escalate to human review when the audit budget is exhausted
 
-The current implementation now runs this post-selection audit loop, but it still audits against source metadata plus candidate Markdown excerpts rather than a rendered candidate PDF.
+The current implementation now runs this post-selection audit loop and renders a simple audit PDF from candidate Markdown, but it still lacks the richer page/block source evidence packet described above.
 
 ---
 

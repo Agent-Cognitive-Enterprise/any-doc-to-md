@@ -24,20 +24,20 @@ through these stages:
 3. Hard-disqualify obviously broken outputs.
 4. Run programmatic QA on surviving candidates and rank them by weighted score.
 5. Select the current leading candidate.
-6. Audit that candidate against the source via an LLM.
-   Current implementation uses source metadata, document traits, and the
-   candidate Markdown evidence block.
-7. If the LLM finds major issues, optionally build a remediation plan, persist
+6. Render the candidate Markdown to an audit PDF.
+7. Audit that candidate against the source via an LLM, using source evidence,
+   the rendered candidate PDF, and the candidate Markdown as supporting detail.
+8. If the LLM finds major issues, optionally build a remediation plan, persist
    findings in `.any-doc-to-md/`, penalize or disqualify the candidate, and
    retry with the next ranked candidate.
-8. If the candidate passes the audit, promote it to `winner/`, optionally
+9. If the candidate passes the audit, promote it to `winner/`, optionally
    persist host-project findings, and accept the winner.
 
 The package owns the reusable tournament logic. Host projects may optionally
 persist findings and feed project-local in-house overrides back into later runs
 via a local `.any-doc-to-md/` directory.
 
-The intended end-state is slightly richer than the current implementation:
+The intended end-state is still slightly richer than the current implementation:
 
 1. programmatic QA selects the current leading candidate
 2. an LLM audit compares the source artifact with a rendered PDF produced from
@@ -48,9 +48,9 @@ The intended end-state is slightly richer than the current implementation:
 5. this loop is capped at 3 LLM audits per document, after which the document
    is escalated for human review
 
-TODO: The current implementation persists findings and consumes project-local
-override files, but it does not yet generate rendered candidate PDFs for that
-final audit step.
+TODO: The current implementation renders a simple audit PDF from Markdown, but it
+does not yet compare against a richer page/block evidence packet from the
+source document.
 
 ```mermaid
 flowchart TD
@@ -82,9 +82,10 @@ flowchart TD
 ```
 
 TODO: The diagram above describes the intended ADTM end-state. The current code
-already has the post-selection audit loop, winner promotion, remediation-plan
-persistence, and project-local findings flow. What still lags is the rendered
-candidate PDF audit surface shown in the diagram.
+already has the post-selection audit loop, rendered candidate PDF generation,
+winner promotion, remediation-plan persistence, and project-local findings
+flow. What still lags is the richer source-side evidence packet implied by the
+diagram.
 
 Per-adapter staging layout:
 
@@ -102,8 +103,11 @@ Promoted winner layout:
 That normalized layout is what lets the tournament compare different
 converters uniformly and lets host projects ingest one stable winner path.
 
-TODO: Once rendered candidate PDF audit is implemented, document the audit
-artifacts here too.
+Audit artifacts currently added by the loop:
+
+- `audit_candidate.pdf` inside the selected candidate staging dir
+- `winner/qa_report.json`
+- `winner/remediation_plan.json` when judge findings produced one
 
 ## Scope
 
