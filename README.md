@@ -64,14 +64,13 @@ flowchart TD
     G --> H[Render candidate Markdown to audit PDF]
     H --> I[LLM audit against source]
     I --> J{Minor or major?}
-    J -- minor --> K[Accept winner]
+    J -- minor --> N[Promote to winner]
     J -- major --> P[Build remediation plan optional]
     P --> L[Penalize or disqualify candidate]
     L --> M[Next ranked candidate]
     M --> H
-    K --> N[Promote to winner]
     N --> O[Host project may persist findings in .any-doc-to-md]
-    P --> O
+    O --> K[Accept winner]
 ```
 
 TODO: The diagram above describes the intended ADTM end-state. The current code
