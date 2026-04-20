@@ -24,13 +24,15 @@ through these stages:
 3. Hard-disqualify obviously broken outputs.
 4. Run programmatic QA on surviving candidates and rank them by weighted score.
 5. Select the current leading candidate.
-6. Render the candidate Markdown to an audit PDF.
-7. Audit that candidate against the source via an LLM, using source evidence,
-   the rendered candidate PDF, and the candidate Markdown as supporting detail.
-8. If the LLM finds major issues, optionally build a remediation plan, persist
+6. Build a source evidence packet from the source document.
+7. Render the candidate Markdown to an audit PDF.
+8. Audit that candidate against the source via an LLM, using the source
+   evidence packet, the rendered candidate PDF, and the candidate Markdown as
+   supporting detail.
+9. If the LLM finds major issues, optionally build a remediation plan, persist
    findings in `.any-doc-to-md/`, penalize or disqualify the candidate, and
    retry with the next ranked candidate.
-9. If the candidate passes the audit, promote it to `winner/`, optionally
+10. If the candidate passes the audit, promote it to `winner/`, optionally
    persist host-project findings, and accept the winner.
 
 The package owns the reusable tournament logic. Host projects may optionally
@@ -48,9 +50,9 @@ The intended end-state is still slightly richer than the current implementation:
 5. this loop is capped at 3 LLM audits per document, after which the document
    is escalated for human review
 
-TODO: The current implementation renders a simple audit PDF from Markdown, but it
-does not yet compare against a richer page/block evidence packet from the
-source document.
+TODO: The current implementation builds a compact source evidence packet, but it
+does not yet carry a richer full-document evidence packet with broader page and
+block coverage.
 
 ```mermaid
 flowchart TD
@@ -83,9 +85,9 @@ flowchart TD
 
 TODO: The diagram above describes the intended ADTM end-state. The current code
 already has the post-selection audit loop, rendered candidate PDF generation,
-winner promotion, remediation-plan persistence, and project-local findings
-flow. What still lags is the richer source-side evidence packet implied by the
-diagram.
+winner promotion, remediation-plan persistence, project-local findings flow,
+and a compact source evidence packet. What still lags is broader page/block
+coverage in that source packet.
 
 Per-adapter staging layout:
 
@@ -105,6 +107,7 @@ converters uniformly and lets host projects ingest one stable winner path.
 
 Audit artifacts currently added by the loop:
 
+- source evidence packet embedded into the audit prompt
 - `audit_candidate.pdf` inside the selected candidate staging dir
 - `winner/qa_report.json`
 - `winner/remediation_plan.json` when judge findings produced one

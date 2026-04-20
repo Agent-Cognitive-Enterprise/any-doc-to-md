@@ -36,6 +36,9 @@ import fitz
 
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
+from anydoc2md.format_converters.tournament.source_evidence import (
+    build_source_evidence_packet,
+)
 from anydoc2md.settings import (
     AnyDocToMdConfigError,
     JudgeSettings,
@@ -176,19 +179,6 @@ def _pdf_evidence_block(label: str, pdf_path: Path) -> str:
     )
 
 
-def _source_evidence_block(source_path: Path) -> str:
-    if source_path.suffix.lower() == ".pdf":
-        return _pdf_evidence_block("Source PDF", source_path)
-    try:
-        text = source_path.read_text(encoding="utf-8")
-    except Exception:
-        return f"### Source document\nPath: {source_path}\nUnable to extract text directly."
-    return (
-        f"### Source document\nPath: {source_path}\n\n"
-        f"```text\n{_excerpt(text)}\n```"
-    )
-
-
 def _traits_summary(traits: DocumentTraits) -> str:
     """One-line summary of document traits for the judge."""
     flags = []
@@ -306,13 +296,14 @@ def build_audit_prompt(
     user = (
         f"## Source document\n"
         f"{_traits_summary(traits)}\n\n"
-        f"{_source_evidence_block(source_path)}\n\n"
+        f"## Source evidence packet\n\n"
+        f"```text\n{build_source_evidence_packet(source_path, traits).to_prompt_text()}\n```\n\n"
         f"## Rendered candidate audit PDF\n\n{_pdf_evidence_block('Rendered candidate PDF', audit_pdf_path)}\n\n"
         f"## Candidate Markdown\n\n{_evidence_block(candidate)}\n\n"
         "## Task\n"
         f"Audit candidate {candidate.method_name!r}. Return JSON with "
         f'"preferred" set to exactly "{candidate.method_name}". '
-        "Compare the rendered candidate PDF against the source evidence first. "
+        "Compare the rendered candidate PDF against the source evidence packet first. "
         "Use the Markdown block only as supporting detail. Flag material issues only."
     )
     return system, user

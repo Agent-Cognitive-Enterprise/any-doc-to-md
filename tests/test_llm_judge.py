@@ -38,6 +38,7 @@ from anydoc2md.llm_judge import (
     judge_near_tie,
     EXCERPT_CHARS_PER_ADAPTER,
 )
+from anydoc2md.format_converters.tournament.source_evidence import build_source_evidence_packet
 from anydoc2md.settings import (
     AnyDocToMdConfigError,
     JudgeSettings,
@@ -289,9 +290,33 @@ class TestBuildAuditPrompt:
         audit_pdf.write_bytes(b"%PDF-1.4\n%%EOF")
         system, user = build_audit_prompt(candidate, Path("/src/doc.pdf"), _traits(), audit_pdf)
         assert '"preferred"' in system
-        assert "Source PDF" in user
+        assert "Source evidence packet" in user
         assert "Rendered candidate PDF" in user
         assert "inhouse" in user
+
+
+class TestSourceEvidencePacket:
+    def test_text_packet_contains_chunks(self, tmp_path: Path) -> None:
+        source = tmp_path / "doc.txt"
+        source.write_text("Para one.\n\nPara two.\n\nPara three.", encoding="utf-8")
+        packet = build_source_evidence_packet(source, _traits(file_type="txt"))
+        rendered = packet.to_prompt_text()
+        assert "Text chunks" in rendered
+        assert "Para one." in rendered
+
+    def test_pdf_packet_contains_page_evidence(self, tmp_path: Path) -> None:
+        source = tmp_path / "doc.pdf"
+        import fitz
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_text((72, 72), "Hello from source PDF.")
+        doc.save(source)
+        doc.close()
+
+        packet = build_source_evidence_packet(source, _traits(file_type="pdf", page_count=1))
+        rendered = packet.to_prompt_text()
+        assert "Page-oriented source evidence" in rendered
+        assert "Hello from source PDF." in rendered
 
 
 # =========================================================================== #

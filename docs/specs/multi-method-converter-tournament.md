@@ -29,7 +29,7 @@ Implemented today:
 - hard gates for missing/empty output, broken image refs, charset plausibility, and sampled PDF text coverage
 - weighted programmatic QA scoring
 - score-based candidate selection
-- post-selection LLM audit loop over ranked candidates with a rendered candidate PDF plus bounded supporting evidence
+- post-selection LLM audit loop over ranked candidates with a compact source evidence packet, a rendered candidate PDF, and bounded supporting evidence
 - persisted ADTM findings under project-local `.any-doc-to-md/` state when the host project enables it
 - winner promotion into a stable `winner/` staging dir
 
@@ -327,7 +327,7 @@ Suggested control flow:
 7. allow at most 3 LLM audits per document
 8. escalate to human review when the audit budget is exhausted
 
-The current implementation now runs this post-selection audit loop and renders a simple audit PDF from candidate Markdown, but it still lacks the richer page/block source evidence packet described above.
+The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and builds a compact page-oriented source evidence packet. It still lacks broader page/block coverage and richer evidence packets for large documents.
 
 ---
 
