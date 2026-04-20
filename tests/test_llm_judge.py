@@ -318,6 +318,31 @@ class TestSourceEvidencePacket:
         assert "Page-oriented source evidence" in rendered
         assert "Hello from source PDF." in rendered
 
+    def test_pdf_packet_samples_pages_across_long_document(self, tmp_path: Path) -> None:
+        source = tmp_path / "long.pdf"
+        import fitz
+        doc = fitz.open()
+        for page_no in range(1, 7):
+            page = doc.new_page()
+            page.insert_text((72, 72), f"Page marker {page_no}")
+        doc.save(source)
+        doc.close()
+
+        packet = build_source_evidence_packet(source, _traits(file_type="pdf", page_count=6))
+        page_numbers = [page.page_number for page in packet.pages]
+        assert page_numbers == [1, 3, 4, 6]
+
+    def test_text_packet_samples_chunks_across_long_document(self, tmp_path: Path) -> None:
+        source = tmp_path / "long.txt"
+        source.write_text(
+            "\n\n".join(f"Paragraph {index}" for index in range(1, 10)),
+            encoding="utf-8",
+        )
+        packet = build_source_evidence_packet(source, _traits(file_type="txt"))
+        assert packet.text_chunks[0] == "Paragraph 1"
+        assert packet.text_chunks[-1] == "Paragraph 9"
+        assert len(packet.text_chunks) == 6
+
 
 # =========================================================================== #
 # _parse_verdict

@@ -93,7 +93,10 @@ def _build_pdf_packet(source_path: Path, traits: DocumentTraits) -> SourceEviden
     try:
         with fitz.open(source_path) as doc:
             pages: list[SourceEvidencePage] = []
-            for page_index, page in enumerate(doc[:MAX_SOURCE_PAGES], start=1):
+            sampled_indices = _sample_page_indices(len(doc), MAX_SOURCE_PAGES)
+            for page_zero_index in sampled_indices:
+                page_index = page_zero_index + 1
+                page = doc[page_zero_index]
                 page_text = _normalize(page.get_text("text"))
                 blocks = _extract_blocks(page, page_index)
                 pages.append(
@@ -130,8 +133,13 @@ def _build_text_packet(source_path: Path, traits: DocumentTraits) -> SourceEvide
             note=f"Unable to extract text directly: {exc}",
         )
 
-    parts = [part.strip() for part in re.split(r"\n\s*\n", _normalize(text)) if part.strip()]
-    chunks = [_trim(part) for part in parts[:MAX_TEXT_CHUNKS]]
+    parts = [
+        _normalize(part)
+        for part in re.split(r"\n\s*\n", text)
+        if part.strip()
+    ]
+    sampled_indices = _sample_page_indices(len(parts), MAX_TEXT_CHUNKS)
+    chunks = [_trim(parts[index]) for index in sampled_indices]
     return SourceEvidencePacket(
         source_path=str(source_path),
         source_kind=traits.file_type or "text",
@@ -184,3 +192,32 @@ def _traits_summary_line(traits: DocumentTraits) -> str:
         f"Type={traits.file_type.upper()} pages={traits.page_count} "
         f"images={traits.image_count} tables={traits.table_count} traits={joined}"
     )
+
+
+def _sample_page_indices(total: int, limit: int) -> list[int]:
+    """Sample first, middle, and end indices in stable ascending order."""
+    if total <= 0 or limit <= 0:
+        return []
+    if total <= limit:
+        return list(range(total))
+
+    if limit == 1:
+        return [0]
+
+    raw_positions = [round(step * (total - 1) / (limit - 1)) for step in range(limit)]
+    indices: list[int] = []
+    seen: set[int] = set()
+    for index in raw_positions:
+        if index not in seen:
+            indices.append(index)
+            seen.add(index)
+
+    if len(indices) < limit:
+        for index in range(total):
+            if index not in seen:
+                indices.append(index)
+                seen.add(index)
+            if len(indices) == limit:
+                break
+
+    return sorted(indices[:limit])

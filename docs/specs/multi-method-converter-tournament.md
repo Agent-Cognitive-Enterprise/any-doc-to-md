@@ -327,7 +327,7 @@ Suggested control flow:
 7. allow at most 3 LLM audits per document
 8. escalate to human review when the audit budget is exhausted
 
-The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and builds a compact page-oriented source evidence packet. It still lacks broader page/block coverage and richer evidence packets for large documents.
+The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and builds a compact sampled source evidence packet with page-oriented snippets. It still lacks broader page/block coverage and richer evidence packets for large documents.
 
 ---
 

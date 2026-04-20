@@ -24,7 +24,8 @@ through these stages:
 3. Hard-disqualify obviously broken outputs.
 4. Run programmatic QA on surviving candidates and rank them by weighted score.
 5. Select the current leading candidate.
-6. Build a source evidence packet from the source document.
+6. Build a source evidence packet from the source document, sampling across
+   the document so larger files retain first, middle, and end coverage.
 7. Render the candidate Markdown to an audit PDF.
 8. Audit that candidate against the source via an LLM, using the source
    evidence packet, the rendered candidate PDF, and the candidate Markdown as
@@ -50,9 +51,9 @@ The intended end-state is still slightly richer than the current implementation:
 5. this loop is capped at 3 LLM audits per document, after which the document
    is escalated for human review
 
-TODO: The current implementation builds a compact source evidence packet, but it
-does not yet carry a richer full-document evidence packet with broader page and
-block coverage.
+TODO: The current implementation builds a compact sampled source evidence
+packet, but it does not yet carry a richer full-document evidence packet with
+broader page and block coverage.
 
 ```mermaid
 flowchart TD
