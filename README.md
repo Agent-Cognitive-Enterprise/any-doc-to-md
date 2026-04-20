@@ -46,31 +46,31 @@ final audit step and it does not yet run the post-selection audit loop above.
 
 ```mermaid
 flowchart TD
-    A[Source document] --> B[classify_document]
-    B --> C[run_tournament]
+    A[Source document] --> B[Classify document]
+    B --> C[Run tournament]
     C --> C1[inhouse]
     C --> C2[markitdown]
     C --> C3[docling]
     C --> C4[pandoc opt-in]
     C --> C5[marker opt-in]
-    C1 --> D[adapter staging dirs]
+    C1 --> D[Adapter staging dirs]
     C2 --> D
     C3 --> D
     C4 --> D
     C5 --> D
-    D --> E[run_hard_gates]
-    E --> F[run_all QA plus build_scorecard]
-    F --> G[select_candidate]
-    G --> H[render candidate markdown to audit PDF]
+    D --> E[Run hard gates]
+    E --> F[Run QA and build scorecard]
+    F --> G[Select candidate]
+    G --> H[Render candidate Markdown to audit PDF]
     H --> I[LLM audit against source]
-    I --> J{minor or major?}
-    J -- minor --> K[accept winner]
-    J -- major --> L[penalize or disqualify candidate]
-    L --> M[next ranked candidate]
+    I --> J{Minor or major?}
+    J -- minor --> K[Accept winner]
+    J -- major --> L[Penalize or disqualify candidate]
+    L --> M[Next ranked candidate]
     M --> H
-    K --> N[promote to winner/]
-    N --> O[host project may persist findings in .any-doc-to-md]
-    I --> P[build remediation plan]
+    K --> N[Promote to winner]
+    N --> O[Host project may persist findings in .any-doc-to-md]
+    I --> P[Build remediation plan]
     P --> O
 ```
 
