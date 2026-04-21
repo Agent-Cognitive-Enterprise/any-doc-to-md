@@ -95,6 +95,22 @@ def _color_status(status: str, *, enabled: bool) -> str:
     return status
 
 
+def _render_attempt_status(
+    current: int,
+    total: int,
+    *,
+    elapsed_s: float,
+    eta_s: float,
+    status: str,
+    color_enabled: bool,
+) -> str:
+    return (
+        f"{_render_progress(current, total)} "
+        f"{_format_duration(elapsed_s)}/{_format_duration(eta_s)} "
+        f"{_color_status(status, enabled=color_enabled)}"
+    )
+
+
 def _format_size(size_hint_b: float | None) -> str:
     if size_hint_b is None:
         return "?"
@@ -352,7 +368,6 @@ def main(argv: list[str] | None = None) -> int:
                 remaining_attempts = total_attempts - completed_attempts
                 eta_s = mean_attempt_s * remaining_attempts
                 status = "PASS" if result.passed else "FAIL"
-                display_status = _color_status(status, enabled=color_enabled)
                 answer_timed_out = (
                     result.latency_s > answer_timeout_s
                     and (repeat_index > 1 or repeats == 1)
@@ -360,13 +375,12 @@ def main(argv: list[str] | None = None) -> int:
                 speed_note = f" | answer>{answer_timeout_s:g}s" if answer_timed_out else ""
                 reason = "" if result.passed else f" | {result.reason}"
                 print(
-                    f"\r{_render_progress(completed_attempts, total_attempts)} {display_status} "
+                    f"\r{_render_attempt_status(completed_attempts, total_attempts, elapsed_s=elapsed_s, eta_s=eta_s, status=status, color_enabled=color_enabled)} "
                     f"{model.model_id} | repeat {repeat_index}/{repeats} "
                     f"| {'load+answer' if repeat_index == 1 else 'answer'} "
                     f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
                     f"| violations={result.violations_count} | confidence={result.confidence} "
-                    f"| elapsed={_format_duration(elapsed_s)} "
-                    f"| eta={_format_duration(eta_s)}{speed_note}{reason}",
+                    f"{speed_note}{reason}",
                     flush=True,
                 )
                 results.append(result)
@@ -395,7 +409,6 @@ def main(argv: list[str] | None = None) -> int:
                     remaining_attempts = total_attempts - completed_attempts
                     eta_s = mean_attempt_s * remaining_attempts
                     status = "PASS" if result.passed else "FAIL"
-                    display_status = _color_status(status, enabled=color_enabled)
                     answer_timed_out = (
                         result.latency_s > answer_timeout_s
                         and (repeat_index > 1 or repeats == 1)
@@ -403,13 +416,12 @@ def main(argv: list[str] | None = None) -> int:
                     speed_note = f" | answer>{answer_timeout_s:g}s" if answer_timed_out else ""
                     reason = "" if result.passed else f" | {result.reason}"
                     print(
-                        f"\r{_render_progress(completed_attempts, total_attempts)} {display_status} "
+                        f"\r{_render_attempt_status(completed_attempts, total_attempts, elapsed_s=elapsed_s, eta_s=eta_s, status=status, color_enabled=color_enabled)} "
                         f"{model.model_id} | repeat {repeat_index}/{repeats} "
                         f"| {'load+answer' if repeat_index == 1 else 'answer'} "
                         f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
                         f"| violations={result.violations_count} | confidence={result.confidence} "
-                        f"| elapsed={_format_duration(elapsed_s)} "
-                        f"| eta={_format_duration(eta_s)}{speed_note}{reason}",
+                        f"{speed_note}{reason}",
                         flush=True,
                     )
                     results.append(result)
