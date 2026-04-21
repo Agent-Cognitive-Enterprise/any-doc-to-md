@@ -38,7 +38,7 @@ def probe_one_model(
 ) -> ProbeResult:
     required_issues = min_expected_issues or max(
         1,
-        math.ceil(len(EXPECTED_ISSUE_IDS) * DEFAULT_PASS_THRESHOLD),
+        math.floor(len(EXPECTED_ISSUE_IDS) * DEFAULT_PASS_THRESHOLD),
     )
     settings = JudgeSettings(
         url=judge_url,

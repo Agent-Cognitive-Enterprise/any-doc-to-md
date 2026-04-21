@@ -188,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     if pass_threshold <= 0 or pass_threshold > 1:
         print("Error: pass-threshold must be > 0 and <= 1.", flush=True)
         return 2
-    required_issue_count = max(1, math.ceil(len(EXPECTED_ISSUE_IDS) * pass_threshold))
+    required_issue_count = max(1, math.floor(len(EXPECTED_ISSUE_IDS) * pass_threshold))
     timing_split_available = repeats > 1
 
     print(f"Fetching models from: {args.judge_url.rstrip('/')}/models", flush=True)

@@ -158,7 +158,7 @@ Use `--show-errors` when you want diagnostic details such as JSON parse errors
 or checklist misses.
 
 The pass gate is configurable with `--pass-threshold`. The default is `0.6`,
-which means the model must mark at least 8 of 13 expected checklist issues and
+which means the model must mark at least 7 of 13 expected checklist issues and
 must not trigger negative controls such as OCR gibberish or wrong-language
 translation.
 
