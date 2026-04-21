@@ -33,12 +33,74 @@ def test_parse_size_hint_billions_none_when_missing() -> None:
 
 
 def test_render_progress_bar_is_stable() -> None:
-    from anydoc2md.find_judge import _render_progress
+    from anydoc2md.find_judge import _format_duration, _render_progress
 
     assert "0/3" in _render_progress(0, 3, width=10)
     assert "1/3" in _render_progress(1, 3, width=10)
     assert "3/3" in _render_progress(3, 3, width=10)
     assert _render_progress(0, 0) == "[?] 0/0"
+    assert _format_duration(61) == "01:01"
+    assert _format_duration(3661) == "1:01:01"
+
+
+def test_select_models_filters_exact_names() -> None:
+    from anydoc2md.find_judge import _select_models
+
+    selected = _select_models(["a", "b", "c"], ["b", "c"])
+    assert selected == ["b", "c"]
+
+
+def test_select_models_rejects_missing_name() -> None:
+    from anydoc2md.find_judge import _select_models
+
+    try:
+        _select_models(["a", "b"], ["c"])
+    except ValueError as exc:
+        assert "not found" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for missing model name")
+
+
+def test_summarize_model_splits_load_and_answer_time() -> None:
+    from anydoc2md.find_judge import _summarize_model
+    from anydoc2md.judge_probe_runner import ProbeResult
+
+    model = ModelInfo(model_id="test-7b", size_hint_b=7.0)
+    summary = _summarize_model(
+        model,
+        [
+            ProbeResult("test-7b", 7.0, 10.0, 100, "high", 4, True, "ok"),
+            ProbeResult("test-7b", 7.0, 4.0, 100, "high", 4, True, "ok"),
+            ProbeResult("test-7b", 7.0, 6.0, 100, "high", 4, True, "ok"),
+        ],
+    )
+
+    assert summary.first_latency_s == 10.0
+    assert summary.mean_answer_latency_s == 5.0
+    assert summary.max_answer_latency_s == 6.0
+    assert summary.estimated_load_overhead_s == 5.0
+    assert summary.mean_latency_s == 20.0 / 3.0
+    assert summary.answer_timeout_exceeded is False
+
+
+def test_summarize_model_excludes_slow_steady_answer_time() -> None:
+    from anydoc2md.find_judge import _summarize_model
+    from anydoc2md.judge_probe_runner import ProbeResult
+
+    model = ModelInfo(model_id="slow-7b", size_hint_b=7.0)
+    summary = _summarize_model(
+        model,
+        [
+            ProbeResult("slow-7b", 7.0, 90.0, 100, "high", 4, True, "ok"),
+            ProbeResult("slow-7b", 7.0, 31.0, 100, "high", 4, True, "ok"),
+            ProbeResult("slow-7b", 7.0, 29.0, 100, "high", 4, True, "ok"),
+        ],
+        answer_timeout_s=30.0,
+    )
+
+    assert summary.pass_count == 3
+    assert summary.answer_timeout_exceeded is True
+    assert summary.passed is False
 
 
 def test_fetch_model_ids_parses_openai_shape() -> None:
@@ -149,8 +211,11 @@ def test_main_keep_artifacts_writes_probe_pdfs(tmp_path: Path, capsys) -> None:
     from anydoc2md.find_judge import main
     from anydoc2md.judge_probe_runner import ProbeResult
 
+    seen_models: list[str] = []
+
     def fake_probe_one_model(**kwargs):
         model = kwargs["model"]
+        seen_models.append(model.model_id)
         return ProbeResult(
             model_id=model.model_id,
             size_hint_b=model.size_hint_b,
@@ -172,9 +237,12 @@ def test_main_keep_artifacts_writes_probe_pdfs(tmp_path: Path, capsys) -> None:
                 "http://localhost:1234/v1",
                 "--artifacts-dir",
                 str(tmp_path),
+                "--repeats",
+                "1",
             ]
         )
     assert rc == 0
+    assert seen_models == ["test-7b"]
 
     out = capsys.readouterr().out
     assert "Artifacts kept at:" in out
@@ -185,3 +253,51 @@ def test_main_keep_artifacts_writes_probe_pdfs(tmp_path: Path, capsys) -> None:
     assert artifacts_dir.exists()
     assert (artifacts_dir / "source.pdf").exists()
     assert (artifacts_dir / "candidate.pdf").exists()
+
+
+def test_main_repeats_and_model_filter(tmp_path: Path, capsys) -> None:
+    from anydoc2md.find_judge import main
+    from anydoc2md.judge_probe_runner import ProbeResult
+
+    seen_models: list[str] = []
+
+    def fake_probe_one_model(**kwargs):
+        model = kwargs["model"]
+        seen_models.append(model.model_id)
+        return ProbeResult(
+            model_id=model.model_id,
+            size_hint_b=model.size_hint_b,
+            latency_s=0.02,
+            tokens_used=20,
+            confidence="high",
+            violations_count=4,
+            passed=True,
+            reason="ok",
+        )
+
+    with (
+        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["a", "focus", "z"]),
+        patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
+    ):
+        rc = main(
+            [
+                "--judge-url",
+                "http://localhost:1234/v1",
+                "--model-name",
+                "focus",
+                "--repeats",
+                "3",
+                "--artifacts-dir",
+                str(tmp_path),
+            ]
+        )
+
+    assert rc == 0
+    assert seen_models == ["focus", "focus", "focus"]
+    out = capsys.readouterr().out
+    assert "Models selected: 1" in out
+    assert "Repeats per model: 3" in out
+    assert "Elapsed time:" in out
+    assert "answer_mean=" in out
+    assert "answer_max=" in out
+    assert "load_est=" in out

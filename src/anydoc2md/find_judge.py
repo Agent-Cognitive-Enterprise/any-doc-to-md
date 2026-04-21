@@ -15,7 +15,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import tempfile
+import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from anydoc2md.judge_probe_case import EXPECTED_ISSUE_CLASSES, build_probe_case
@@ -25,6 +28,32 @@ from anydoc2md.settings import DEFAULT_JUDGE_TIMEOUT_S, ENV_JUDGE_TIMEOUT_S
 
 _SLOW_JUDGE_TIMEOUT_MULTIPLIER = 4
 _DEFAULT_PROBE_JUDGE_TIMEOUT_S = DEFAULT_JUDGE_TIMEOUT_S * _SLOW_JUDGE_TIMEOUT_MULTIPLIER
+_ANSI_GREEN = "\033[32m"
+_ANSI_RED = "\033[31m"
+_ANSI_RESET = "\033[0m"
+
+
+@dataclass(frozen=True)
+class ModelProbeSummary:
+    model_id: str
+    size_hint_b: float | None
+    attempts: int
+    pass_count: int
+    first_latency_s: float
+    mean_answer_latency_s: float
+    max_answer_latency_s: float
+    estimated_load_overhead_s: float | None
+    answer_timeout_s: float | None
+    answer_timeout_exceeded: bool
+    mean_latency_s: float
+    mean_tokens_used: float
+    max_violations_count: int
+    confidences: tuple[str, ...]
+    reasons: tuple[str, ...]
+
+    @property
+    def passed(self) -> bool:
+        return self.pass_count == self.attempts and not self.answer_timeout_exceeded
 
 
 def _env_int(name: str) -> int | None:
@@ -47,12 +76,90 @@ def _render_progress(current: int, total: int, *, width: int = 24) -> str:
     return f"[{bar}] {current}/{total}"
 
 
+def _format_duration(seconds: float) -> str:
+    total_seconds = max(0, int(round(seconds)))
+    hours, rem = divmod(total_seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours:d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def _color_status(status: str, *, enabled: bool) -> str:
+    if not enabled:
+        return status
+    if status == "PASS":
+        return f"{_ANSI_GREEN}{status}{_ANSI_RESET}"
+    if status == "FAIL":
+        return f"{_ANSI_RED}{status}{_ANSI_RESET}"
+    return status
+
+
 def _format_size(size_hint_b: float | None) -> str:
     if size_hint_b is None:
         return "?"
     if size_hint_b.is_integer():
         return f"{int(size_hint_b)}B"
     return f"{size_hint_b:g}B"
+
+
+def _select_models(all_model_ids: list[str], requested_model_names: list[str]) -> list[str]:
+    if not requested_model_names:
+        return all_model_ids
+
+    requested = [name.strip() for name in requested_model_names if name.strip()]
+    requested_set = set(requested)
+    available_set = set(all_model_ids)
+    missing = [name for name in requested if name not in available_set]
+    if missing:
+        missing_joined = ", ".join(missing)
+        raise ValueError(f"Requested model(s) not found on endpoint: {missing_joined}")
+
+    return [model_id for model_id in all_model_ids if model_id in requested_set]
+
+
+def _summarize_model(
+    model: ModelInfo,
+    attempt_results: list[ProbeResult],
+    *,
+    answer_timeout_s: float | None = None,
+) -> ModelProbeSummary:
+    attempts = len(attempt_results)
+    pass_count = sum(1 for result in attempt_results if result.passed)
+    first_latency_s = attempt_results[0].latency_s if attempt_results else 0.0
+    answer_results = attempt_results[1:] if len(attempt_results) > 1 else attempt_results
+    mean_answer_latency_s = (
+        sum(result.latency_s for result in answer_results) / max(1, len(answer_results))
+    )
+    max_answer_latency_s = max((result.latency_s for result in answer_results), default=0.0)
+    estimated_load_overhead_s = None
+    if len(attempt_results) > 1:
+        estimated_load_overhead_s = max(0.0, first_latency_s - mean_answer_latency_s)
+    answer_timeout_exceeded = (
+        answer_timeout_s is not None and max_answer_latency_s > answer_timeout_s
+    )
+    mean_latency_s = sum(result.latency_s for result in attempt_results) / max(1, attempts)
+    mean_tokens_used = sum(result.tokens_used for result in attempt_results) / max(1, attempts)
+    max_violations_count = max((result.violations_count for result in attempt_results), default=0)
+    confidences = tuple(result.confidence for result in attempt_results)
+    reasons = tuple(result.reason for result in attempt_results)
+    return ModelProbeSummary(
+        model_id=model.model_id,
+        size_hint_b=model.size_hint_b,
+        attempts=attempts,
+        pass_count=pass_count,
+        first_latency_s=first_latency_s,
+        mean_answer_latency_s=mean_answer_latency_s,
+        max_answer_latency_s=max_answer_latency_s,
+        estimated_load_overhead_s=estimated_load_overhead_s,
+        answer_timeout_s=answer_timeout_s,
+        answer_timeout_exceeded=answer_timeout_exceeded,
+        mean_latency_s=mean_latency_s,
+        mean_tokens_used=mean_tokens_used,
+        max_violations_count=max_violations_count,
+        confidences=confidences,
+        reasons=reasons,
+    )
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -96,6 +203,32 @@ def build_argument_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--timeout-s",
+        type=float,
+        default=30.0,
+        metavar="SECS",
+        help=(
+            "Maximum acceptable steady answer time in seconds (default: 30). "
+            "Repeat 1 is treated as load+answer and excluded when repeats > 1."
+        ),
+    )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=3,
+        metavar="N",
+        help="How many times to test each selected model (default: 3).",
+    )
+    parser.add_argument(
+        "--model-name",
+        action="append",
+        default=[],
+        metavar="MODEL",
+        help=(
+            "Probe only the specified model id. Repeat this flag to probe multiple exact model ids."
+        ),
+    )
+    parser.add_argument(
         "--top-n",
         type=int,
         default=10,
@@ -106,6 +239,17 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--show-all",
         action="store_true",
         help="Print all model probe results, not just the fastest passing ones.",
+    )
+    color_group = parser.add_mutually_exclusive_group()
+    color_group.add_argument(
+        "--color",
+        action="store_true",
+        help="Force ANSI color output for PASS/FAIL.",
+    )
+    color_group.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color output.",
     )
     return parser
 
@@ -120,8 +264,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.judge_timeout_s is not None
         else (env_timeout if env_timeout is not None else _DEFAULT_PROBE_JUDGE_TIMEOUT_S)
     )
+    repeats = args.repeats
+    answer_timeout_s = args.timeout_s
     if judge_timeout_s <= 0:
         print("Error: judge timeout must be > 0.", flush=True)
+        return 2
+    if answer_timeout_s <= 0:
+        print("Error: timeout-s must be > 0.", flush=True)
+        return 2
+    if repeats <= 0:
+        print("Error: repeats must be > 0.", flush=True)
         return 2
 
     print(f"Fetching models from: {args.judge_url.rstrip('/')}/models", flush=True)
@@ -135,17 +287,32 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: no models returned by {args.judge_url.rstrip('/')}/models", flush=True)
         return 2
 
+    try:
+        selected_model_ids = _select_models(model_ids, args.model_name)
+    except ValueError as exc:
+        print(f"Error: {exc}", flush=True)
+        return 2
+
+    if not selected_model_ids:
+        print("Error: no models selected for probing.", flush=True)
+        return 2
+
     print(f"Models discovered: {len(model_ids)}", flush=True)
+    print(f"Models selected: {len(selected_model_ids)}", flush=True)
     print("Sorting by best-effort size hint (parsed from model id)...", flush=True)
     models = [
         ModelInfo(model_id=model_id, size_hint_b=parse_size_hint_billions(model_id))
-        for model_id in model_ids
+        for model_id in selected_model_ids
     ]
     models.sort(key=lambda m: (m.size_hint_b is None, m.size_hint_b or 0.0, m.model_id))
     print(f"Probe judge timeout: {judge_timeout_s}s", flush=True)
+    print(f"Production answer timeout: {answer_timeout_s:g}s", flush=True)
+    print(f"Repeats per model: {repeats}", flush=True)
 
     results: list[ProbeResult] = []
     keep_artifacts = bool(args.keep_artifacts or args.artifacts_dir)
+    total_attempts = len(models) * repeats
+    run_started_at = time.monotonic()
 
     if keep_artifacts:
         if args.artifacts_dir is not None:
@@ -162,37 +329,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  staging:   {probe_case.candidate.staging_dir}", flush=True)
         print("", flush=True)
 
-        total = len(models)
-        for index, model in enumerate(models, start=1):
-            prefix = (
-                f"{_render_progress(index - 1, total)} "
-                f"probe {model.model_id} (size={_format_size(model.size_hint_b)})..."
-            )
-            print(prefix, end="", flush=True)
-            result = probe_one_model(
-                model=model,
-                judge_url=args.judge_url,
-                judge_timeout_s=judge_timeout_s,
-                probe_case=probe_case,
-            )
-            status = "PASS" if result.passed else "FAIL"
-            reason = "" if result.passed else f" | {result.reason}"
-            print(
-                f"\r{_render_progress(index, total)} {status} {model.model_id} "
-                f"(size={_format_size(model.size_hint_b)}) | {result.latency_s:.2f}s "
-                f"| tokens={result.tokens_used} | violations={result.violations_count} "
-                f"| confidence={result.confidence}{reason}",
-                flush=True,
-            )
-            results.append(result)
-    else:
-        with tempfile.TemporaryDirectory(prefix="anydoc2md-find-judge-") as tmp:
-            probe_case = build_probe_case(Path(tmp))
-            total = len(models)
-            for index, model in enumerate(models, start=1):
+        completed_attempts = 0
+        for model_index, model in enumerate(models, start=1):
+            for repeat_index in range(1, repeats + 1):
                 prefix = (
-                    f"{_render_progress(index - 1, total)} "
-                    f"probe {model.model_id} (size={_format_size(model.size_hint_b)})..."
+                    f"{_render_progress(completed_attempts, total_attempts)} "
+                    f"model {model_index}/{len(models)} repeat {repeat_index}/{repeats} "
+                    f"{'load+answer' if repeat_index == 1 else 'answer'} "
+                    f"{model.model_id} (size={_format_size(model.size_hint_b)})..."
                 )
                 print(prefix, end="", flush=True)
                 result = probe_one_model(
@@ -201,53 +345,153 @@ def main(argv: list[str] | None = None) -> int:
                     judge_timeout_s=judge_timeout_s,
                     probe_case=probe_case,
                 )
+                completed_attempts += 1
+                elapsed_s = time.monotonic() - run_started_at
+                mean_attempt_s = elapsed_s / max(1, completed_attempts)
+                remaining_attempts = total_attempts - completed_attempts
+                eta_s = mean_attempt_s * remaining_attempts
                 status = "PASS" if result.passed else "FAIL"
+                answer_timed_out = (
+                    result.latency_s > answer_timeout_s
+                    and (repeat_index > 1 or repeats == 1)
+                )
+                speed_note = f" | answer>{answer_timeout_s:g}s" if answer_timed_out else ""
                 reason = "" if result.passed else f" | {result.reason}"
                 print(
-                    f"\r{_render_progress(index, total)} {status} {model.model_id} "
-                    f"(size={_format_size(model.size_hint_b)}) | {result.latency_s:.2f}s "
-                    f"| tokens={result.tokens_used} | violations={result.violations_count} "
-                    f"| confidence={result.confidence}{reason}",
+                    f"\r{_render_progress(completed_attempts, total_attempts)} {status} "
+                    f"{model.model_id} | repeat {repeat_index}/{repeats} "
+                    f"| {'load+answer' if repeat_index == 1 else 'answer'} "
+                    f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
+                    f"| violations={result.violations_count} | confidence={result.confidence} "
+                    f"| elapsed={_format_duration(elapsed_s)} "
+                    f"| eta={_format_duration(eta_s)}{speed_note}{reason}",
                     flush=True,
                 )
                 results.append(result)
+    else:
+        with tempfile.TemporaryDirectory(prefix="anydoc2md-find-judge-") as tmp:
+            probe_case = build_probe_case(Path(tmp))
+            completed_attempts = 0
+            for model_index, model in enumerate(models, start=1):
+                for repeat_index in range(1, repeats + 1):
+                    prefix = (
+                        f"{_render_progress(completed_attempts, total_attempts)} "
+                        f"model {model_index}/{len(models)} repeat {repeat_index}/{repeats} "
+                        f"{'load+answer' if repeat_index == 1 else 'answer'} "
+                        f"{model.model_id} (size={_format_size(model.size_hint_b)})..."
+                    )
+                    print(prefix, end="", flush=True)
+                    result = probe_one_model(
+                        model=model,
+                        judge_url=args.judge_url,
+                        judge_timeout_s=judge_timeout_s,
+                        probe_case=probe_case,
+                    )
+                    completed_attempts += 1
+                    elapsed_s = time.monotonic() - run_started_at
+                    mean_attempt_s = elapsed_s / max(1, completed_attempts)
+                    remaining_attempts = total_attempts - completed_attempts
+                    eta_s = mean_attempt_s * remaining_attempts
+                    status = "PASS" if result.passed else "FAIL"
+                    answer_timed_out = (
+                        result.latency_s > answer_timeout_s
+                        and (repeat_index > 1 or repeats == 1)
+                    )
+                    speed_note = f" | answer>{answer_timeout_s:g}s" if answer_timed_out else ""
+                    reason = "" if result.passed else f" | {result.reason}"
+                    print(
+                        f"\r{_render_progress(completed_attempts, total_attempts)} {status} "
+                        f"{model.model_id} | repeat {repeat_index}/{repeats} "
+                        f"| {'load+answer' if repeat_index == 1 else 'answer'} "
+                        f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
+                        f"| violations={result.violations_count} | confidence={result.confidence} "
+                        f"| elapsed={_format_duration(elapsed_s)} "
+                        f"| eta={_format_duration(eta_s)}{speed_note}{reason}",
+                        flush=True,
+                    )
+                    results.append(result)
 
-    passing = [r for r in results if r.passed]
-    passing.sort(key=lambda r: (r.latency_s, r.model_id))
+    summaries = [
+        _summarize_model(
+            model,
+            [result for result in results if result.model_id == model.model_id],
+            answer_timeout_s=answer_timeout_s,
+        )
+        for model in models
+    ]
+    passing = [summary for summary in summaries if summary.passed]
+    passing.sort(key=lambda summary: (summary.mean_answer_latency_s, summary.model_id))
+    total_elapsed_s = time.monotonic() - run_started_at
 
     print(f"Judge URL: {args.judge_url}")
-    print(f"Models discovered: {len(models)}")
-    print(f"Models passing: {len(passing)}")
+    print(f"Models discovered: {len(model_ids)}")
+    print(f"Models selected: {len(models)}")
+    print(f"Models passing all repeats: {len(passing)}")
     print(f"Probe judge timeout: {judge_timeout_s}s")
+    print(f"Production answer timeout: {answer_timeout_s:g}s")
+    print(f"Repeats per model: {repeats}")
+    print(f"Elapsed time: {_format_duration(total_elapsed_s)}")
+    print("Timing model: repeat 1 is load+answer; later repeats estimate steady answer time.")
+    print("Models exceeding --timeout-s on steady answer time are excluded from passing results.")
     print(f"Expected issue classes: {', '.join(EXPECTED_ISSUE_CLASSES)}")
     print("")
 
     if not passing:
-        print("No models passed the synthetic audit probe.", flush=True)
+        print("No models passed every repeat of the fixture-backed audit probe.", flush=True)
         if not args.show_all:
             print("Tip: re-run with --show-all to see per-model failure reasons.", flush=True)
             return 1
         print("")
 
     if passing:
-        print(f"Fastest passing models (top {args.top_n}):")
-        for index, result in enumerate(passing[: max(1, args.top_n)], start=1):
+        print(f"Fastest passing models by steady answer time (top {args.top_n}):")
+        for index, summary in enumerate(passing[: max(1, args.top_n)], start=1):
+            load_est = (
+                "n/a"
+                if summary.estimated_load_overhead_s is None
+                else f"{summary.estimated_load_overhead_s:.2f}s"
+            )
             print(
-                f"{index:>2}. {result.model_id} | size={_format_size(result.size_hint_b)} "
-                f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
-                f"| violations={result.violations_count} | confidence={result.confidence}"
+                f"{index:>2}. {summary.model_id} | size={_format_size(summary.size_hint_b)} "
+                f"| first_load+answer={summary.first_latency_s:.2f}s "
+                f"| answer_mean={summary.mean_answer_latency_s:.2f}s "
+                f"| answer_max={summary.max_answer_latency_s:.2f}s "
+                f"| load_est={load_est} "
+                f"| all_mean={summary.mean_latency_s:.2f}s "
+                f"| pass={summary.pass_count}/{summary.attempts} "
+                f"| mean_tokens={summary.mean_tokens_used:.0f} "
+                f"| max_violations={summary.max_violations_count}"
             )
 
     if args.show_all:
         print("")
-        print("All results (size-sorted probe order):")
-        for result in results:
-            status = "PASS" if result.passed else "FAIL"
-            reason = "" if result.passed else f" | {result.reason}"
+        print("All results (size-sorted model summaries):")
+        for summary in summaries:
+            status = "PASS" if summary.passed else "FAIL"
+            unique_reasons = tuple(dict.fromkeys(summary.reasons))
+            load_est = (
+                "n/a"
+                if summary.estimated_load_overhead_s is None
+                else f"{summary.estimated_load_overhead_s:.2f}s"
+            )
+            reason = ""
+            if not summary.passed:
+                reasons = [item for item in unique_reasons if item != "ok"]
+                if summary.answer_timeout_exceeded:
+                    reasons.append(
+                        f"answer time exceeded --timeout-s {summary.answer_timeout_s:g}s"
+                    )
+                reason = " | " + " ; ".join(reasons)
             print(
-                f"{status} {result.model_id} | size={_format_size(result.size_hint_b)} "
-                f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
-                f"| violations={result.violations_count} | confidence={result.confidence}"
+                f"{status} {summary.model_id} | size={_format_size(summary.size_hint_b)} "
+                f"| first_load+answer={summary.first_latency_s:.2f}s "
+                f"| answer_mean={summary.mean_answer_latency_s:.2f}s "
+                f"| answer_max={summary.max_answer_latency_s:.2f}s "
+                f"| load_est={load_est} "
+                f"| all_mean={summary.mean_latency_s:.2f}s "
+                f"| pass={summary.pass_count}/{summary.attempts} "
+                f"| mean_tokens={summary.mean_tokens_used:.0f} "
+                f"| confidences={','.join(summary.confidences)}"
                 f"{reason}"
             )
 

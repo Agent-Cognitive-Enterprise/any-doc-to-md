@@ -1,11 +1,43 @@
 # any-doc-to-md
 
-`anydoc2md` is a shared Python package for:
+`anydoc2md` is a document-to-Markdown tournament system.
 
-- document-to-Markdown conversion
+Not "a converter".
+Not "a thin wrapper over one converter".
+Not "whatever the first CLI happened to emit".
+
+It is a package for running multiple conversion methods, scoring them, auditing
+the leading candidate against the source, and promoting one normalized winner.
+
+That sounds simple. It is not.
+
+Document conversion is one of those engineering problems that looks solved
+until a real document arrives:
+
+- the PDF with the figure caption attached to the wrong image
+- the DOCX whose numbering restarts in the middle
+- the HTML export that turns a table into decorative whitespace
+- the scanned report where the converter is technically "successful" and
+  practically unusable
+
+`anydoc2md` exists because "pick one converter and hope" is not a strategy.
+
+What the package does:
+
+- document-to-Markdown conversion across multiple adapters
 - structural and fidelity QA over conversion outputs
-- multi-adapter converter tournaments
+- tournament-style ranking and winner selection
 - LLM-assisted source-fidelity auditing of selected candidates
+- project-local memory for findings, overrides, and deterministic scaffolds
+
+What makes it interesting:
+
+- It treats conversion as an evaluation problem, not just a parsing problem.
+- It preserves evidence, not just outputs.
+- It gives host applications one stable winner layout even when the upstream
+  tools behave very differently.
+- It is opinionated in a useful way: converters compete, artifacts are
+  normalized, and failures become actionable.
 
 Source lives under `src/anydoc2md/`.
 
@@ -13,6 +45,12 @@ The canonical any-doc-to-md (ADTM) specification lives at
 [`docs/specs/multi-method-converter-tournament.md`](docs/specs/multi-method-converter-tournament.md).
 Parent projects should reference that package-owned spec instead of maintaining
 their own copies.
+
+If you work on ingestion, enterprise search, knowledge-base pipelines,
+compliance archives, or AI/RAG systems, this package is worth understanding
+because it encodes a hard-earned lesson:
+
+> the best Markdown output is usually discovered, not assumed.
 
 ## Quick Start
 
@@ -25,7 +63,13 @@ python -m pip install -e .
 
 ### CLI (host-provided)
 
-`anydoc2md` is a library; host applications typically provide a CLI wrapper.
+`anydoc2md` is a library. Host applications usually provide the user-facing CLI
+and call into the shared tournament/runtime surfaces.
+
+In other words:
+
+- package responsibility: convert, score, audit, normalize, persist findings
+- host responsibility: environment loading, CLI UX, orchestration, exit behavior
 
 In PRAI (this monorepo), you can run the KB-pack pipeline CLI in tournament mode:
 
@@ -53,8 +97,34 @@ fidelity, and figure/caption consistency:
 
 ```bash
 cd packages/any-doc-to-md
-python -m anydoc2md.find_judge --judge-url http://127.0.0.1:1234/v1 --show-all
+python -m anydoc2md.find_judge \
+  --judge-url http://127.0.0.1:1234/v1 \
+  --repeats 3 \
+  --timeout-s 30 \
+  --show-all
 ```
+
+For a focused run against one model:
+
+```bash
+python -m anydoc2md.find_judge \
+  --judge-url http://127.0.0.1:1234/v1 \
+  --model-name qwen/qwen3.6-35b-a3b \
+  --repeats 3 \
+  --timeout-s 30 \
+  --show-all
+```
+
+The first repeat is reported as `load+answer`, which captures model-switch or
+on-demand load time when the endpoint loads models lazily. Later repeats are
+used to estimate steady answer time. The live progress output includes elapsed
+time and ETA because this benchmark is usually a one-time hardware calibration,
+not something you want to babysit blindly.
+
+`--timeout-s` is the production usefulness threshold for steady answer time. It
+does not replace `--judge-timeout-s`, which is the HTTP read timeout. A model can
+take a while to load and still be useful; a model that repeatedly takes more
+than `--timeout-s` to answer after loading is excluded from the passing list.
 
 ### Python
 
@@ -77,6 +147,55 @@ result = run_full_tournament(
 print(result.winner, result.winner_staging_dir)
 ```
 
+## Why ADTM Exists
+
+Most conversion stacks are optimized for one of two stories:
+
+1. "Works great on the demo file."
+2. "Supports many formats."
+
+Production systems need a third story:
+
+3. "When the file is ugly, we still know why we trusted the output."
+
+ADTM, short for *Any-Doc-to-Markdown Tournament*, is the package's answer to
+that requirement.
+
+The core move is deceptively strong:
+
+- run more than one converter
+- normalize the outputs into one comparable layout
+- score them programmatically
+- audit the leading candidate against the source
+- keep the evidence and the failure reasons
+
+This changes the operational posture of document conversion.
+
+Instead of asking:
+
+- "Which converter should we bless forever?"
+
+you get to ask:
+
+- "Which candidate won for this document, and what evidence supports that?"
+
+That is a better question. It is more debuggable, more reviewable, and more
+useful in front of users, teammates, and future-you.
+
+## What You Learn By Reading This Package
+
+Even if you never adopt the package whole, the design is useful:
+
+- Normalize competing tools into one artifact contract.
+- Separate *selection* from *execution*.
+- Keep source-side evidence near quality decisions.
+- Make LLM judgment auditable and bounded instead of mystical.
+- Treat remediation output as reviewable scaffolding, not autonomous mutation.
+
+That combination is what makes `anydoc2md` more interesting than "yet another
+Markdown converter". It is a small systems design lesson wearing a practical
+Python package as a disguise.
+
 ## How It Works
 
 `anydoc2md` owns the reusable conversion tournament itself. A typical run goes
@@ -98,7 +217,18 @@ through these stages:
    retry with the next ranked candidate only if the rescored candidate is no
    longer leading.
 10. If the candidate passes the audit, promote it to `winner/`, optionally
-   persist host-project findings, and accept the winner.
+    persist host-project findings, and accept the winner.
+
+The high-level idea is:
+
+- conversion produces candidates
+- QA produces comparable signals
+- the judge produces source-aware criticism
+- the runtime promotes one winner with a stable shape
+
+That stable shape matters more than it first appears. It is what lets later
+pipeline stages stop caring whether the winner came from `docling`,
+`markitdown`, `pandoc`, `marker`, or the in-house converter.
 
 The package owns the reusable tournament logic. Host projects may optionally
 persist findings and feed project-local in-house overrides back into later runs
