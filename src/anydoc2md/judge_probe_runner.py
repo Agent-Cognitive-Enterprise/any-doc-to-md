@@ -6,11 +6,7 @@ import time
 from dataclasses import dataclass
 
 from anydoc2md.judge_probe_case import (
-    FIGURE_MARKER,
-    INTRO_MARKER,
-    STEP_ONE_MARKER,
-    STEP_TWO_MARKER,
-    REQUIRED_MARKERS,
+    EXPECTED_ISSUE_CLASSES,
     ProbeCase,
 )
 from anydoc2md.judge_probe_models import ModelInfo
@@ -45,6 +41,73 @@ def _collect_verdict_text(verdict) -> str:
     return " ".join(part for part in parts if part).lower()
 
 
+def _detect_issue_classes(combined: str) -> list[str]:
+    detected: list[str] = []
+
+    title_keywords = (
+        "title",
+        "heading",
+        "header",
+        "fragmented",
+        "split",
+        "broken heading",
+        "malformed heading",
+    )
+    bullet_keywords = (
+        "bullet",
+        "bullets",
+        "unordered list",
+        "dot list",
+    )
+    numbered_keywords = (
+        "numbered",
+        "numbering",
+        "numeric list",
+        "ordered list",
+        "reading_order",
+        "reading order",
+        "out of order",
+        "sequence",
+        "step order",
+        "step sequence",
+        "reordered",
+        "swapped",
+    )
+    table_keywords = (
+        "table",
+        "tabular",
+        "rows",
+        "columns",
+        "cells",
+        "flattened",
+    )
+    figure_keywords = (
+        "caption",
+        "figure",
+        "image",
+        "illustration",
+        "visual",
+    )
+
+    has_title = any(keyword in combined for keyword in title_keywords)
+    has_bullet_list = any(keyword in combined for keyword in bullet_keywords)
+    has_numbered_list = any(keyword in combined for keyword in numbered_keywords)
+    has_table = any(keyword in combined for keyword in table_keywords)
+    has_figure_caption = any(keyword in combined for keyword in figure_keywords)
+
+    if has_title:
+        detected.append("title formatting")
+    if has_bullet_list:
+        detected.append("bullet list formatting")
+    if has_numbered_list:
+        detected.append("numbered list formatting")
+    if has_table:
+        detected.append("table fidelity")
+    if has_figure_caption:
+        detected.append("figure caption mismatch")
+    return detected
+
+
 def probe_one_model(
     *,
     model: ModelInfo,
@@ -74,29 +137,11 @@ def probe_one_model(
     error = getattr(verdict, "error", "") or ""
 
     combined = _collect_verdict_text(verdict)
-    missing_markers = [m for m in REQUIRED_MARKERS if m.lower() not in combined]
-
-    order_keywords = ("reading order", "out of order", "sequence", "step order")
-    image_keywords = ("figure", "caption", "image")
-
-    has_order_issue = (
-        STEP_ONE_MARKER.lower() in combined
-        and STEP_TWO_MARKER.lower() in combined
-        and any(keyword in combined for keyword in order_keywords)
-    )
-    has_timing_issue = (
-        INTRO_MARKER.lower() in combined
-        and (
-            ("before" in combined and "after" in combined)
-            or "instead of" in combined
-            or "timing" in combined
-            or "reversed" in combined
-        )
-    )
-    has_figure_issue = (
-        FIGURE_MARKER.lower() in combined
-        and any(keyword in combined for keyword in image_keywords)
-    )
+    detected_issue_classes = _detect_issue_classes(combined)
+    missing_issue_classes = [
+        issue_class for issue_class in EXPECTED_ISSUE_CLASSES
+        if issue_class not in detected_issue_classes
+    ]
 
     if confidence == "error":
         return ProbeResult(
@@ -120,8 +165,7 @@ def probe_one_model(
             passed=False,
             reason=f"too few violations: {violations_count}",
         )
-    if missing_markers:
-        missing = ", ".join(missing_markers)
+    if len(detected_issue_classes) < 4:
         return ProbeResult(
             model_id=model.model_id,
             size_hint_b=model.size_hint_b,
@@ -130,26 +174,10 @@ def probe_one_model(
             confidence=confidence,
             violations_count=violations_count,
             passed=False,
-            reason=f"missing markers in response: {missing}",
-        )
-
-    missing_issue_bits: list[str] = []
-    if not has_timing_issue:
-        missing_issue_bits.append("timing issue")
-    if not has_order_issue:
-        missing_issue_bits.append("reading-order issue")
-    if not has_figure_issue:
-        missing_issue_bits.append("figure/caption issue")
-    if missing_issue_bits:
-        return ProbeResult(
-            model_id=model.model_id,
-            size_hint_b=model.size_hint_b,
-            latency_s=latency_s,
-            tokens_used=tokens_used,
-            confidence=confidence,
-            violations_count=violations_count,
-            passed=False,
-            reason="did not surface: " + ", ".join(missing_issue_bits),
+            reason=(
+                f"surfaced {len(detected_issue_classes)}/{len(EXPECTED_ISSUE_CLASSES)} "
+                "issue classes: " + ", ".join(detected_issue_classes or ["none"])
+            ),
         )
 
     return ProbeResult(
@@ -160,6 +188,9 @@ def probe_one_model(
         confidence=confidence,
         violations_count=violations_count,
         passed=True,
-        reason="ok",
+        reason=(
+            "ok"
+            if not missing_issue_classes
+            else "missing one issue class but audit was otherwise strong: " + ", ".join(missing_issue_classes)
+        ),
     )
-

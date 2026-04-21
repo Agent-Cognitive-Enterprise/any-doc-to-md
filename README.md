@@ -47,7 +47,9 @@ PYTHONPATH=. python scripts/convert_tournament_test_sources.py
 ```
 
 To probe a local judge endpoint and find the smallest/fastest model that can
-reliably surface audit issues (synthetic test case):
+reliably surface audit issues, use the committed fixture PDFs that ship with
+the package. The probe checks headings, bullet lists, numbered lists, table
+fidelity, and figure/caption consistency:
 
 ```bash
 cd packages/any-doc-to-md
