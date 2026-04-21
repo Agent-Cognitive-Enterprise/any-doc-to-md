@@ -146,14 +146,22 @@ External tools used:
 The in-house adapter is not just a fallback. It is a first-class tournament
 candidate that uses the package's own converter modules directly.
 
-| Dimension | `inhouse` | `markitdown` | `docling` |
-|---|---|---|---|
-| Execution model | direct Python modules | external CLI via subprocess | external CLI via subprocess |
-| Normal output shape | already aimed at package staging layout | flat Markdown file, adapter normalizes to `index.md` | `<stem>.md` plus artifacts dir, adapter normalizes to `index.md` + `images/` |
-| Image handling | package-native handling, then image dimensions annotated | often little or no extracted image output for PDFs | exports referenced image files and adapter rewrites them into `images/` |
-| Dependency surface | only the package + Python libs | requires installed `markitdown` CLI | requires installed `docling` CLI |
-| Failure mode | Python exception path becomes structured adapter error | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI |
-| Main strength | tight integration and predictable staging semantics | broad document support and simple CLI contract | strong document-structure and image-export behavior |
+All adapters are normalized into the same staging layout (`index.md`, `images/`,
+and `adapter_result.json`) so the tournament can score and audit them uniformly.
+The main differences are the conversion engine, image extraction behavior, and
+dependency footprint.
+
+| Dimension | `inhouse` | `markitdown` | `docling` | `pandoc` | `marker` |
+|---|---|---|---|---|---|
+| Execution model | direct Python modules | external CLI via subprocess | external CLI via subprocess | external CLI via subprocess | external CLI via subprocess |
+| Normal output shape | already aimed at package staging layout | flat Markdown output, adapter writes `index.md` | `<stem>.md` + artifacts dir, adapter normalizes to `index.md` + `images/` | adapter writes `index.md` | marker output normalized into `index.md` + `images/` |
+| Image handling | package-native staging + image-dimension annotation when images are present | typically no extracted image files; `images/` often empty | exports referenced image files and adapter rewrites them into `images/` | does not extract images; creates `images/` but leaves it empty | extracts images for PDFs and rewrites paths into `images/` |
+| Dependency surface | only the package + Python libs | requires installed `markitdown` CLI | requires installed `docling` CLI | requires installed `pandoc` CLI | requires installed `marker_single` CLI |
+| Failure mode | Python exception becomes structured adapter error | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI |
+| Main strength | tight integration and predictable staging semantics | broad input support and simple CLI contract | strong document-structure and image-export behavior | deterministic normalizer for text-centric formats | strong layout retention for PDFs |
+
+Note: `pandoc` and `marker` are GPL-licensed external tools. Review their terms
+before enabling them in commercial or redistributable pipelines.
 
 ### What "In-house" Means
 
