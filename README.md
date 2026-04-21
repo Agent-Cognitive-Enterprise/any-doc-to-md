@@ -1,4 +1,4 @@
-# any-doc-to-md (ADTM)
+# any-doc-to-md
 
 `anydoc2md` is a shared Python package for:
 
@@ -9,7 +9,7 @@
 
 Source lives under `src/anydoc2md/`.
 
-The canonical ADTM specification lives at
+The canonical any-doc-to-md (ADTM) specification lives at
 [`docs/specs/multi-method-converter-tournament.md`](docs/specs/multi-method-converter-tournament.md).
 Parent projects should reference that package-owned spec instead of maintaining
 their own copies.
