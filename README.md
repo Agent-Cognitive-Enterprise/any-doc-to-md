@@ -1,13 +1,24 @@
 # any-doc-to-md
 
-`anydoc2md` is a document-to-Markdown tournament system.
+`anydoc2md` is a document-to-Markdown converter.
 
-Not "a converter".
-Not "a thin wrapper over one converter".
-Not "whatever the first CLI happened to emit".
+More precisely: it is a converter that stands on the shoulders of the best
+existing conversion tools, runs them as competing candidates, asks an LLM to
+help choose and validate the strongest output, and records what it learns so
+future conversions can become better and faster.
 
-It is a package for running multiple conversion methods, scoring them, auditing
-the leading candidate against the source, and promoting one normalized winner.
+It is not anti-converter. It is pro-converter, plural.
+
+The bet is simple: no single backend wins every document. Real documents are
+too varied. So `anydoc2md` treats conversion as a tournament:
+
+- run multiple conversion methods
+- normalize their outputs
+- score structural quality
+- audit the leading candidate against the source
+- promote one winner
+- persist findings that can drive remediation, overrides, and faster future
+  decisions
 
 That sounds simple. It is not.
 
@@ -20,7 +31,10 @@ until a real document arrives:
 - the scanned report where the converter is technically "successful" and
   practically unusable
 
-`anydoc2md` exists because "pick one converter and hope" is not a strategy.
+`anydoc2md` exists because "pick one converter and hope" is not a strategy,
+but neither is rebuilding the whole conversion universe from scratch. The
+better move is to orchestrate strong tools, judge them rigorously, and learn
+from their failures.
 
 What the package does:
 
@@ -33,9 +47,12 @@ What the package does:
 What makes it interesting:
 
 - It treats conversion as an evaluation problem, not just a parsing problem.
+- It uses existing converter ecosystems instead of pretending they do not
+  exist.
 - It preserves evidence, not just outputs.
 - It gives host applications one stable winner layout even when the upstream
   tools behave very differently.
+- It uses LLM review as bounded source-fidelity validation, not as magic dust.
 - It is opinionated in a useful way: converters compete, artifacts are
   normalized, and failures become actionable.
 
