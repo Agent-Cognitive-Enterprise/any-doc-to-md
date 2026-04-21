@@ -260,10 +260,10 @@ def main(argv: list[str] | None = None) -> int:
         for model_index, model in enumerate(models, start=1):
             model_attempt_results: list[ProbeResult] = []
             for repeat_index in range(1, repeats + 1):
+                timing_label = "load+answer" if repeat_index == 1 else "answer"
                 prefix = (
                     f"{_render_progress(completed_attempts, total_attempts)} "
-                    f"model {model_index}/{len(models)} repeat {repeat_index}/{repeats} "
-                    f"{'load+answer' if repeat_index == 1 else 'answer'} "
+                    f"model {model_index}/{len(models)} repeat={repeat_index}/{repeats} "
                     f"{model.model_id} (size={_format_size(model.size_hint_b)})..."
                 )
                 print(prefix, end="", flush=True)
@@ -289,9 +289,8 @@ def main(argv: list[str] | None = None) -> int:
                 reason = "" if result.passed or not args.show_errors else f" | {result.reason}"
                 print(
                     f"\r{_render_attempt_status(completed_attempts, total_attempts, elapsed_s=elapsed_s, eta_s=eta_s, status=status, color_enabled=color_enabled)} "
-                    f"{model.model_id} | repeat {repeat_index}/{repeats} "
-                    f"| {'load+answer' if repeat_index == 1 else 'answer'} "
-                    f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
+                    f"{model.model_id} | repeat={repeat_index}/{repeats} "
+                    f"| {timing_label}={result.latency_s:.2f}s | tokens={result.tokens_used} "
                     f"| issues={result.violations_count} "
                     f"{speed_note}{reason}",
                     flush=True,

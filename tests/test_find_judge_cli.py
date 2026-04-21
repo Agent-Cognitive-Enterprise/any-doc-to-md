@@ -102,8 +102,10 @@ def test_main_repeats_and_model_filter(tmp_path: Path, capsys) -> None:
     assert "answer_max=" in out
     assert "load_est=" in out
     assert "issues=4" in out
+    assert "repeat=1/10 | load+answer=0.02s" in out
+    assert "repeat=2/10 | answer=0.02s" in out
     assert "MODEL PASS focus | pass=10/10" in out
-    assert out.rfind("MODEL PASS focus") > out.rfind("repeat 10/10")
+    assert out.rfind("MODEL PASS focus") > out.rfind("repeat=10/10")
 
 
 def test_main_stop_on_fail_is_default_and_continues_to_next_model(
