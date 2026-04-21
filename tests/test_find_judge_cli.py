@@ -95,6 +95,8 @@ def test_main_repeats_and_model_filter(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "Models selected: 1" in out
     assert "Repeats per model: 10" in out
+    assert "Probe issue gate: find at least 10/13 expected issue classes" in out
+    assert "Pass criteria: 10/10 repeats pass with no steady answer above 30s." in out
     assert "Elapsed time:" in out
     assert "answer_mean=" in out
     assert "answer_max=" in out

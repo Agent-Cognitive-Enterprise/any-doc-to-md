@@ -16,7 +16,7 @@ import sys
 import time
 from pathlib import Path
 
-from anydoc2md.judge_probe_case import EXPECTED_ISSUE_CLASSES
+from anydoc2md.judge_probe_case import EXPECTED_ISSUE_CLASSES, MIN_REQUIRED_ISSUE_CLASSES
 from anydoc2md.find_judge_report import (
     _color_conclusion_line,
     _color_status,
@@ -204,6 +204,16 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Production answer timeout: {answer_timeout_s:g}s", flush=True)
     print(f"Repeats per model: {repeats}", flush=True)
     print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}", flush=True)
+    print(
+        f"Probe issue gate: find at least {MIN_REQUIRED_ISSUE_CLASSES}/"
+        f"{len(EXPECTED_ISSUE_CLASSES)} expected issue classes and at least 2 violations.",
+        flush=True,
+    )
+    print(
+        f"Pass criteria: {repeats}/{repeats} repeats pass with no steady answer "
+        f"above {answer_timeout_s:g}s.",
+        flush=True,
+    )
 
     results: list[ProbeResult] = []
     keep_artifacts = bool(args.keep_artifacts or args.artifacts_dir)
@@ -300,6 +310,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Production answer timeout: {answer_timeout_s:g}s")
     print(f"Repeats per model: {repeats}")
     print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}")
+    print(
+        f"Probe issue gate: find at least {MIN_REQUIRED_ISSUE_CLASSES}/"
+        f"{len(EXPECTED_ISSUE_CLASSES)} expected issue classes and at least 2 violations."
+    )
+    print(
+        f"Pass criteria: {repeats}/{repeats} repeats pass with no steady answer "
+        f"above {answer_timeout_s:g}s."
+    )
     print(f"Elapsed time: {_format_duration(total_elapsed_s)}")
     print("Timing model: repeat 1 is load+answer; later repeats estimate steady answer time.")
     print("Models exceeding --timeout-s on steady answer time are excluded from passing results.")
