@@ -46,6 +46,14 @@ cd backend
 PYTHONPATH=. python scripts/convert_tournament_test_sources.py
 ```
 
+To probe a local judge endpoint and find the smallest/fastest model that can
+reliably surface audit issues (synthetic test case):
+
+```bash
+cd packages/any-doc-to-md
+python -m anydoc2md.find_judge --judge-url http://127.0.0.1:1234/v1 --show-all
+```
+
 ### Python
 
 ```python
