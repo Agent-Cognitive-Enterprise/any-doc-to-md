@@ -50,7 +50,7 @@ CONTROL_ISSUE_IDS = (
     "math_formula_loss",
 )
 
-MIN_REQUIRED_ISSUE_CLASSES = 10
+DEFAULT_PASS_THRESHOLD = 0.6
 
 _SOURCE_PDF_NAME = "probe_source_reference.pdf"
 _CANDIDATE_PDF_NAME = "probe_candidate_broken.pdf"

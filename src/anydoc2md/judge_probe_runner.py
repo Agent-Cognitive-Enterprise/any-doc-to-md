@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
 
 from anydoc2md.judge_probe_case import (
     CONTROL_ISSUE_IDS,
+    DEFAULT_PASS_THRESHOLD,
     EXPECTED_ISSUE_IDS,
-    MIN_REQUIRED_ISSUE_CLASSES,
     ProbeCase,
 )
 from anydoc2md.judge_probe_checklist import run_checklist_probe
@@ -22,7 +23,6 @@ class ProbeResult:
     size_hint_b: float | None
     latency_s: float
     tokens_used: int
-    confidence: str
     violations_count: int
     passed: bool
     reason: str
@@ -34,7 +34,12 @@ def probe_one_model(
     judge_url: str,
     judge_timeout_s: int,
     probe_case: ProbeCase,
+    min_expected_issues: int | None = None,
 ) -> ProbeResult:
+    required_issues = min_expected_issues or max(
+        1,
+        math.ceil(len(EXPECTED_ISSUE_IDS) * DEFAULT_PASS_THRESHOLD),
+    )
     settings = JudgeSettings(
         url=judge_url,
         model=model.model_id,
@@ -55,7 +60,6 @@ def probe_one_model(
             size_hint_b=model.size_hint_b,
             latency_s=latency_s,
             tokens_used=tokens_used,
-            confidence="error",
             violations_count=violations_count,
             passed=False,
             reason=verdict.error or "checklist probe returned error",
@@ -67,24 +71,22 @@ def probe_one_model(
             size_hint_b=model.size_hint_b,
             latency_s=latency_s,
             tokens_used=tokens_used,
-            confidence="medium",
             violations_count=violations_count,
             passed=False,
             reason="false positives on control issues: " + ", ".join(false_controls),
         )
 
-    if violations_count < MIN_REQUIRED_ISSUE_CLASSES:
+    if violations_count < required_issues:
         return ProbeResult(
             model_id=model.model_id,
             size_hint_b=model.size_hint_b,
             latency_s=latency_s,
             tokens_used=tokens_used,
-            confidence="medium",
             violations_count=violations_count,
             passed=False,
             reason=(
                 f"checklist detected {violations_count}/{len(EXPECTED_ISSUE_IDS)} "
-                f"expected issues; need at least {MIN_REQUIRED_ISSUE_CLASSES}: "
+                f"expected issues; need at least {required_issues}: "
                 + ", ".join(expected_found or ["none"])
             ),
         )
@@ -94,7 +96,6 @@ def probe_one_model(
         size_hint_b=model.size_hint_b,
         latency_s=latency_s,
         tokens_used=tokens_used,
-        confidence="high",
         violations_count=violations_count,
         passed=True,
         reason="ok",

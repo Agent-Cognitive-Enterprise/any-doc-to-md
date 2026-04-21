@@ -88,9 +88,9 @@ def test_summarize_model_splits_load_and_answer_time() -> None:
     summary = _summarize_model(
         model,
         [
-            ProbeResult("test-7b", 7.0, 10.0, 100, "high", 4, True, "ok"),
-            ProbeResult("test-7b", 7.0, 4.0, 100, "high", 4, True, "ok"),
-            ProbeResult("test-7b", 7.0, 6.0, 100, "high", 4, True, "ok"),
+            ProbeResult("test-7b", 7.0, 10.0, 100, 4, True, "ok"),
+            ProbeResult("test-7b", 7.0, 4.0, 100, 4, True, "ok"),
+            ProbeResult("test-7b", 7.0, 6.0, 100, 4, True, "ok"),
         ],
     )
 
@@ -110,9 +110,9 @@ def test_summarize_model_excludes_slow_steady_answer_time() -> None:
     summary = _summarize_model(
         model,
         [
-            ProbeResult("slow-7b", 7.0, 90.0, 100, "high", 4, True, "ok"),
-            ProbeResult("slow-7b", 7.0, 31.0, 100, "high", 4, True, "ok"),
-            ProbeResult("slow-7b", 7.0, 29.0, 100, "high", 4, True, "ok"),
+            ProbeResult("slow-7b", 7.0, 90.0, 100, 4, True, "ok"),
+            ProbeResult("slow-7b", 7.0, 31.0, 100, 4, True, "ok"),
+            ProbeResult("slow-7b", 7.0, 29.0, 100, 4, True, "ok"),
         ],
         answer_timeout_s=30.0,
     )
@@ -289,14 +289,11 @@ def test_checklist_response_parser_accepts_fenced_json_strings() -> None:
     from anydoc2md.judge_probe_checklist import _parse_checklist_response
 
     raw = """```json
-{
-  "issues": {
-    "fragmented_heading": "true",
-    "double_bullet_markers": true,
-    "ocr_gibberish": "false"
-  },
-  "confidence": "high"
-}
+{"issues": {
+  "fragmented_heading": "true",
+  "double_bullet_markers": true,
+  "ocr_gibberish": "false"
+}}
 ```"""
 
     verdict = _parse_checklist_response(raw, tokens_used=42)
@@ -311,7 +308,7 @@ def test_checklist_response_parser_accepts_fenced_json_strings() -> None:
 def test_checklist_response_parser_ignores_trailing_text() -> None:
     from anydoc2md.judge_probe_checklist import _parse_checklist_response
 
-    raw = '{"issues": {"fragmented_heading": true}, "confidence": "high"}\nextra text'
+    raw = '{"issues": {"fragmented_heading": true}}\nextra text'
 
     verdict = _parse_checklist_response(raw, tokens_used=2)
 
@@ -322,7 +319,7 @@ def test_checklist_response_parser_ignores_trailing_text() -> None:
 def test_checklist_response_parser_rejects_missing_issues_object() -> None:
     from anydoc2md.judge_probe_checklist import _parse_checklist_response
 
-    verdict = _parse_checklist_response('{"confidence": "high"}', tokens_used=1)
+    verdict = _parse_checklist_response('{"meta": "missing issues"}', tokens_used=1)
 
     assert verdict.succeeded is False
     assert "missing object field" in verdict.error

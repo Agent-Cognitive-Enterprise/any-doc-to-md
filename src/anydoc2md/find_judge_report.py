@@ -27,7 +27,6 @@ class ModelProbeSummary:
     mean_latency_s: float
     mean_tokens_used: float
     max_violations_count: int
-    confidences: tuple[str, ...]
     reasons: tuple[str, ...]
 
     @property
@@ -144,7 +143,6 @@ def _summarize_model(
     mean_latency_s = sum(result.latency_s for result in attempt_results) / max(1, attempts)
     mean_tokens_used = sum(result.tokens_used for result in attempt_results) / max(1, attempts)
     max_violations_count = max((result.violations_count for result in attempt_results), default=0)
-    confidences = tuple(result.confidence for result in attempt_results)
     reasons = tuple(result.reason for result in attempt_results)
     return ModelProbeSummary(
         model_id=model.model_id,
@@ -160,6 +158,5 @@ def _summarize_model(
         mean_latency_s=mean_latency_s,
         mean_tokens_used=mean_tokens_used,
         max_violations_count=max_violations_count,
-        confidences=confidences,
         reasons=reasons,
     )

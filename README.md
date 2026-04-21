@@ -121,6 +121,7 @@ cd packages/any-doc-to-md
 python -m anydoc2md.find_judge \
   --judge-url http://127.0.0.1:1234/v1 \
   --repeats 10 \
+  --pass-threshold 0.6 \
   --timeout-s 30 \
   --show-all
 ```
@@ -132,6 +133,7 @@ python -m anydoc2md.find_judge \
   --judge-url http://127.0.0.1:1234/v1 \
   --model-name qwen/qwen3.6-35b-a3b \
   --repeats 10 \
+  --pass-threshold 0.6 \
   --timeout-s 30 \
   --show-all
 ```
@@ -141,6 +143,9 @@ on-demand load time when the endpoint loads models lazily. Later repeats are
 used to estimate steady answer time. The live progress output includes elapsed
 time and ETA because this benchmark is usually a one-time hardware calibration,
 not something you want to babysit blindly.
+
+When `--repeats 1`, the probe can only report `load+answer`. Separate load and
+steady-answer timing become available when `--repeats >= 2`.
 
 The pass policy is intentionally strict: one failed repeat disqualifies the
 model. `find_judge` therefore stops testing that model on the first fail by
@@ -152,8 +157,9 @@ Failure reasons are hidden by default to keep long calibration runs readable.
 Use `--show-errors` when you want diagnostic details such as JSON parse errors
 or checklist misses.
 
-The default gate requires at least 10 of 13 expected checklist issues and no
-false positives on negative controls such as OCR gibberish or wrong-language
+The pass gate is configurable with `--pass-threshold`. The default is `0.6`,
+which means the model must mark at least 8 of 13 expected checklist issues and
+must not trigger negative controls such as OCR gibberish or wrong-language
 translation.
 
 `--timeout-s` is the production usefulness threshold for steady answer time. It

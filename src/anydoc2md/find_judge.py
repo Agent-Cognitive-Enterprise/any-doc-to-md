@@ -10,11 +10,12 @@ This probes an OpenAI-compatible endpoint (e.g. LM Studio) by:
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 import time
 from pathlib import Path
 
-from anydoc2md.judge_probe_case import EXPECTED_ISSUE_IDS, MIN_REQUIRED_ISSUE_CLASSES
+from anydoc2md.judge_probe_case import DEFAULT_PASS_THRESHOLD, EXPECTED_ISSUE_IDS
 from anydoc2md.find_judge_report import (
     _color_conclusion_line,
     _color_status,
@@ -98,6 +99,16 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="How many times to test each selected model (default: 10).",
     )
     parser.add_argument(
+        "--pass-threshold",
+        type=float,
+        default=DEFAULT_PASS_THRESHOLD,
+        metavar="FRACTION",
+        help=(
+            "Minimum fraction of expected checklist issues required to pass "
+            f"(default: {DEFAULT_PASS_THRESHOLD:g})."
+        ),
+    )
+    parser.add_argument(
         "--model-name",
         action="append",
         default=[],
@@ -162,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
         else (env_timeout if env_timeout is not None else _DEFAULT_PROBE_JUDGE_TIMEOUT_S)
     )
     repeats = args.repeats
+    pass_threshold = args.pass_threshold
     answer_timeout_s = args.timeout_s
     color_enabled = args.color or (not args.no_color and sys.stdout.isatty())
     if judge_timeout_s <= 0:
@@ -173,6 +185,11 @@ def main(argv: list[str] | None = None) -> int:
     if repeats <= 0:
         print("Error: repeats must be > 0.", flush=True)
         return 2
+    if pass_threshold <= 0 or pass_threshold > 1:
+        print("Error: pass-threshold must be > 0 and <= 1.", flush=True)
+        return 2
+    required_issue_count = max(1, math.ceil(len(EXPECTED_ISSUE_IDS) * pass_threshold))
+    timing_split_available = repeats > 1
 
     print(f"Fetching models from: {args.judge_url.rstrip('/')}/models", flush=True)
     try:
@@ -206,16 +223,26 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Probe judge timeout: {judge_timeout_s}s", flush=True)
     print(f"Production answer timeout: {answer_timeout_s:g}s", flush=True)
     print(f"Repeats per model: {repeats}", flush=True)
+    print(f"Pass threshold: {pass_threshold:.2f}", flush=True)
     print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}", flush=True)
     print(f"Show diagnostic errors: {'yes' if args.show_errors else 'no'}", flush=True)
     print(
-        f"Probe issue gate: find at least {MIN_REQUIRED_ISSUE_CLASSES}/"
+        f"Probe issue gate: find at least {required_issue_count}/"
         f"{len(EXPECTED_ISSUE_IDS)} expected checklist issues.",
         flush=True,
     )
     print(
         f"Pass criteria: {repeats}/{repeats} repeats pass with no steady answer "
         f"above {answer_timeout_s:g}s.",
+        flush=True,
+    )
+    print(
+        "Timing split: "
+        + (
+            "repeat 1 measures load+answer; later repeats estimate steady answer and load_est."
+            if timing_split_available
+            else "with repeats=1 only load+answer is measured; load and answer cannot be separated."
+        ),
         flush=True,
     )
 
@@ -245,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
                     judge_url=args.judge_url,
                     judge_timeout_s=judge_timeout_s,
                     probe_case=probe_case,
+                    min_expected_issues=required_issue_count,
                 )
                 completed_attempts += 1
                 elapsed_s = time.monotonic() - run_started_at
@@ -264,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"{model.model_id} | repeat {repeat_index}/{repeats} "
                     f"| {'load+answer' if repeat_index == 1 else 'answer'} "
                     f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
-                    f"| issues={result.violations_count} | confidence={result.confidence} "
+                    f"| issues={result.violations_count} "
                     f"{speed_note}{reason}",
                     flush=True,
                 )
@@ -307,18 +335,26 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Probe judge timeout: {judge_timeout_s}s")
     print(f"Production answer timeout: {answer_timeout_s:g}s")
     print(f"Repeats per model: {repeats}")
+    print(f"Pass threshold: {pass_threshold:.2f}")
     print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}")
     print(f"Show diagnostic errors: {'yes' if args.show_errors else 'no'}")
     print(
-        f"Probe issue gate: find at least {MIN_REQUIRED_ISSUE_CLASSES}/"
+        f"Probe issue gate: find at least {required_issue_count}/"
         f"{len(EXPECTED_ISSUE_IDS)} expected checklist issues."
     )
     print(
         f"Pass criteria: {repeats}/{repeats} repeats pass with no steady answer "
         f"above {answer_timeout_s:g}s."
     )
+    print(
+        "Timing split: "
+        + (
+            "repeat 1 measures load+answer; later repeats estimate steady answer and load_est."
+            if timing_split_available
+            else "with repeats=1 only load+answer is measured; load and answer cannot be separated."
+        )
+    )
     print(f"Elapsed time: {_format_duration(total_elapsed_s)}")
-    print("Timing model: repeat 1 is load+answer; later repeats estimate steady answer time.")
     print("Models exceeding --timeout-s on steady answer time are excluded from passing results.")
     print(f"Expected checklist issue IDs: {', '.join(EXPECTED_ISSUE_IDS)}")
     print("")
@@ -382,8 +418,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"| load_est={load_est} "
                 f"| all_mean={summary.mean_latency_s:.2f}s "
                 f"| pass={summary.pass_count}/{summary.attempts} "
-                f"| mean_tokens={summary.mean_tokens_used:.0f} "
-                f"| confidences={','.join(summary.confidences)}"
+                f"| mean_tokens={summary.mean_tokens_used:.0f}"
                 f"{reason}"
             )
 

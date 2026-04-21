@@ -96,7 +96,7 @@ def _build_checklist_prompt(probe_case: ProbeCase) -> tuple[str, str]:
         + "\n```\n\n"
         'Return exactly: {"issues": {'
         + issues_shape
-        + '}, "confidence": "high|medium|low"}'
+        + "}}"
     )
     return system, user
 
