@@ -108,13 +108,21 @@ PYTHONPATH=. python scripts/convert_tournament_test_sources.py
 ```
 
 To probe a local judge endpoint and find the smallest/fastest model that can
-reliably surface audit issues, use the committed fixture PDFs that ship with
-the package. The probe is a 10-page, text-heavy calibration packet with broken
-headings, double/dot bullets, reordered numbered lists, empty box headings,
-flattened tables, missing text, broken image references, and a figure moved away
-from its caption. The screening prompt asks the model to fill a fixed boolean
-checklist, so scoring is deterministic rather than judged by another model. By
-default each selected model must pass that gate 10 times:
+reliably surface audit issues, use the committed probe assets that ship with
+the package. `find_judge` now runs in two phases:
+
+- Phase 1 is a 10-page, text-heavy checklist packet with broken headings,
+  double/dot bullets, reordered numbered lists, empty box headings, flattened
+  tables, missing text, broken image references, and a figure moved away from
+  its caption. The screening prompt asks the model to fill a fixed boolean
+  checklist, so scoring is deterministic rather than judged by another model.
+- Phase 2 takes only the Phase-1 passers and gives them a different committed
+  source packet plus two committed candidate conversions. No checklist is
+  exposed. The model has to discover material issues in freeform JSON, and the
+  scorer matches those findings against hidden gold defects plus false-positive
+  limits.
+
+By default each selected model must pass both phases 10 times:
 
 ```bash
 cd packages/any-doc-to-md
@@ -147,20 +155,23 @@ not something you want to babysit blindly.
 When `--repeats 1`, the probe can only report `load+answer`. Separate load and
 steady-answer timing become available when `--repeats >= 2`.
 
-The pass policy is intentionally strict: one failed repeat disqualifies the
-model. `find_judge` therefore stops testing that model on the first fail by
-default and continues with the next model. Passing models print a model-level
-conclusion after completing all required repeats. Use `--no-stop-on-fail` only
-when you want the full repeat history for diagnostics.
+The pass policy is intentionally strict: one failed repeat in either phase
+disqualifies the model. `find_judge` therefore stops testing that model on the
+first fail by default and continues with the next model. Passing models print a
+model-level conclusion after completing all required repeats. Use
+`--no-stop-on-fail` only when you want the full repeat history for diagnostics.
 
 Failure reasons are hidden by default to keep long calibration runs readable.
 Use `--show-errors` when you want diagnostic details such as JSON parse errors
 or checklist misses.
 
-The pass gate is configurable with `--pass-threshold`. The default is `0.6`,
-which means the model must mark at least 7 of 13 expected checklist issues and
-must not trigger negative controls such as OCR gibberish or wrong-language
-translation.
+The Phase-1 pass gate is configurable with `--pass-threshold`. The default is
+`0.6`, which means the model must mark at least 7 of 13 expected checklist
+issues and must not trigger negative controls such as OCR gibberish or
+wrong-language translation. Phase 2 uses fixed gold-set gates per candidate:
+the clearly broken candidate must surface at least 5 of 8 gold issues, and the
+near-good candidate must surface at least 2 of 3, both with low false-positive
+rates.
 
 `--timeout-s` is the production usefulness threshold for steady answer time. It
 does not replace `--judge-timeout-s`, which is the HTTP read timeout. A model can

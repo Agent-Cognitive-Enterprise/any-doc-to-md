@@ -112,6 +112,39 @@ def _render_model_conclusion(
     )
 
 
+def _format_phase_summary(
+    summary: ModelProbeSummary,
+    *,
+    color_enabled: bool,
+    show_errors: bool,
+) -> str:
+    status = "PASS" if summary.passed else "FAIL"
+    display_status = _color_status(status, enabled=color_enabled)
+    unique_reasons = tuple(dict.fromkeys(summary.reasons))
+    load_est = (
+        "n/a"
+        if summary.estimated_load_overhead_s is None
+        else f"{summary.estimated_load_overhead_s:.2f}s"
+    )
+    reason = ""
+    if not summary.passed and show_errors:
+        reasons = [item for item in unique_reasons if item != "ok"]
+        if summary.answer_timeout_exceeded:
+            reasons.append(f"answer time exceeded --timeout-s {summary.answer_timeout_s:g}s")
+        reason = " | " + " ; ".join(reasons)
+    return (
+        f"{display_status} {summary.model_id} | size={_format_size(summary.size_hint_b)} "
+        f"| first_load+answer={summary.first_latency_s:.2f}s "
+        f"| answer_mean={summary.mean_answer_latency_s:.2f}s "
+        f"| answer_max={summary.max_answer_latency_s:.2f}s "
+        f"| load_est={load_est} "
+        f"| all_mean={summary.mean_latency_s:.2f}s "
+        f"| pass={summary.pass_count}/{summary.attempts} "
+        f"| mean_tokens={summary.mean_tokens_used:.0f}"
+        f"{reason}"
+    )
+
+
 def _format_size(size_hint_b: float | None) -> str:
     if size_hint_b is None:
         return "?"

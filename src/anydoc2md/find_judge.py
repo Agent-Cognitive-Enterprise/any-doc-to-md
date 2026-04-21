@@ -4,8 +4,9 @@ CLI helper: find a local model that can do ADTM judge work (audit prompt).
 This probes an OpenAI-compatible endpoint (e.g. LM Studio) by:
 1) Fetching model ids from GET <judge_url>/models
 2) Sorting by a best-effort size hint parsed from the model id string
-3) Running a fixed fixture-backed audit test case against each model
-4) Reporting the fastest passing models (top 10 by default)
+3) Running a fixed checklist probe to shortlist reliable models
+4) Running a freeform issue-discovery probe on the shortlist
+5) Reporting the fastest models that pass both phases (top 10 by default)
 """
 from __future__ import annotations
 
@@ -16,14 +17,13 @@ import time
 from pathlib import Path
 
 from anydoc2md.judge_probe_case import DEFAULT_PASS_THRESHOLD, EXPECTED_ISSUE_IDS
+from anydoc2md.find_judge_stage import run_probe_stage
 from anydoc2md.find_judge_report import (
-    _color_conclusion_line,
     _color_status,
+    _format_phase_summary,
     _format_duration,
-    _format_load_est,
     _format_size,
     _render_attempt_status,
-    _render_model_conclusion,
     _render_progress,
     _summarize_model,
 )
@@ -33,8 +33,10 @@ from anydoc2md.find_judge_support import (
     _probe_case_context,
     _select_models,
 )
+from anydoc2md.judge_probe_freeform_case import freeform_gate_lines
+from anydoc2md.judge_probe_freeform_runner import probe_freeform_model
 from anydoc2md.judge_probe_models import ModelInfo, fetch_model_ids, parse_size_hint_billions
-from anydoc2md.judge_probe_runner import ProbeResult, probe_one_model
+from anydoc2md.judge_probe_runner import probe_one_model
 from anydoc2md.settings import DEFAULT_JUDGE_TIMEOUT_S, ENV_JUDGE_TIMEOUT_S
 
 _SLOW_JUDGE_TIMEOUT_MULTIPLIER = 4
@@ -227,12 +229,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}", flush=True)
     print(f"Show diagnostic errors: {'yes' if args.show_errors else 'no'}", flush=True)
     print(
-        f"Probe issue gate: find at least {required_issue_count}/"
+        f"Phase 1 checklist gate: find at least {required_issue_count}/"
         f"{len(EXPECTED_ISSUE_IDS)} expected checklist issues.",
         flush=True,
     )
     print(
-        f"Pass criteria: {repeats}/{repeats} repeats pass with no steady answer "
+        f"Repeat criteria: {repeats}/{repeats} repeats pass with no steady answer "
         f"above {answer_timeout_s:g}s.",
         flush=True,
     )
@@ -246,91 +248,75 @@ def main(argv: list[str] | None = None) -> int:
         flush=True,
     )
 
-    results: list[ProbeResult] = []
     keep_artifacts = bool(args.keep_artifacts or args.artifacts_dir)
-    total_attempts = len(models) * repeats
     run_started_at = time.monotonic()
 
     with _probe_case_context(
         keep_artifacts=keep_artifacts,
         artifacts_dir=args.artifacts_dir,
-    ) as (probe_case, probe_case_dir):
-        _print_artifact_paths(probe_case, probe_case_dir)
-        completed_attempts = 0
-        for model_index, model in enumerate(models, start=1):
-            model_attempt_results: list[ProbeResult] = []
-            for repeat_index in range(1, repeats + 1):
-                timing_label = "load+answer" if repeat_index == 1 else "answer"
-                prefix = (
-                    f"{_render_progress(completed_attempts, total_attempts)} "
-                    f"model {model_index}/{len(models)} repeat={repeat_index}/{repeats} "
-                    f"{model.model_id} (size={_format_size(model.size_hint_b)})..."
-                )
-                print(prefix, end="", flush=True)
-                result = probe_one_model(
+    ) as (probe_case, freeform_suite, probe_case_dir):
+        _print_artifact_paths(probe_case, freeform_suite, probe_case_dir)
+
+        print("Phase 1/2: Checklist shortlist", flush=True)
+        phase1_summaries, phase1_passing = run_probe_stage(
+            models=models,
+            repeats=repeats,
+            answer_timeout_s=answer_timeout_s,
+            stop_on_fail=args.stop_on_fail,
+            color_enabled=color_enabled,
+            show_errors=args.show_errors,
+            attempt_runner=lambda model: probe_one_model(
+                model=model,
+                judge_url=args.judge_url,
+                judge_timeout_s=judge_timeout_s,
+                probe_case=probe_case,
+                min_expected_issues=required_issue_count,
+            ),
+        )
+
+        if phase1_passing:
+            phase2_models = [
+                model for model in models if any(summary.model_id == model.model_id for summary in phase1_passing)
+            ]
+            print("", flush=True)
+            print(
+                f"Phase 1 shortlist complete: {len(phase1_passing)} model(s) passed.",
+                flush=True,
+            )
+            print("Phase 2/2: Freeform issue discovery", flush=True)
+            print("Phase 2 gate:", flush=True)
+            for line in freeform_gate_lines(freeform_suite):
+                print(f"  {line}", flush=True)
+            print(
+                "Phase 2 prompt does not expose a checklist; models must discover issues from evidence.",
+                flush=True,
+            )
+            phase2_summaries, phase2_passing = run_probe_stage(
+                models=phase2_models,
+                repeats=repeats,
+                answer_timeout_s=answer_timeout_s,
+                stop_on_fail=args.stop_on_fail,
+                color_enabled=color_enabled,
+                show_errors=args.show_errors,
+                attempt_runner=lambda model: probe_freeform_model(
                     model=model,
                     judge_url=args.judge_url,
                     judge_timeout_s=judge_timeout_s,
-                    probe_case=probe_case,
-                    min_expected_issues=required_issue_count,
-                )
-                completed_attempts += 1
-                elapsed_s = time.monotonic() - run_started_at
-                mean_attempt_s = elapsed_s / max(1, completed_attempts)
-                remaining_attempts = total_attempts - completed_attempts
-                eta_s = mean_attempt_s * remaining_attempts
-                answer_timed_out = (
-                    result.latency_s > answer_timeout_s
-                    and (repeat_index > 1 or repeats == 1)
-                )
-                attempt_failed = (not result.passed) or answer_timed_out
-                status = "FAIL" if attempt_failed else "PASS"
-                speed_note = f" | answer>{answer_timeout_s:g}s" if answer_timed_out else ""
-                reason = "" if result.passed or not args.show_errors else f" | {result.reason}"
-                print(
-                    f"\r{_render_attempt_status(completed_attempts, total_attempts, elapsed_s=elapsed_s, eta_s=eta_s, status=status, color_enabled=color_enabled)} "
-                    f"{model.model_id} | repeat={repeat_index}/{repeats} "
-                    f"| {timing_label}={result.latency_s:.2f}s | tokens={result.tokens_used} "
-                    f"| issues={result.violations_count} "
-                    f"{speed_note}{reason}",
-                    flush=True,
-                )
-                results.append(result)
-                model_attempt_results.append(result)
-                if args.stop_on_fail and attempt_failed:
-                    completed_attempts += repeats - repeat_index
-                    break
-            summary = _summarize_model(
-                model,
-                model_attempt_results,
-                answer_timeout_s=answer_timeout_s,
+                    suite=freeform_suite,
+                ),
             )
-            if summary.passed:
-                print(
-                    _color_conclusion_line(
-                        _render_model_conclusion(summary, show_errors=args.show_errors),
-                        passed=True,
-                        enabled=color_enabled,
-                    ),
-                    flush=True,
-                )
+        else:
+            phase2_summaries = []
+            phase2_passing = []
 
-    summaries = [
-        _summarize_model(
-            model,
-            [result for result in results if result.model_id == model.model_id],
-            answer_timeout_s=answer_timeout_s,
-        )
-        for model in models
-    ]
-    passing = [summary for summary in summaries if summary.passed]
-    passing.sort(key=lambda summary: (summary.mean_answer_latency_s, summary.model_id))
+    passing = phase2_passing
     total_elapsed_s = time.monotonic() - run_started_at
 
     print(f"Judge URL: {args.judge_url}")
     print(f"Models discovered: {len(model_ids)}")
     print(f"Models selected: {len(models)}")
-    print(f"Models passing all repeats: {len(passing)}")
+    print(f"Models passing phase 1 checklist: {len(phase1_passing)}")
+    print(f"Models passing phase 2 freeform: {len(phase2_passing)}")
     print(f"Probe judge timeout: {judge_timeout_s}s")
     print(f"Production answer timeout: {answer_timeout_s:g}s")
     print(f"Repeats per model: {repeats}")
@@ -338,13 +324,16 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}")
     print(f"Show diagnostic errors: {'yes' if args.show_errors else 'no'}")
     print(
-        f"Probe issue gate: find at least {required_issue_count}/"
+        f"Phase 1 checklist gate: find at least {required_issue_count}/"
         f"{len(EXPECTED_ISSUE_IDS)} expected checklist issues."
     )
     print(
-        f"Pass criteria: {repeats}/{repeats} repeats pass with no steady answer "
+        f"Repeat criteria: {repeats}/{repeats} repeats pass with no steady answer "
         f"above {answer_timeout_s:g}s."
     )
+    print("Phase 2 freeform gate:")
+    for line in freeform_gate_lines(freeform_suite):
+        print(f"  {line}")
     print(
         "Timing split: "
         + (
@@ -359,7 +348,10 @@ def main(argv: list[str] | None = None) -> int:
     print("")
 
     if not passing:
-        print("No models passed every repeat of the fixture-backed audit probe.", flush=True)
+        if not phase1_passing:
+            print("No models passed the phase-1 checklist shortlist.", flush=True)
+        else:
+            print("No shortlisted models passed the phase-2 freeform probe.", flush=True)
         if not args.show_errors:
             print(
                 "Tip: re-run with --show-all --show-errors to see per-model failure reasons.",
@@ -370,7 +362,7 @@ def main(argv: list[str] | None = None) -> int:
         print("")
 
     if passing:
-        print(f"Fastest passing models by steady answer time (top {args.top_n}):")
+        print(f"Fastest models passing both phases by steady answer time (top {args.top_n}):")
         for index, summary in enumerate(passing[: max(1, args.top_n)], start=1):
             load_est = (
                 "n/a"
@@ -391,35 +383,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.show_all:
         print("")
-        print("All results (size-sorted model summaries):")
-        for summary in summaries:
-            status = "PASS" if summary.passed else "FAIL"
-            display_status = _color_status(status, enabled=color_enabled)
-            unique_reasons = tuple(dict.fromkeys(summary.reasons))
-            load_est = (
-                "n/a"
-                if summary.estimated_load_overhead_s is None
-                else f"{summary.estimated_load_overhead_s:.2f}s"
-            )
-            reason = ""
-            if not summary.passed and args.show_errors:
-                reasons = [item for item in unique_reasons if item != "ok"]
-                if summary.answer_timeout_exceeded:
-                    reasons.append(
-                        f"answer time exceeded --timeout-s {summary.answer_timeout_s:g}s"
-                    )
-                reason = " | " + " ; ".join(reasons)
-            print(
-                f"{display_status} {summary.model_id} | size={_format_size(summary.size_hint_b)} "
-                f"| first_load+answer={summary.first_latency_s:.2f}s "
-                f"| answer_mean={summary.mean_answer_latency_s:.2f}s "
-                f"| answer_max={summary.max_answer_latency_s:.2f}s "
-                f"| load_est={load_est} "
-                f"| all_mean={summary.mean_latency_s:.2f}s "
-                f"| pass={summary.pass_count}/{summary.attempts} "
-                f"| mean_tokens={summary.mean_tokens_used:.0f}"
-                f"{reason}"
-            )
+        print("Phase 1 results (size-sorted model summaries):")
+        for summary in phase1_summaries:
+            print(_format_phase_summary(summary, color_enabled=color_enabled, show_errors=args.show_errors))
+        if phase2_summaries:
+            print("")
+            print("Phase 2 results (shortlisted models):")
+            for summary in phase2_summaries:
+                print(_format_phase_summary(summary, color_enabled=color_enabled, show_errors=args.show_errors))
 
     return 0 if passing else 1
 
