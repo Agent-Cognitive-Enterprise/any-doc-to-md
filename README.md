@@ -14,6 +14,59 @@ The canonical any-doc-to-md (ADTM) specification lives at
 Parent projects should reference that package-owned spec instead of maintaining
 their own copies.
 
+## Quick Start
+
+Install (editable):
+
+```bash
+cd packages/any-doc-to-md
+python -m pip install -e .
+```
+
+### CLI (host-provided)
+
+`anydoc2md` is a library; host applications typically provide a CLI wrapper.
+
+In PRAI (this monorepo), you can run the KB-pack pipeline CLI in tournament mode:
+
+```bash
+cd backend
+export ANYDOC2MD_JUDGE_URL="http://127.0.0.1:1234/v1"
+export ANYDOC2MD_JUDGE_MODEL="qwen/qwen3.6-35b-a3b"
+export ANYDOC2MD_JUDGE_TIMEOUT_S="360"
+
+PYTHONPATH=. python -m source_ingestion.kb_pack_pipeline.cli --tournament --audit-mode auto \
+  --adtm-dir ../.any-doc-to-md --write-scaffolds path/to/doc.pdf
+```
+
+To batch-convert the `tmp/tournament-test/sources` corpus:
+
+```bash
+cd backend
+PYTHONPATH=. python scripts/convert_tournament_test_sources.py
+```
+
+### Python
+
+```python
+from pathlib import Path
+
+from anydoc2md.format_converters.tournament.orchestrator import run_full_tournament
+from anydoc2md.settings import AUDIT_MODE_AUTO, JudgeSettings
+
+result = run_full_tournament(
+    source_path=Path("doc.pdf"),
+    staging_root=Path("staging/doc.pdf"),
+    audit_mode=AUDIT_MODE_AUTO,
+    judge_settings=JudgeSettings(
+        url="http://127.0.0.1:1234/v1",
+        model="qwen/qwen3.6-35b-a3b",
+        timeout_s=360,
+    ),
+)
+print(result.winner, result.winner_staging_dir)
+```
+
 ## How It Works
 
 `anydoc2md` owns the reusable conversion tournament itself. A typical run goes
