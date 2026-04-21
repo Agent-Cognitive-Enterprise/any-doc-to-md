@@ -275,3 +275,34 @@ def test_probe_one_model_fails_when_only_one_issue_class_is_found(tmp_path: Path
 
     assert result.passed is False
     assert "surfaced 1/13 issue classes" in result.reason
+
+
+def test_probe_one_model_reports_low_detection_rate(tmp_path: Path) -> None:
+    case = build_probe_case(tmp_path)
+
+    verdict = JudgeVerdict(
+        preferred_adapter="synthetic",
+        confidence="high",
+        reasoning="Only one issue found.",
+        notes={"synthetic": "weak audit"},
+        model_used="m",
+        tokens_used=123,
+        violations=[
+            JudgeViolation(
+                type="table_flattening",
+                severity="major",
+                evidence="The table is flattened.",
+            ),
+        ],
+    )
+
+    with patch("anydoc2md.judge_probe_runner.judge_candidate_against_source", return_value=verdict):
+        result = probe_one_model(
+            model=ModelInfo(model_id="test-7b", size_hint_b=7.0),
+            judge_url="http://localhost:1234/v1",
+            judge_timeout_s=10,
+            probe_case=case,
+        )
+
+    assert result.passed is False
+    assert result.reason == "low detection rate: 1 violations reported; need at least 2"

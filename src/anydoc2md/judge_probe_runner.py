@@ -252,7 +252,10 @@ def probe_one_model(
             confidence=confidence,
             violations_count=violations_count,
             passed=False,
-            reason=f"too few violations: {violations_count}",
+            reason=(
+                f"low detection rate: {violations_count} violations reported; "
+                "need at least 2"
+            ),
         )
     if len(detected_issue_classes) < MIN_REQUIRED_ISSUE_CLASSES:
         return ProbeResult(

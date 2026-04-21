@@ -123,7 +123,7 @@ def test_main_stop_on_fail_is_default_and_continues_to_next_model(
                 confidence="high",
                 violations_count=1,
                 passed=False,
-                reason="too few violations: 1",
+                reason="low detection rate: 1 violations reported; need at least 2",
             )
         return ProbeResult(
             model_id=model.model_id,
@@ -177,7 +177,7 @@ def test_main_no_stop_on_fail_runs_all_repeats(tmp_path: Path, capsys) -> None:
             confidence="high",
             violations_count=1,
             passed=False,
-            reason="too few violations: 1",
+            reason="low detection rate: 1 violations reported; need at least 2",
         )
 
     with (
