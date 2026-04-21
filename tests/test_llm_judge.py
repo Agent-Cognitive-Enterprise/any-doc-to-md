@@ -44,6 +44,7 @@ from anydoc2md.settings import (
     JudgeSettings,
     load_judge_settings_from_env,
 )
+from anydoc2md.format_converters.tournament import source_evidence
 
 
 # =========================================================================== #
@@ -322,26 +323,51 @@ class TestSourceEvidencePacket:
         source = tmp_path / "long.pdf"
         import fitz
         doc = fitz.open()
-        for page_no in range(1, 7):
+        total_pages = 20
+        for page_no in range(1, total_pages + 1):
             page = doc.new_page()
             page.insert_text((72, 72), f"Page marker {page_no}")
         doc.save(source)
         doc.close()
 
-        packet = build_source_evidence_packet(source, _traits(file_type="pdf", page_count=6))
+        packet = build_source_evidence_packet(source, _traits(file_type="pdf", page_count=total_pages))
         page_numbers = [page.page_number for page in packet.pages]
-        assert page_numbers == [1, 3, 4, 6]
+        assert page_numbers[0] == 1
+        assert page_numbers[-1] == total_pages
+        assert page_numbers == sorted(page_numbers)
+        assert len(page_numbers) == source_evidence.MAX_SOURCE_PAGES
 
     def test_text_packet_samples_chunks_across_long_document(self, tmp_path: Path) -> None:
         source = tmp_path / "long.txt"
+        total_paragraphs = 30
         source.write_text(
-            "\n\n".join(f"Paragraph {index}" for index in range(1, 10)),
+            "\n\n".join(f"Paragraph {index}" for index in range(1, total_paragraphs + 1)),
             encoding="utf-8",
         )
         packet = build_source_evidence_packet(source, _traits(file_type="txt"))
         assert packet.text_chunks[0] == "Paragraph 1"
-        assert packet.text_chunks[-1] == "Paragraph 9"
-        assert len(packet.text_chunks) == 6
+        assert packet.text_chunks[-1] == f"Paragraph {total_paragraphs}"
+        assert len(packet.text_chunks) == source_evidence.MAX_TEXT_CHUNKS
+        chunk_numbers = [int(chunk.rsplit(" ", 1)[-1]) for chunk in packet.text_chunks]
+        assert chunk_numbers == sorted(chunk_numbers)
+
+    def test_pdf_packet_samples_blocks_across_page(self, tmp_path: Path) -> None:
+        source = tmp_path / "blocks.pdf"
+        import fitz
+        doc = fitz.open()
+        page = doc.new_page()
+        for index in range(1, 11):
+            y0 = 50 + (index * 60)
+            rect = fitz.Rect(72, y0, 520, y0 + 40)
+            page.insert_textbox(rect, f"Block {index}", fontsize=12)
+        doc.save(source)
+        doc.close()
+
+        packet = build_source_evidence_packet(source, _traits(file_type="pdf", page_count=1))
+        assert packet.pages
+        blocks = packet.pages[0].blocks
+        assert len(blocks) == source_evidence.MAX_BLOCKS_PER_PAGE
+        assert any("Block 10" in block.text_excerpt for block in blocks)
 
 
 # =========================================================================== #

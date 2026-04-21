@@ -41,9 +41,9 @@ The package owns the reusable tournament logic. Host projects may optionally
 persist findings and feed project-local in-house overrides back into later runs
 via a local `.any-doc-to-md/` directory.
 
-TODO: The current implementation builds a compact sampled source evidence
-packet, but it does not yet carry a richer full-document evidence packet with
-broader page and block coverage.
+TODO: Persist a richer full-document evidence packet (likely under
+`.any-doc-to-md/evidence-packets/`) rather than only embedding a bounded sampled
+packet into the audit prompt.
 
 ```mermaid
 flowchart TD
@@ -77,8 +77,9 @@ flowchart TD
 TODO: The diagram above describes the intended ADTM end-state. The current code
 already has the post-selection audit loop, rendered candidate PDF generation,
 winner promotion, remediation-plan persistence, project-local findings flow,
-and a compact source evidence packet. What still lags is broader page/block
-coverage in that source packet.
+and a bounded sampled source evidence packet. The remaining gap is persisting a
+richer full-document evidence packet for large documents (so escalations and
+coding-agent follow-up can reference more than the in-prompt sample).
 
 Per-adapter staging layout:
 

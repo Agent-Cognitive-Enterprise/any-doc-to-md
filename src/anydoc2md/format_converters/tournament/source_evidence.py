@@ -11,9 +11,9 @@ import fitz
 
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
 
-MAX_SOURCE_PAGES = 4
-MAX_BLOCKS_PER_PAGE = 4
-MAX_TEXT_CHUNKS = 6
+MAX_SOURCE_PAGES = 8
+MAX_BLOCKS_PER_PAGE = 6
+MAX_TEXT_CHUNKS = 10
 MAX_CHARS_PER_BLOCK = 240
 
 
@@ -149,17 +149,30 @@ def _build_text_packet(source_path: Path, traits: DocumentTraits) -> SourceEvide
 
 
 def _extract_blocks(page: fitz.Page, page_number: int) -> list[SourceEvidenceBlock]:
-    blocks: list[SourceEvidenceBlock] = []
-    for block_index, raw_block in enumerate(page.get_text("blocks")[:MAX_BLOCKS_PER_PAGE], start=1):
+    raw_blocks = page.get_text("blocks") or []
+    parsed: list[tuple[float, float, tuple[float, float, float, float], str, str]] = []
+    for raw_block in raw_blocks:
         x0, y0, x1, y1, text, block_no, block_type = raw_block[:7]
         kind = "text" if block_type == 0 else "image"
+        excerpt = _trim(_normalize(text) if isinstance(text, str) else kind)
+        if kind == "text" and not excerpt:
+            continue
+        parsed.append((y0, x0, (x0, y0, x1, y1), kind, excerpt))
+
+    # Sort blocks top-to-bottom, left-to-right for stable sampling.
+    parsed.sort(key=lambda item: (item[0], item[1]))
+
+    sampled_indices = _sample_page_indices(len(parsed), MAX_BLOCKS_PER_PAGE)
+    blocks: list[SourceEvidenceBlock] = []
+    for sampled_pos, index in enumerate(sampled_indices, start=1):
+        _, _, bbox, kind, excerpt = parsed[index]
         blocks.append(
             SourceEvidenceBlock(
                 page_number=page_number,
-                block_index=block_index,
+                block_index=sampled_pos,
                 kind=kind,
-                bbox=(x0, y0, x1, y1),
-                text_excerpt=_trim(_normalize(text) if isinstance(text, str) else kind),
+                bbox=bbox,
+                text_excerpt=excerpt,
             )
         )
     return blocks
