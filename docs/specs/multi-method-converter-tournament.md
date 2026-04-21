@@ -332,7 +332,7 @@ Suggested control flow:
 8. allow at most 3 LLM audits per document
 9. escalate to human review when the audit budget is exhausted
 
-The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and builds a bounded sampled source evidence packet with page-oriented snippets and block sampling. It still lacks a richer persisted full-document evidence packet for very large documents.
+The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and builds a bounded sampled source evidence packet with page-oriented snippets and block sampling. Host workflows may also persist a richer source evidence packet under `.any-doc-to-md/evidence-packets/` for offline review and coding-agent follow-up.
 
 ---
 
@@ -427,13 +427,10 @@ Host projects can keep project-specific tournament state under `.any-doc-to-md/`
 Supported patterns today:
 
 - `llm-findings/<doc-key>.json` for persisted judge findings and remediation plans
+- `evidence-packets/<doc-key>.json` for richer persisted source evidence packets referenced from `llm-findings`
 - `inhouse-overrides/<doc-key>.override.yaml` for coding-agent-authored in-house conversion overrides that get staged into `document.override.yaml`
 - `qa-extensions/<doc-key>.py` for document-local QA hook modules that can add checks or disable selected built-in checks
 - `inhouse-extensions/<doc-key>.py` for document-local in-house post-processing hooks
-
-Likely future additions:
-
-- `evidence-packets/`
 
 Deterministic scaffold authoring is implemented via
 `anydoc2md.remediation_authoring.author_project_local_scaffolds(...)`, which

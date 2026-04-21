@@ -4,6 +4,7 @@ Build compact source-side evidence packets for ADTM auditing.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
 import re
 
@@ -15,6 +16,14 @@ MAX_SOURCE_PAGES = 8
 MAX_BLOCKS_PER_PAGE = 6
 MAX_TEXT_CHUNKS = 10
 MAX_CHARS_PER_BLOCK = 240
+
+# Richer evidence packet persisted to `.any-doc-to-md/evidence-packets/` for
+# offline review and coding-agent follow-up. This is intentionally larger than
+# the bounded in-prompt packet to provide broader coverage.
+PERSISTED_MAX_SOURCE_PAGES = 60
+PERSISTED_MAX_BLOCKS_PER_PAGE = 12
+PERSISTED_MAX_TEXT_CHUNKS = 80
+_EVIDENCE_PACKET_FORMAT_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -37,6 +46,15 @@ class SourceEvidenceBlock:
             f"{self.text_excerpt}"
         )
 
+    def to_dict(self) -> dict:
+        return {
+            "page_number": self.page_number,
+            "block_index": self.block_index,
+            "kind": self.kind,
+            "bbox": list(self.bbox) if self.bbox is not None else None,
+            "text_excerpt": self.text_excerpt,
+        }
+
 
 @dataclass(frozen=True)
 class SourceEvidencePage:
@@ -48,6 +66,13 @@ class SourceEvidencePage:
         lines = [f"Page {self.page_number}: {self.text_excerpt}"]
         lines.extend(block.to_prompt_line() for block in self.blocks)
         return "\n".join(lines)
+
+    def to_dict(self) -> dict:
+        return {
+            "page_number": self.page_number,
+            "text_excerpt": self.text_excerpt,
+            "blocks": [block.to_dict() for block in self.blocks],
+        }
 
 
 @dataclass(frozen=True)
@@ -81,24 +106,83 @@ class SourceEvidencePacket:
             )
         return "\n\n".join(sections)
 
+    def to_dict(self) -> dict:
+        return {
+            "format_version": _EVIDENCE_PACKET_FORMAT_VERSION,
+            "source_path": self.source_path,
+            "source_kind": self.source_kind,
+            "traits_summary": self.traits_summary,
+            "pages": [page.to_dict() for page in self.pages],
+            "text_chunks": list(self.text_chunks),
+            "note": self.note,
+        }
+
 
 def build_source_evidence_packet(source_path: Path, traits: DocumentTraits) -> SourceEvidencePacket:
     suffix = source_path.suffix.lower()
     if suffix == ".pdf":
-        return _build_pdf_packet(source_path, traits)
-    return _build_text_packet(source_path, traits)
+        return _build_pdf_packet(
+            source_path,
+            traits,
+            max_pages=MAX_SOURCE_PAGES,
+            max_blocks_per_page=MAX_BLOCKS_PER_PAGE,
+        )
+    return _build_text_packet(source_path, traits, max_chunks=MAX_TEXT_CHUNKS)
+
+def build_persisted_source_evidence_packet(source_path: Path, traits: DocumentTraits) -> SourceEvidencePacket:
+    """Build a richer evidence packet intended for persistence, not prompt embedding."""
+    suffix = source_path.suffix.lower()
+    if suffix == ".pdf":
+        return _build_pdf_packet(
+            source_path,
+            traits,
+            max_pages=PERSISTED_MAX_SOURCE_PAGES,
+            max_blocks_per_page=PERSISTED_MAX_BLOCKS_PER_PAGE,
+        )
+    return _build_text_packet(source_path, traits, max_chunks=PERSISTED_MAX_TEXT_CHUNKS)
 
 
-def _build_pdf_packet(source_path: Path, traits: DocumentTraits) -> SourceEvidencePacket:
+def persist_source_evidence_packet(
+    *,
+    source_path: Path,
+    traits: DocumentTraits,
+    anydoc2md_dir: Path,
+    doc_key: str,
+) -> Path:
+    """
+    Persist a richer evidence packet for offline review under:
+
+        <anydoc2md_dir>/evidence-packets/<doc_key>.json
+
+    Returns the written path.
+    """
+    packet = build_persisted_source_evidence_packet(source_path, traits)
+    out_dir = anydoc2md_dir / "evidence-packets"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{doc_key}.json"
+    out_path.write_text(
+        json.dumps(packet.to_dict(), indent=2, ensure_ascii=True),
+        encoding="utf-8",
+    )
+    return out_path
+
+
+def _build_pdf_packet(
+    source_path: Path,
+    traits: DocumentTraits,
+    *,
+    max_pages: int,
+    max_blocks_per_page: int,
+) -> SourceEvidencePacket:
     try:
         with fitz.open(source_path) as doc:
             pages: list[SourceEvidencePage] = []
-            sampled_indices = _sample_page_indices(len(doc), MAX_SOURCE_PAGES)
+            sampled_indices = _sample_page_indices(len(doc), max_pages)
             for page_zero_index in sampled_indices:
                 page_index = page_zero_index + 1
                 page = doc[page_zero_index]
                 page_text = _normalize(page.get_text("text"))
-                blocks = _extract_blocks(page, page_index)
+                blocks = _extract_blocks(page, page_index, max_blocks=max_blocks_per_page)
                 pages.append(
                     SourceEvidencePage(
                         page_number=page_index,
@@ -122,7 +206,12 @@ def _build_pdf_packet(source_path: Path, traits: DocumentTraits) -> SourceEviden
     )
 
 
-def _build_text_packet(source_path: Path, traits: DocumentTraits) -> SourceEvidencePacket:
+def _build_text_packet(
+    source_path: Path,
+    traits: DocumentTraits,
+    *,
+    max_chunks: int,
+) -> SourceEvidencePacket:
     try:
         text = source_path.read_text(encoding="utf-8", errors="replace")
     except Exception as exc:
@@ -138,7 +227,7 @@ def _build_text_packet(source_path: Path, traits: DocumentTraits) -> SourceEvide
         for part in re.split(r"\n\s*\n", text)
         if part.strip()
     ]
-    sampled_indices = _sample_page_indices(len(parts), MAX_TEXT_CHUNKS)
+    sampled_indices = _sample_page_indices(len(parts), max_chunks)
     chunks = [_trim(parts[index]) for index in sampled_indices]
     return SourceEvidencePacket(
         source_path=str(source_path),
@@ -148,7 +237,12 @@ def _build_text_packet(source_path: Path, traits: DocumentTraits) -> SourceEvide
     )
 
 
-def _extract_blocks(page: fitz.Page, page_number: int) -> list[SourceEvidenceBlock]:
+def _extract_blocks(
+    page: fitz.Page,
+    page_number: int,
+    *,
+    max_blocks: int,
+) -> list[SourceEvidenceBlock]:
     raw_blocks = page.get_text("blocks") or []
     parsed: list[tuple[float, float, tuple[float, float, float, float], str, str]] = []
     for raw_block in raw_blocks:
@@ -162,7 +256,7 @@ def _extract_blocks(page: fitz.Page, page_number: int) -> list[SourceEvidenceBlo
     # Sort blocks top-to-bottom, left-to-right for stable sampling.
     parsed.sort(key=lambda item: (item[0], item[1]))
 
-    sampled_indices = _sample_page_indices(len(parsed), MAX_BLOCKS_PER_PAGE)
+    sampled_indices = _sample_page_indices(len(parsed), max_blocks)
     blocks: list[SourceEvidenceBlock] = []
     for sampled_pos, index in enumerate(sampled_indices, start=1):
         _, _, bbox, kind, excerpt = parsed[index]

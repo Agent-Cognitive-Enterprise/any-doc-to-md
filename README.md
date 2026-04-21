@@ -41,9 +41,9 @@ The package owns the reusable tournament logic. Host projects may optionally
 persist findings and feed project-local in-house overrides back into later runs
 via a local `.any-doc-to-md/` directory.
 
-TODO: Persist a richer full-document evidence packet (likely under
-`.any-doc-to-md/evidence-packets/`) rather than only embedding a bounded sampled
-packet into the audit prompt.
+When persisting project-local findings, hosts may also persist a richer source
+evidence packet under `.any-doc-to-md/evidence-packets/` so escalations and
+coding-agent follow-up can reference broader evidence than the in-prompt sample.
 
 ```mermaid
 flowchart TD
@@ -74,12 +74,11 @@ flowchart TD
     O --> K[Accept winner]
 ```
 
-TODO: The diagram above describes the intended ADTM end-state. The current code
+The diagram above describes the intended ADTM end-state. The current code
 already has the post-selection audit loop, rendered candidate PDF generation,
 winner promotion, remediation-plan persistence, project-local findings flow,
-and a bounded sampled source evidence packet. The remaining gap is persisting a
-richer full-document evidence packet for large documents (so escalations and
-coding-agent follow-up can reference more than the in-prompt sample).
+and both a bounded in-prompt source evidence packet and an optional persisted
+evidence packet for offline review.
 
 Per-adapter staging layout:
 
@@ -188,6 +187,8 @@ Supported patterns today:
 
 - `llm-findings/<doc-key>.json` for persisted judge findings and remediation
   plans generated from tournament runs
+- `evidence-packets/<doc-key>.json` for richer persisted source evidence packets
+  referenced from `llm-findings` records
 - `inhouse-overrides/<doc-key>.override.yaml` for coding-agent-authored
   in-house conversion overrides that get staged into `document.override.yaml`
   before the in-house converter runs

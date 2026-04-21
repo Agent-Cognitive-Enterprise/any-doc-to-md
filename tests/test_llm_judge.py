@@ -369,6 +369,59 @@ class TestSourceEvidencePacket:
         assert len(blocks) == source_evidence.MAX_BLOCKS_PER_PAGE
         assert any("Block 10" in block.text_excerpt for block in blocks)
 
+    def test_persisted_pdf_packet_includes_more_pages_than_prompt_packet(self, tmp_path: Path) -> None:
+        source = tmp_path / "persisted.pdf"
+        import fitz
+        doc = fitz.open()
+        total_pages = 20
+        for page_no in range(1, total_pages + 1):
+            page = doc.new_page()
+            page.insert_text((72, 72), f"Page marker {page_no}")
+        doc.save(source)
+        doc.close()
+
+        traits = _traits(file_type="pdf", page_count=total_pages)
+        prompt_packet = build_source_evidence_packet(source, traits)
+        persisted_packet = source_evidence.build_persisted_source_evidence_packet(source, traits)
+
+        assert len(prompt_packet.pages) == source_evidence.MAX_SOURCE_PAGES
+        assert len(persisted_packet.pages) == total_pages
+        assert persisted_packet.pages[0].page_number == 1
+        assert persisted_packet.pages[-1].page_number == total_pages
+
+    def test_persisted_text_packet_includes_more_chunks_than_prompt_packet(self, tmp_path: Path) -> None:
+        source = tmp_path / "persisted.txt"
+        total_paragraphs = 30
+        source.write_text(
+            "\n\n".join(f"Paragraph {index}" for index in range(1, total_paragraphs + 1)),
+            encoding="utf-8",
+        )
+        traits = _traits(file_type="txt")
+        prompt_packet = build_source_evidence_packet(source, traits)
+        persisted_packet = source_evidence.build_persisted_source_evidence_packet(source, traits)
+
+        assert len(prompt_packet.text_chunks) == source_evidence.MAX_TEXT_CHUNKS
+        assert len(persisted_packet.text_chunks) == total_paragraphs
+        assert persisted_packet.text_chunks[0] == "Paragraph 1"
+        assert persisted_packet.text_chunks[-1] == f"Paragraph {total_paragraphs}"
+
+    def test_persist_source_evidence_packet_writes_json(self, tmp_path: Path) -> None:
+        anydoc2md_dir = tmp_path / ".any-doc-to-md"
+        source = tmp_path / "doc.txt"
+        source.write_text("Para one.\n\nPara two.", encoding="utf-8")
+
+        written = source_evidence.persist_source_evidence_packet(
+            source_path=source,
+            traits=_traits(file_type="txt"),
+            anydoc2md_dir=anydoc2md_dir,
+            doc_key="org__doc.txt",
+        )
+        assert written.exists()
+        payload = json.loads(written.read_text(encoding="utf-8"))
+        assert payload["format_version"] == 1
+        assert payload["source_kind"] == "txt"
+        assert payload["text_chunks"]
+
 
 # =========================================================================== #
 # _parse_verdict
