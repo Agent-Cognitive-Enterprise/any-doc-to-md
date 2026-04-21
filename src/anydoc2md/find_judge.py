@@ -14,7 +14,7 @@ import sys
 import time
 from pathlib import Path
 
-from anydoc2md.judge_probe_case import EXPECTED_ISSUE_CLASSES, MIN_REQUIRED_ISSUE_CLASSES
+from anydoc2md.judge_probe_case import EXPECTED_ISSUE_IDS, MIN_REQUIRED_ISSUE_CLASSES
 from anydoc2md.find_judge_report import (
     _color_conclusion_line,
     _color_status,
@@ -210,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Show diagnostic errors: {'yes' if args.show_errors else 'no'}", flush=True)
     print(
         f"Probe issue gate: find at least {MIN_REQUIRED_ISSUE_CLASSES}/"
-        f"{len(EXPECTED_ISSUE_CLASSES)} expected issue classes and at least 2 violations.",
+        f"{len(EXPECTED_ISSUE_IDS)} expected checklist issues.",
         flush=True,
     )
     print(
@@ -264,7 +264,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"{model.model_id} | repeat {repeat_index}/{repeats} "
                     f"| {'load+answer' if repeat_index == 1 else 'answer'} "
                     f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
-                    f"| violations={result.violations_count} | confidence={result.confidence} "
+                    f"| issues={result.violations_count} | confidence={result.confidence} "
                     f"{speed_note}{reason}",
                     flush=True,
                 )
@@ -311,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Show diagnostic errors: {'yes' if args.show_errors else 'no'}")
     print(
         f"Probe issue gate: find at least {MIN_REQUIRED_ISSUE_CLASSES}/"
-        f"{len(EXPECTED_ISSUE_CLASSES)} expected issue classes and at least 2 violations."
+        f"{len(EXPECTED_ISSUE_IDS)} expected checklist issues."
     )
     print(
         f"Pass criteria: {repeats}/{repeats} repeats pass with no steady answer "
@@ -320,7 +320,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Elapsed time: {_format_duration(total_elapsed_s)}")
     print("Timing model: repeat 1 is load+answer; later repeats estimate steady answer time.")
     print("Models exceeding --timeout-s on steady answer time are excluded from passing results.")
-    print(f"Expected issue classes: {', '.join(EXPECTED_ISSUE_CLASSES)}")
+    print(f"Expected checklist issue IDs: {', '.join(EXPECTED_ISSUE_IDS)}")
     print("")
 
     if not passing:
@@ -351,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"| all_mean={summary.mean_latency_s:.2f}s "
                 f"| pass={summary.pass_count}/{summary.attempts} "
                 f"| mean_tokens={summary.mean_tokens_used:.0f} "
-                f"| max_violations={summary.max_violations_count}"
+                f"| max_issues={summary.max_violations_count}"
             )
 
     if args.show_all:

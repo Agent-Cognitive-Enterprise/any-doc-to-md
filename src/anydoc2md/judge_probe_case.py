@@ -12,6 +12,22 @@ from anydoc2md.format_converters.classification.classify_document import (
     classify,
 )
 
+EXPECTED_ISSUE_IDS = (
+    "fragmented_heading",
+    "double_bullet_markers",
+    "malformed_dot_bullets",
+    "numbered_list_out_of_order",
+    "box_heading_without_content",
+    "repeated_page_heading",
+    "detached_caption",
+    "wrong_caption",
+    "flattened_table",
+    "implausible_image_size",
+    "missing_image_reference",
+    "image_count_mismatch",
+    "missing_source_text",
+)
+
 EXPECTED_ISSUE_CLASSES = (
     "fragmented heading",
     "double bullet markers",
@@ -26,6 +42,12 @@ EXPECTED_ISSUE_CLASSES = (
     "missing image reference",
     "image count mismatch",
     "missing source text",
+)
+
+CONTROL_ISSUE_IDS = (
+    "ocr_gibberish",
+    "wrong_language_translation",
+    "math_formula_loss",
 )
 
 MIN_REQUIRED_ISSUE_CLASSES = 10

@@ -95,12 +95,13 @@ def test_main_repeats_and_model_filter(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "Models selected: 1" in out
     assert "Repeats per model: 10" in out
-    assert "Probe issue gate: find at least 10/13 expected issue classes" in out
+    assert "Probe issue gate: find at least 10/13 expected checklist issues" in out
     assert "Pass criteria: 10/10 repeats pass with no steady answer above 30s." in out
     assert "Elapsed time:" in out
     assert "answer_mean=" in out
     assert "answer_max=" in out
     assert "load_est=" in out
+    assert "issues=4" in out
     assert "MODEL PASS focus | pass=10/10" in out
     assert out.rfind("MODEL PASS focus") > out.rfind("repeat 10/10")
 
@@ -125,7 +126,7 @@ def test_main_stop_on_fail_is_default_and_continues_to_next_model(
                 confidence="high",
                 violations_count=1,
                 passed=False,
-                reason="low detection rate: 1 violations reported; need at least 2",
+                reason="checklist detected 1/13 expected issues; need at least 10: flattened_table",
             )
         return ProbeResult(
             model_id=model.model_id,
@@ -161,7 +162,7 @@ def test_main_stop_on_fail_is_default_and_continues_to_next_model(
     assert "Stopping bad after first failed repeat" not in out
     assert "MODEL FAIL bad" not in out
     assert "MODEL PASS good | pass=10/10" in out
-    assert "low detection rate" not in out
+    assert "checklist diagnostics" not in out
 
 
 def test_main_no_stop_on_fail_runs_all_repeats(tmp_path: Path, capsys) -> None:
@@ -180,7 +181,7 @@ def test_main_no_stop_on_fail_runs_all_repeats(tmp_path: Path, capsys) -> None:
             confidence="high",
             violations_count=1,
             passed=False,
-            reason="low detection rate: 1 violations reported; need at least 2",
+            reason="checklist detected 1/13 expected issues; need at least 10: flattened_table",
         )
 
     with (
@@ -206,7 +207,7 @@ def test_main_no_stop_on_fail_runs_all_repeats(tmp_path: Path, capsys) -> None:
     assert "Stop on first fail: no" in out
     assert "Stopping bad after first failed repeat" not in out
     assert "MODEL FAIL bad" not in out
-    assert "low detection rate" not in out
+    assert "checklist diagnostics" not in out
 
 
 def test_main_show_errors_prints_failure_reasons(tmp_path: Path, capsys) -> None:
@@ -222,7 +223,7 @@ def test_main_show_errors_prints_failure_reasons(tmp_path: Path, capsys) -> None
             confidence="high",
             violations_count=1,
             passed=False,
-            reason="low detection rate: 1 violations reported; need at least 2",
+            reason="checklist detected 1/13 expected issues; need at least 10: flattened_table",
         )
 
     with (
@@ -247,4 +248,4 @@ def test_main_show_errors_prints_failure_reasons(tmp_path: Path, capsys) -> None
     assert "Show diagnostic errors: yes" in out
     assert "MODEL FAIL bad" not in out
     assert "FAIL bad | size=? | first_load+answer=" in out
-    assert "low detection rate: 1 violations reported; need at least 2" in out
+    assert "checklist detected 1/13 expected issues; need at least 10: flattened_table" in out

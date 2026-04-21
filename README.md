@@ -112,7 +112,9 @@ reliably surface audit issues, use the committed fixture PDFs that ship with
 the package. The probe is a 10-page, text-heavy calibration packet with broken
 headings, double/dot bullets, reordered numbered lists, empty box headings,
 flattened tables, missing text, broken image references, and a figure moved away
-from its caption. By default each selected model must pass that gate 10 times:
+from its caption. The screening prompt asks the model to fill a fixed boolean
+checklist, so scoring is deterministic rather than judged by another model. By
+default each selected model must pass that gate 10 times:
 
 ```bash
 cd packages/any-doc-to-md
@@ -142,13 +144,17 @@ not something you want to babysit blindly.
 
 The pass policy is intentionally strict: one failed repeat disqualifies the
 model. `find_judge` therefore stops testing that model on the first fail by
-default, prints the model-level conclusion immediately, and continues with the
-next model. Use `--no-stop-on-fail` only when you want the full repeat history
-for diagnostics.
+default and continues with the next model. Passing models print a model-level
+conclusion after completing all required repeats. Use `--no-stop-on-fail` only
+when you want the full repeat history for diagnostics.
 
 Failure reasons are hidden by default to keep long calibration runs readable.
-Use `--show-errors` when you want diagnostic details such as JSON parse errors,
-low detection rate, or missing issue classes.
+Use `--show-errors` when you want diagnostic details such as JSON parse errors
+or checklist misses.
+
+The default gate requires at least 10 of 13 expected checklist issues and no
+false positives on negative controls such as OCR gibberish or wrong-language
+translation.
 
 `--timeout-s` is the production usefulness threshold for steady answer time. It
 does not replace `--judge-timeout-s`, which is the HTTP read timeout. A model can

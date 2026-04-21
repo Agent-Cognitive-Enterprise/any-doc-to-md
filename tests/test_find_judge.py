@@ -11,8 +11,8 @@ from anydoc2md.judge_probe_models import (
     fetch_model_ids,
     parse_size_hint_billions,
 )
+from anydoc2md.judge_probe_checklist import ChecklistProbeVerdict
 from anydoc2md.judge_probe_runner import probe_one_model
-from anydoc2md.llm_judge import JudgeVerdict, JudgeViolation
 from anydoc2md.output_qa.runner import run_all
 
 
@@ -175,62 +175,32 @@ def test_probe_case_triggers_programmatic_qa_issue_coverage(tmp_path: Path) -> N
     }.issubset(non_pass)
 
 
-def test_probe_one_model_marks_pass_for_semantic_issue_classes(tmp_path: Path) -> None:
+def test_probe_one_model_marks_pass_for_checklist_issues(tmp_path: Path) -> None:
     case = build_probe_case(tmp_path)
 
-    violations = [
-        JudgeViolation(
-            type="heading_fragmentation",
-            severity="major",
-            evidence="The title is fragmented into a heading and continuation line.",
-        ),
-        JudgeViolation(
-            type="list_formatting",
-            severity="major",
-            evidence="Double bullet markers and malformed dot bullets are present.",
-        ),
-        JudgeViolation(
-            type="numbered_list_sequence",
-            severity="major",
-            evidence="The numbered list sequence is out of order.",
-        ),
-        JudgeViolation(
-            type="box_heading_without_content",
-            severity="major",
-            evidence="A Box heading has no content and repeated page headers are present.",
-        ),
-        JudgeViolation(
-            type="figure_caption",
-            severity="major",
-            evidence="The figure caption is detached from the image and points to the wrong step.",
-        ),
-        JudgeViolation(
-            type="table_flattening",
-            severity="major",
-            evidence="The table is flattened into plain lines.",
-        ),
-        JudgeViolation(
-            type="image_reference",
-            severity="major",
-            evidence="There are missing image references, an image count mismatch, and implausible image size.",
-        ),
-        JudgeViolation(
-            type="text_coverage",
-            severity="major",
-            evidence="Source text is missing from the candidate.",
-        ),
-    ]
-    verdict = JudgeVerdict(
-        preferred_adapter="synthetic",
-        confidence="high",
-        reasoning="Found issues.",
-        notes={"synthetic": "bad"},
-        model_used="m",
+    verdict = ChecklistProbeVerdict(
+        issues={
+            "fragmented_heading": True,
+            "double_bullet_markers": True,
+            "malformed_dot_bullets": True,
+            "numbered_list_out_of_order": True,
+            "box_heading_without_content": True,
+            "repeated_page_heading": True,
+            "detached_caption": True,
+            "wrong_caption": True,
+            "flattened_table": True,
+            "implausible_image_size": True,
+            "missing_image_reference": False,
+            "image_count_mismatch": False,
+            "missing_source_text": False,
+            "ocr_gibberish": False,
+            "wrong_language_translation": False,
+            "math_formula_loss": False,
+        },
         tokens_used=123,
-        violations=violations,
     )
 
-    with patch("anydoc2md.judge_probe_runner.judge_candidate_against_source", return_value=verdict):
+    with patch("anydoc2md.judge_probe_runner.run_checklist_probe", return_value=verdict):
         result = probe_one_model(
             model=ModelInfo(model_id="test-7b", size_hint_b=7.0),
             judge_url="http://localhost:1234/v1",
@@ -241,31 +211,32 @@ def test_probe_one_model_marks_pass_for_semantic_issue_classes(tmp_path: Path) -
     assert result.passed is True
 
 
-def test_probe_one_model_fails_when_only_one_issue_class_is_found(tmp_path: Path) -> None:
+def test_probe_one_model_fails_when_checklist_detection_is_low(tmp_path: Path) -> None:
     case = build_probe_case(tmp_path)
 
-    verdict = JudgeVerdict(
-        preferred_adapter="synthetic",
-        confidence="high",
-        reasoning="The table is flattened.",
-        notes={"synthetic": "table problem"},
-        model_used="m",
+    verdict = ChecklistProbeVerdict(
+        issues={
+            "fragmented_heading": False,
+            "double_bullet_markers": False,
+            "malformed_dot_bullets": False,
+            "numbered_list_out_of_order": False,
+            "box_heading_without_content": False,
+            "repeated_page_heading": False,
+            "detached_caption": False,
+            "wrong_caption": False,
+            "flattened_table": True,
+            "implausible_image_size": False,
+            "missing_image_reference": False,
+            "image_count_mismatch": False,
+            "missing_source_text": False,
+            "ocr_gibberish": False,
+            "wrong_language_translation": False,
+            "math_formula_loss": False,
+        },
         tokens_used=123,
-        violations=[
-            JudgeViolation(
-                type="table_flattening",
-                severity="major",
-                evidence="The table is flattened.",
-            ),
-            JudgeViolation(
-                type="table_flattening",
-                severity="major",
-                evidence="Rows and columns are lost.",
-            ),
-        ],
     )
 
-    with patch("anydoc2md.judge_probe_runner.judge_candidate_against_source", return_value=verdict):
+    with patch("anydoc2md.judge_probe_runner.run_checklist_probe", return_value=verdict):
         result = probe_one_model(
             model=ModelInfo(model_id="test-7b", size_hint_b=7.0),
             judge_url="http://localhost:1234/v1",
@@ -274,29 +245,35 @@ def test_probe_one_model_fails_when_only_one_issue_class_is_found(tmp_path: Path
         )
 
     assert result.passed is False
-    assert "surfaced 1/13 issue classes" in result.reason
+    assert "checklist detected 1/13 expected issues" in result.reason
 
 
-def test_probe_one_model_reports_low_detection_rate(tmp_path: Path) -> None:
+def test_probe_one_model_fails_on_checklist_false_positive(tmp_path: Path) -> None:
     case = build_probe_case(tmp_path)
 
-    verdict = JudgeVerdict(
-        preferred_adapter="synthetic",
-        confidence="high",
-        reasoning="Only one issue found.",
-        notes={"synthetic": "weak audit"},
-        model_used="m",
+    verdict = ChecklistProbeVerdict(
+        issues={
+            "fragmented_heading": True,
+            "double_bullet_markers": True,
+            "malformed_dot_bullets": True,
+            "numbered_list_out_of_order": True,
+            "box_heading_without_content": True,
+            "repeated_page_heading": True,
+            "detached_caption": True,
+            "wrong_caption": True,
+            "flattened_table": True,
+            "implausible_image_size": True,
+            "missing_image_reference": True,
+            "image_count_mismatch": True,
+            "missing_source_text": True,
+            "ocr_gibberish": True,
+            "wrong_language_translation": False,
+            "math_formula_loss": False,
+        },
         tokens_used=123,
-        violations=[
-            JudgeViolation(
-                type="table_flattening",
-                severity="major",
-                evidence="The table is flattened.",
-            ),
-        ],
     )
 
-    with patch("anydoc2md.judge_probe_runner.judge_candidate_against_source", return_value=verdict):
+    with patch("anydoc2md.judge_probe_runner.run_checklist_probe", return_value=verdict):
         result = probe_one_model(
             model=ModelInfo(model_id="test-7b", size_hint_b=7.0),
             judge_url="http://localhost:1234/v1",
@@ -305,4 +282,47 @@ def test_probe_one_model_reports_low_detection_rate(tmp_path: Path) -> None:
         )
 
     assert result.passed is False
-    assert result.reason == "low detection rate: 1 violations reported; need at least 2"
+    assert result.reason == "false positives on control issues: ocr_gibberish"
+
+
+def test_checklist_response_parser_accepts_fenced_json_strings() -> None:
+    from anydoc2md.judge_probe_checklist import _parse_checklist_response
+
+    raw = """```json
+{
+  "issues": {
+    "fragmented_heading": "true",
+    "double_bullet_markers": true,
+    "ocr_gibberish": "false"
+  },
+  "confidence": "high"
+}
+```"""
+
+    verdict = _parse_checklist_response(raw, tokens_used=42)
+
+    assert verdict.succeeded is True
+    assert verdict.tokens_used == 42
+    assert verdict.issues["fragmented_heading"] is True
+    assert verdict.issues["double_bullet_markers"] is True
+    assert verdict.issues["ocr_gibberish"] is False
+
+
+def test_checklist_response_parser_ignores_trailing_text() -> None:
+    from anydoc2md.judge_probe_checklist import _parse_checklist_response
+
+    raw = '{"issues": {"fragmented_heading": true}, "confidence": "high"}\nextra text'
+
+    verdict = _parse_checklist_response(raw, tokens_used=2)
+
+    assert verdict.succeeded is True
+    assert verdict.issues["fragmented_heading"] is True
+
+
+def test_checklist_response_parser_rejects_missing_issues_object() -> None:
+    from anydoc2md.judge_probe_checklist import _parse_checklist_response
+
+    verdict = _parse_checklist_response('{"confidence": "high"}', tokens_used=1)
+
+    assert verdict.succeeded is False
+    assert "missing object field" in verdict.error
