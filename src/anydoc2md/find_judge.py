@@ -7,53 +7,37 @@ This probes an OpenAI-compatible endpoint (e.g. LM Studio) by:
 3) Running a fixed fixture-backed audit test case against each model
 4) Reporting the fastest passing models (top 10 by default)
 
-Usage:
-  python -m anydoc2md.find_judge --judge-url http://127.0.0.1:1234/v1 --show-all
 """
 
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import os
 import sys
 import tempfile
 import time
-from dataclasses import dataclass
+from collections.abc import Iterator
 from pathlib import Path
 
-from anydoc2md.judge_probe_case import EXPECTED_ISSUE_CLASSES, build_probe_case
+from anydoc2md.judge_probe_case import EXPECTED_ISSUE_CLASSES, ProbeCase, build_probe_case
+from anydoc2md.find_judge_report import (
+    _color_conclusion_line,
+    _color_status,
+    _format_duration,
+    _format_load_est,
+    _format_size,
+    _render_attempt_status,
+    _render_model_conclusion,
+    _render_progress,
+    _summarize_model,
+)
 from anydoc2md.judge_probe_models import ModelInfo, fetch_model_ids, parse_size_hint_billions
 from anydoc2md.judge_probe_runner import ProbeResult, probe_one_model
 from anydoc2md.settings import DEFAULT_JUDGE_TIMEOUT_S, ENV_JUDGE_TIMEOUT_S
 
 _SLOW_JUDGE_TIMEOUT_MULTIPLIER = 4
 _DEFAULT_PROBE_JUDGE_TIMEOUT_S = DEFAULT_JUDGE_TIMEOUT_S * _SLOW_JUDGE_TIMEOUT_MULTIPLIER
-_ANSI_GREEN = "\033[32m"
-_ANSI_RED = "\033[31m"
-_ANSI_RESET = "\033[0m"
-
-
-@dataclass(frozen=True)
-class ModelProbeSummary:
-    model_id: str
-    size_hint_b: float | None
-    attempts: int
-    pass_count: int
-    first_latency_s: float
-    mean_answer_latency_s: float
-    max_answer_latency_s: float
-    estimated_load_overhead_s: float | None
-    answer_timeout_s: float | None
-    answer_timeout_exceeded: bool
-    mean_latency_s: float
-    mean_tokens_used: float
-    max_violations_count: int
-    confidences: tuple[str, ...]
-    reasons: tuple[str, ...]
-
-    @property
-    def passed(self) -> bool:
-        return self.pass_count == self.attempts and not self.answer_timeout_exceeded
 
 
 def _env_int(name: str) -> int | None:
@@ -64,59 +48,6 @@ def _env_int(name: str) -> int | None:
         return int(value)
     except ValueError:
         return None
-
-
-def _render_progress(current: int, total: int, *, width: int = 24) -> str:
-    if total <= 0:
-        return "[?] 0/0"
-    bounded_width = max(10, min(60, width))
-    ratio = min(1.0, max(0.0, current / total))
-    filled = int(round(bounded_width * ratio))
-    bar = "#" * filled + "-" * (bounded_width - filled)
-    return f"[{bar}] {current}/{total}"
-
-
-def _format_duration(seconds: float) -> str:
-    total_seconds = max(0, int(round(seconds)))
-    hours, rem = divmod(total_seconds, 3600)
-    minutes, secs = divmod(rem, 60)
-    if hours:
-        return f"{hours:d}:{minutes:02d}:{secs:02d}"
-    return f"{minutes:02d}:{secs:02d}"
-
-
-def _color_status(status: str, *, enabled: bool) -> str:
-    if not enabled:
-        return status
-    if status == "PASS":
-        return f"{_ANSI_GREEN}{status}{_ANSI_RESET}"
-    if status == "FAIL":
-        return f"{_ANSI_RED}{status}{_ANSI_RESET}"
-    return status
-
-
-def _render_attempt_status(
-    current: int,
-    total: int,
-    *,
-    elapsed_s: float,
-    eta_s: float,
-    status: str,
-    color_enabled: bool,
-) -> str:
-    return (
-        f"{_render_progress(current, total)} "
-        f"{_format_duration(elapsed_s)}/{_format_duration(eta_s)} "
-        f"{_color_status(status, enabled=color_enabled)}"
-    )
-
-
-def _format_size(size_hint_b: float | None) -> str:
-    if size_hint_b is None:
-        return "?"
-    if size_hint_b.is_integer():
-        return f"{int(size_hint_b)}B"
-    return f"{size_hint_b:g}B"
 
 
 def _select_models(all_model_ids: list[str], requested_model_names: list[str]) -> list[str]:
@@ -134,48 +65,34 @@ def _select_models(all_model_ids: list[str], requested_model_names: list[str]) -
     return [model_id for model_id in all_model_ids if model_id in requested_set]
 
 
-def _summarize_model(
-    model: ModelInfo,
-    attempt_results: list[ProbeResult],
+@contextmanager
+def _probe_case_context(
     *,
-    answer_timeout_s: float | None = None,
-) -> ModelProbeSummary:
-    attempts = len(attempt_results)
-    pass_count = sum(1 for result in attempt_results if result.passed)
-    first_latency_s = attempt_results[0].latency_s if attempt_results else 0.0
-    answer_results = attempt_results[1:] if len(attempt_results) > 1 else attempt_results
-    mean_answer_latency_s = (
-        sum(result.latency_s for result in answer_results) / max(1, len(answer_results))
-    )
-    max_answer_latency_s = max((result.latency_s for result in answer_results), default=0.0)
-    estimated_load_overhead_s = None
-    if len(attempt_results) > 1:
-        estimated_load_overhead_s = max(0.0, first_latency_s - mean_answer_latency_s)
-    answer_timeout_exceeded = (
-        answer_timeout_s is not None and max_answer_latency_s > answer_timeout_s
-    )
-    mean_latency_s = sum(result.latency_s for result in attempt_results) / max(1, attempts)
-    mean_tokens_used = sum(result.tokens_used for result in attempt_results) / max(1, attempts)
-    max_violations_count = max((result.violations_count for result in attempt_results), default=0)
-    confidences = tuple(result.confidence for result in attempt_results)
-    reasons = tuple(result.reason for result in attempt_results)
-    return ModelProbeSummary(
-        model_id=model.model_id,
-        size_hint_b=model.size_hint_b,
-        attempts=attempts,
-        pass_count=pass_count,
-        first_latency_s=first_latency_s,
-        mean_answer_latency_s=mean_answer_latency_s,
-        max_answer_latency_s=max_answer_latency_s,
-        estimated_load_overhead_s=estimated_load_overhead_s,
-        answer_timeout_s=answer_timeout_s,
-        answer_timeout_exceeded=answer_timeout_exceeded,
-        mean_latency_s=mean_latency_s,
-        mean_tokens_used=mean_tokens_used,
-        max_violations_count=max_violations_count,
-        confidences=confidences,
-        reasons=reasons,
-    )
+    keep_artifacts: bool,
+    artifacts_dir: Path | None,
+) -> Iterator[tuple[ProbeCase, Path | None]]:
+    if keep_artifacts:
+        if artifacts_dir is not None:
+            root = artifacts_dir.expanduser().resolve()
+            root.mkdir(parents=True, exist_ok=True)
+            probe_case_dir = Path(tempfile.mkdtemp(prefix="anydoc2md-find-judge-", dir=root))
+        else:
+            probe_case_dir = Path(tempfile.mkdtemp(prefix="anydoc2md-find-judge-"))
+        yield build_probe_case(probe_case_dir), probe_case_dir
+        return
+
+    with tempfile.TemporaryDirectory(prefix="anydoc2md-find-judge-") as tmp:
+        yield build_probe_case(Path(tmp)), None
+
+
+def _print_artifact_paths(probe_case: ProbeCase, probe_case_dir: Path | None) -> None:
+    if probe_case_dir is None:
+        return
+    print(f"Artifacts kept at: {probe_case_dir}", flush=True)
+    print(f"  source:    {probe_case.source_pdf}", flush=True)
+    print(f"  candidate: {probe_case.candidate_pdf}", flush=True)
+    print(f"  staging:   {probe_case.candidate.staging_dir}", flush=True)
+    print("", flush=True)
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -231,9 +148,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--repeats",
         type=int,
-        default=3,
+        default=10,
         metavar="N",
-        help="How many times to test each selected model (default: 3).",
+        help="How many times to test each selected model (default: 10).",
     )
     parser.add_argument(
         "--model-name",
@@ -331,23 +248,14 @@ def main(argv: list[str] | None = None) -> int:
     total_attempts = len(models) * repeats
     run_started_at = time.monotonic()
 
-    if keep_artifacts:
-        if args.artifacts_dir is not None:
-            root = args.artifacts_dir.expanduser().resolve()
-            root.mkdir(parents=True, exist_ok=True)
-            probe_case_dir = Path(tempfile.mkdtemp(prefix="anydoc2md-find-judge-", dir=root))
-        else:
-            probe_case_dir = Path(tempfile.mkdtemp(prefix="anydoc2md-find-judge-"))
-
-        probe_case = build_probe_case(probe_case_dir)
-        print(f"Artifacts kept at: {probe_case_dir}", flush=True)
-        print(f"  source:    {probe_case.source_pdf}", flush=True)
-        print(f"  candidate: {probe_case.candidate_pdf}", flush=True)
-        print(f"  staging:   {probe_case.candidate.staging_dir}", flush=True)
-        print("", flush=True)
-
+    with _probe_case_context(
+        keep_artifacts=keep_artifacts,
+        artifacts_dir=args.artifacts_dir,
+    ) as (probe_case, probe_case_dir):
+        _print_artifact_paths(probe_case, probe_case_dir)
         completed_attempts = 0
         for model_index, model in enumerate(models, start=1):
+            model_attempt_results: list[ProbeResult] = []
             for repeat_index in range(1, repeats + 1):
                 prefix = (
                     f"{_render_progress(completed_attempts, total_attempts)} "
@@ -384,47 +292,20 @@ def main(argv: list[str] | None = None) -> int:
                     flush=True,
                 )
                 results.append(result)
-    else:
-        with tempfile.TemporaryDirectory(prefix="anydoc2md-find-judge-") as tmp:
-            probe_case = build_probe_case(Path(tmp))
-            completed_attempts = 0
-            for model_index, model in enumerate(models, start=1):
-                for repeat_index in range(1, repeats + 1):
-                    prefix = (
-                        f"{_render_progress(completed_attempts, total_attempts)} "
-                        f"model {model_index}/{len(models)} repeat {repeat_index}/{repeats} "
-                        f"{'load+answer' if repeat_index == 1 else 'answer'} "
-                        f"{model.model_id} (size={_format_size(model.size_hint_b)})..."
-                    )
-                    print(prefix, end="", flush=True)
-                    result = probe_one_model(
-                        model=model,
-                        judge_url=args.judge_url,
-                        judge_timeout_s=judge_timeout_s,
-                        probe_case=probe_case,
-                    )
-                    completed_attempts += 1
-                    elapsed_s = time.monotonic() - run_started_at
-                    mean_attempt_s = elapsed_s / max(1, completed_attempts)
-                    remaining_attempts = total_attempts - completed_attempts
-                    eta_s = mean_attempt_s * remaining_attempts
-                    status = "PASS" if result.passed else "FAIL"
-                    answer_timed_out = (
-                        result.latency_s > answer_timeout_s
-                        and (repeat_index > 1 or repeats == 1)
-                    )
-                    speed_note = f" | answer>{answer_timeout_s:g}s" if answer_timed_out else ""
-                    reason = "" if result.passed else f" | {result.reason}"
-                    print(
-                        f"\r{_render_attempt_status(completed_attempts, total_attempts, elapsed_s=elapsed_s, eta_s=eta_s, status=status, color_enabled=color_enabled)} "
-                        f"{model.model_id} | repeat {repeat_index}/{repeats} "
-                        f"| {'load+answer' if repeat_index == 1 else 'answer'} "
-                        f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
-                        f"| violations={result.violations_count} | confidence={result.confidence} "
-                        f"{speed_note}{reason}",
-                        flush=True,
-                    )
-                    results.append(result)
+                model_attempt_results.append(result)
+            summary = _summarize_model(
+                model,
+                model_attempt_results,
+                answer_timeout_s=answer_timeout_s,
+            )
+            print(
+                _color_conclusion_line(
+                    _render_model_conclusion(summary),
+                    passed=summary.passed,
+                    enabled=color_enabled,
+                ),
+                flush=True,
+            )
 
     summaries = [
         _summarize_model(

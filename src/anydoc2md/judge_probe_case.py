@@ -13,12 +13,22 @@ from anydoc2md.format_converters.classification.classify_document import (
 )
 
 EXPECTED_ISSUE_CLASSES = (
-    "title formatting",
-    "bullet list formatting",
-    "numbered list formatting",
-    "table fidelity",
-    "figure caption mismatch",
+    "fragmented heading",
+    "double bullet markers",
+    "malformed dot bullet list",
+    "numbered list sequencing",
+    "box heading without content",
+    "repeated page heading",
+    "detached figure caption",
+    "wrong figure caption",
+    "flattened table",
+    "implausible image size",
+    "missing image reference",
+    "image count mismatch",
+    "missing source text",
 )
+
+MIN_REQUIRED_ISSUE_CLASSES = 10
 
 _SOURCE_PDF_NAME = "probe_source_reference.pdf"
 _CANDIDATE_PDF_NAME = "probe_candidate_broken.pdf"
@@ -72,4 +82,3 @@ def build_probe_case(work_dir: Path) -> ProbeCase:
         traits=traits,
         candidate=candidate,
     )
-

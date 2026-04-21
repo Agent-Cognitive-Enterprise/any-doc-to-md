@@ -4,6 +4,8 @@ from pathlib import Path
 import re
 from unittest.mock import MagicMock, patch
 
+import fitz
+
 from anydoc2md.judge_probe_case import build_probe_case
 from anydoc2md.judge_probe_models import (
     ModelInfo,
@@ -12,6 +14,7 @@ from anydoc2md.judge_probe_models import (
 )
 from anydoc2md.judge_probe_runner import probe_one_model
 from anydoc2md.llm_judge import JudgeVerdict, JudgeViolation
+from anydoc2md.output_qa.runner import run_all
 
 
 def test_parse_size_hint_billions_standard() -> None:
@@ -139,12 +142,38 @@ def test_build_probe_case_writes_pdfs_and_markdown(tmp_path: Path) -> None:
     case = build_probe_case(tmp_path)
     assert case.source_pdf.exists()
     assert case.candidate_pdf.exists()
-    # Two-page PDF with at least one embedded image.
-    assert case.traits.page_count == 2
+    # Ten-page, text-heavy fixture with embedded visual/table structure.
+    assert case.traits.page_count >= 10
     assert case.traits.image_count >= 1
+    assert case.traits.table_count >= 1
+    assert case.traits.word_count >= 800
     assert case.traits.is_scanned is False
+    candidate_doc = fitz.open(case.candidate_pdf)
+    try:
+        assert candidate_doc.page_count >= 10
+    finally:
+        candidate_doc.close()
     assert (case.candidate.staging_dir / "index.md").exists()
     assert (case.candidate.staging_dir / "images" / "probe_red_square.png").exists()
+
+
+def test_probe_case_triggers_programmatic_qa_issue_coverage(tmp_path: Path) -> None:
+    case = build_probe_case(tmp_path)
+    report = run_all(case.candidate.staging_dir, case.source_pdf)
+    non_pass = {check.name for check in report.checks if check.status != "pass"}
+
+    assert {
+        "no_double_bullets",
+        "numbered_list_sequential",
+        "heading_not_fragmented",
+        "caption_near_image",
+        "box_title_precedes_content",
+        "image_size_plausible",
+        "no_repeated_headings",
+        "images_locally_resolvable",
+        "image_count_match",
+        "text_coverage",
+    }.issubset(non_pass)
 
 
 def test_probe_one_model_marks_pass_for_semantic_issue_classes(tmp_path: Path) -> None:
@@ -154,17 +183,42 @@ def test_probe_one_model_marks_pass_for_semantic_issue_classes(tmp_path: Path) -
         JudgeViolation(
             type="heading_fragmentation",
             severity="major",
-            evidence="The title and heading formatting are split and malformed.",
+            evidence="The title is fragmented into a heading and continuation line.",
         ),
         JudgeViolation(
             type="list_formatting",
             severity="major",
-            evidence="Bullet list markers are degraded and the numbering sequence is out of order.",
+            evidence="Double bullet markers and malformed dot bullets are present.",
+        ),
+        JudgeViolation(
+            type="numbered_list_sequence",
+            severity="major",
+            evidence="The numbered list sequence is out of order.",
+        ),
+        JudgeViolation(
+            type="box_heading_without_content",
+            severity="major",
+            evidence="A Box heading has no content and repeated page headers are present.",
+        ),
+        JudgeViolation(
+            type="figure_caption",
+            severity="major",
+            evidence="The figure caption is detached from the image and points to the wrong step.",
         ),
         JudgeViolation(
             type="table_flattening",
             severity="major",
-            evidence="The table is flattened into plain lines and the figure caption points to the wrong step.",
+            evidence="The table is flattened into plain lines.",
+        ),
+        JudgeViolation(
+            type="image_reference",
+            severity="major",
+            evidence="There are missing image references, an image count mismatch, and implausible image size.",
+        ),
+        JudgeViolation(
+            type="text_coverage",
+            severity="major",
+            evidence="Source text is missing from the candidate.",
         ),
     ]
     verdict = JudgeVerdict(
@@ -221,7 +275,7 @@ def test_probe_one_model_fails_when_only_one_issue_class_is_found(tmp_path: Path
         )
 
     assert result.passed is False
-    assert "surfaced 1/5 issue classes" in result.reason
+    assert "surfaced 1/13 issue classes" in result.reason
 
 
 def test_main_keep_artifacts_writes_probe_pdfs(tmp_path: Path, capsys) -> None:
@@ -303,18 +357,20 @@ def test_main_repeats_and_model_filter(tmp_path: Path, capsys) -> None:
                 "--model-name",
                 "focus",
                 "--repeats",
-                "3",
+                "10",
                 "--artifacts-dir",
                 str(tmp_path),
             ]
         )
 
     assert rc == 0
-    assert seen_models == ["focus", "focus", "focus"]
+    assert seen_models == ["focus"] * 10
     out = capsys.readouterr().out
     assert "Models selected: 1" in out
-    assert "Repeats per model: 3" in out
+    assert "Repeats per model: 10" in out
     assert "Elapsed time:" in out
     assert "answer_mean=" in out
     assert "answer_max=" in out
     assert "load_est=" in out
+    assert "MODEL PASS focus | pass=10/10" in out
+    assert out.rfind("MODEL PASS focus") > out.rfind("repeat 10/10")

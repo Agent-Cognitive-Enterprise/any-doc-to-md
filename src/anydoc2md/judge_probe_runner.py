@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from anydoc2md.judge_probe_case import (
     EXPECTED_ISSUE_CLASSES,
+    MIN_REQUIRED_ISSUE_CLASSES,
     ProbeCase,
 )
 from anydoc2md.judge_probe_models import ModelInfo
@@ -44,7 +45,9 @@ def _collect_verdict_text(verdict) -> str:
 def _detect_issue_classes(combined: str) -> list[str]:
     detected: list[str] = []
 
-    title_keywords = (
+    fragmented_heading_keywords = (
+        "fragmented heading",
+        "heading fragmentation",
         "title",
         "heading",
         "header",
@@ -53,11 +56,22 @@ def _detect_issue_classes(combined: str) -> list[str]:
         "broken heading",
         "malformed heading",
     )
-    bullet_keywords = (
+    double_bullet_keywords = (
+        "double bullet",
+        "double bullets",
+        "two bullet",
+        "duplicate bullet",
+    )
+    dot_bullet_keywords = (
+        "dot bullet",
+        "dot bullets",
+        "malformed bullet",
+        "malformed bullets",
         "bullet",
         "bullets",
         "unordered list",
-        "dot list",
+        "list marker",
+        "list markers",
     )
     numbered_keywords = (
         "numbered",
@@ -73,6 +87,36 @@ def _detect_issue_classes(combined: str) -> list[str]:
         "reordered",
         "swapped",
     )
+    box_keywords = (
+        "box heading",
+        "box title",
+        "box",
+        "empty heading",
+        "no content",
+        "without content",
+    )
+    repeated_heading_keywords = (
+        "repeated heading",
+        "repeated header",
+        "page header",
+        "running header",
+        "duplicate heading",
+    )
+    detached_caption_keywords = (
+        "detached caption",
+        "caption detached",
+        "caption not adjacent",
+        "caption separated",
+        "image moved",
+        "image at the end",
+    )
+    wrong_caption_keywords = (
+        "wrong caption",
+        "caption mismatch",
+        "incorrect caption",
+        "points to the wrong step",
+        "step 3",
+    )
     table_keywords = (
         "table",
         "tabular",
@@ -81,30 +125,75 @@ def _detect_issue_classes(combined: str) -> list[str]:
         "cells",
         "flattened",
     )
-    figure_keywords = (
-        "caption",
-        "figure",
-        "image",
-        "illustration",
-        "visual",
+    image_size_keywords = (
+        "image size",
+        "image width",
+        "implausible",
+        "suspiciously large",
+        "zero width",
+        "missing width",
+    )
+    missing_image_keywords = (
+        "missing image",
+        "missing image reference",
+        "image reference",
+        "unresolved image",
+        "broken image",
+    )
+    image_count_keywords = (
+        "image count",
+        "extra image",
+        "too many images",
+        "image mismatch",
+    )
+    text_coverage_keywords = (
+        "text coverage",
+        "missing source text",
+        "missing text",
+        "omitted text",
+        "text omitted",
     )
 
-    has_title = any(keyword in combined for keyword in title_keywords)
-    has_bullet_list = any(keyword in combined for keyword in bullet_keywords)
+    has_fragmented_heading = any(keyword in combined for keyword in fragmented_heading_keywords)
+    has_double_bullet = any(keyword in combined for keyword in double_bullet_keywords)
+    has_dot_bullet = any(keyword in combined for keyword in dot_bullet_keywords)
     has_numbered_list = any(keyword in combined for keyword in numbered_keywords)
+    has_box = any(keyword in combined for keyword in box_keywords)
+    has_repeated_heading = any(keyword in combined for keyword in repeated_heading_keywords)
+    has_detached_caption = any(keyword in combined for keyword in detached_caption_keywords)
+    has_wrong_caption = any(keyword in combined for keyword in wrong_caption_keywords)
     has_table = any(keyword in combined for keyword in table_keywords)
-    has_figure_caption = any(keyword in combined for keyword in figure_keywords)
+    has_image_size = any(keyword in combined for keyword in image_size_keywords)
+    has_missing_image = any(keyword in combined for keyword in missing_image_keywords)
+    has_image_count = any(keyword in combined for keyword in image_count_keywords)
+    has_text_coverage = any(keyword in combined for keyword in text_coverage_keywords)
 
-    if has_title:
-        detected.append("title formatting")
-    if has_bullet_list:
-        detected.append("bullet list formatting")
+    if has_fragmented_heading:
+        detected.append("fragmented heading")
+    if has_double_bullet:
+        detected.append("double bullet markers")
+    if has_dot_bullet:
+        detected.append("malformed dot bullet list")
     if has_numbered_list:
-        detected.append("numbered list formatting")
+        detected.append("numbered list sequencing")
+    if has_box:
+        detected.append("box heading without content")
+    if has_repeated_heading:
+        detected.append("repeated page heading")
+    if has_detached_caption:
+        detected.append("detached figure caption")
+    if has_wrong_caption:
+        detected.append("wrong figure caption")
     if has_table:
-        detected.append("table fidelity")
-    if has_figure_caption:
-        detected.append("figure caption mismatch")
+        detected.append("flattened table")
+    if has_image_size:
+        detected.append("implausible image size")
+    if has_missing_image:
+        detected.append("missing image reference")
+    if has_image_count:
+        detected.append("image count mismatch")
+    if has_text_coverage:
+        detected.append("missing source text")
     return detected
 
 
@@ -165,7 +254,7 @@ def probe_one_model(
             passed=False,
             reason=f"too few violations: {violations_count}",
         )
-    if len(detected_issue_classes) < 4:
+    if len(detected_issue_classes) < MIN_REQUIRED_ISSUE_CLASSES:
         return ProbeResult(
             model_id=model.model_id,
             size_hint_b=model.size_hint_b,
@@ -176,7 +265,8 @@ def probe_one_model(
             passed=False,
             reason=(
                 f"surfaced {len(detected_issue_classes)}/{len(EXPECTED_ISSUE_CLASSES)} "
-                "issue classes: " + ", ".join(detected_issue_classes or ["none"])
+                f"issue classes; need at least {MIN_REQUIRED_ISSUE_CLASSES}: "
+                + ", ".join(detected_issue_classes or ["none"])
             ),
         )
 

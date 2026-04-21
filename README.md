@@ -109,14 +109,16 @@ PYTHONPATH=. python scripts/convert_tournament_test_sources.py
 
 To probe a local judge endpoint and find the smallest/fastest model that can
 reliably surface audit issues, use the committed fixture PDFs that ship with
-the package. The probe checks headings, bullet lists, numbered lists, table
-fidelity, and figure/caption consistency:
+the package. The probe is a 10-page, text-heavy calibration packet with broken
+headings, double/dot bullets, reordered numbered lists, empty box headings,
+flattened tables, missing text, broken image references, and a figure moved away
+from its caption. By default each selected model must pass that gate 10 times:
 
 ```bash
 cd packages/any-doc-to-md
 python -m anydoc2md.find_judge \
   --judge-url http://127.0.0.1:1234/v1 \
-  --repeats 3 \
+  --repeats 10 \
   --timeout-s 30 \
   --show-all
 ```
@@ -127,7 +129,7 @@ For a focused run against one model:
 python -m anydoc2md.find_judge \
   --judge-url http://127.0.0.1:1234/v1 \
   --model-name qwen/qwen3.6-35b-a3b \
-  --repeats 3 \
+  --repeats 10 \
   --timeout-s 30 \
   --show-all
 ```
