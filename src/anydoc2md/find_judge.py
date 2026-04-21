@@ -6,9 +6,7 @@ This probes an OpenAI-compatible endpoint (e.g. LM Studio) by:
 2) Sorting by a best-effort size hint parsed from the model id string
 3) Running a fixed fixture-backed audit test case against each model
 4) Reporting the fastest passing models (top 10 by default)
-
 """
-
 from __future__ import annotations
 
 import argparse
@@ -120,6 +118,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print all model probe results, not just the fastest passing ones.",
     )
+    parser.add_argument(
+        "--show-errors",
+        action="store_true",
+        help="Show diagnostic failure/error reasons in probe output.",
+    )
     stop_group = parser.add_mutually_exclusive_group()
     stop_group.add_argument(
         "--stop-on-fail",
@@ -204,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Production answer timeout: {answer_timeout_s:g}s", flush=True)
     print(f"Repeats per model: {repeats}", flush=True)
     print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}", flush=True)
+    print(f"Show diagnostic errors: {'yes' if args.show_errors else 'no'}", flush=True)
     print(
         f"Probe issue gate: find at least {MIN_REQUIRED_ISSUE_CLASSES}/"
         f"{len(EXPECTED_ISSUE_CLASSES)} expected issue classes and at least 2 violations.",
@@ -254,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
                 attempt_failed = (not result.passed) or answer_timed_out
                 status = "FAIL" if attempt_failed else "PASS"
                 speed_note = f" | answer>{answer_timeout_s:g}s" if answer_timed_out else ""
-                reason = "" if result.passed else f" | {result.reason}"
+                reason = "" if result.passed or not args.show_errors else f" | {result.reason}"
                 print(
                     f"\r{_render_attempt_status(completed_attempts, total_attempts, elapsed_s=elapsed_s, eta_s=eta_s, status=status, color_enabled=color_enabled)} "
                     f"{model.model_id} | repeat {repeat_index}/{repeats} "
@@ -283,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(
                 _color_conclusion_line(
-                    _render_model_conclusion(summary),
+                    _render_model_conclusion(summary, show_errors=args.show_errors),
                     passed=summary.passed,
                     enabled=color_enabled,
                 ),
@@ -310,6 +314,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Production answer timeout: {answer_timeout_s:g}s")
     print(f"Repeats per model: {repeats}")
     print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}")
+    print(f"Show diagnostic errors: {'yes' if args.show_errors else 'no'}")
     print(
         f"Probe issue gate: find at least {MIN_REQUIRED_ISSUE_CLASSES}/"
         f"{len(EXPECTED_ISSUE_CLASSES)} expected issue classes and at least 2 violations."
@@ -326,8 +331,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if not passing:
         print("No models passed every repeat of the fixture-backed audit probe.", flush=True)
+        if not args.show_errors:
+            print(
+                "Tip: re-run with --show-all --show-errors to see per-model failure reasons.",
+                flush=True,
+            )
         if not args.show_all:
-            print("Tip: re-run with --show-all to see per-model failure reasons.", flush=True)
             return 1
         print("")
 
@@ -364,7 +373,7 @@ def main(argv: list[str] | None = None) -> int:
                 else f"{summary.estimated_load_overhead_s:.2f}s"
             )
             reason = ""
-            if not summary.passed:
+            if not summary.passed and args.show_errors:
                 reasons = [item for item in unique_reasons if item != "ok"]
                 if summary.answer_timeout_exceeded:
                     reasons.append(

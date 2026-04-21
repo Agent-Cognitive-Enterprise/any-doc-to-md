@@ -161,6 +161,7 @@ def test_main_stop_on_fail_is_default_and_continues_to_next_model(
     assert "Stopping bad after first failed repeat (1/10)" in out
     assert "MODEL FAIL bad | pass=0/1" in out
     assert "MODEL PASS good | pass=10/10" in out
+    assert "low detection rate" not in out
 
 
 def test_main_no_stop_on_fail_runs_all_repeats(tmp_path: Path, capsys) -> None:
@@ -205,3 +206,45 @@ def test_main_no_stop_on_fail_runs_all_repeats(tmp_path: Path, capsys) -> None:
     assert "Stop on first fail: no" in out
     assert "Stopping bad after first failed repeat" not in out
     assert "MODEL FAIL bad | pass=0/3" in out
+    assert "low detection rate" not in out
+
+
+def test_main_show_errors_prints_failure_reasons(tmp_path: Path, capsys) -> None:
+    from anydoc2md.find_judge import main
+
+    def fake_probe_one_model(**kwargs):
+        model = kwargs["model"]
+        return ProbeResult(
+            model_id=model.model_id,
+            size_hint_b=model.size_hint_b,
+            latency_s=0.02,
+            tokens_used=20,
+            confidence="high",
+            violations_count=1,
+            passed=False,
+            reason="low detection rate: 1 violations reported; need at least 2",
+        )
+
+    with (
+        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["bad"]),
+        patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
+    ):
+        rc = main(
+            [
+                "--judge-url",
+                "http://localhost:1234/v1",
+                "--repeats",
+                "3",
+                "--artifacts-dir",
+                str(tmp_path),
+                "--show-all",
+                "--show-errors",
+            ]
+        )
+
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "Show diagnostic errors: yes" in out
+    assert "MODEL FAIL bad | pass=0/1" in out
+    assert "FAIL bad | size=? | first_load+answer=" in out
+    assert "low detection rate: 1 violations reported; need at least 2" in out

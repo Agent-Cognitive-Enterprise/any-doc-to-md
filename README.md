@@ -146,6 +146,10 @@ default, prints the model-level conclusion immediately, and continues with the
 next model. Use `--no-stop-on-fail` only when you want the full repeat history
 for diagnostics.
 
+Failure reasons are hidden by default to keep long calibration runs readable.
+Use `--show-errors` when you want diagnostic details such as JSON parse errors,
+low detection rate, or missing issue classes.
+
 `--timeout-s` is the production usefulness threshold for steady answer time. It
 does not replace `--judge-timeout-s`, which is the HTTP read timeout. A model can
 take a while to load and still be useful; a model that repeatedly takes more

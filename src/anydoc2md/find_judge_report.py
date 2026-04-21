@@ -93,12 +93,16 @@ def _format_load_est(summary: ModelProbeSummary) -> str:
     return f"{summary.estimated_load_overhead_s:.2f}s"
 
 
-def _render_model_conclusion(summary: ModelProbeSummary) -> str:
+def _render_model_conclusion(
+    summary: ModelProbeSummary,
+    *,
+    show_errors: bool = False,
+) -> str:
     status = "PASS" if summary.passed else "FAIL"
     reasons = [reason for reason in tuple(dict.fromkeys(summary.reasons)) if reason != "ok"]
     if summary.answer_timeout_exceeded:
         reasons.append(f"answer time exceeded --timeout-s {summary.answer_timeout_s:g}s")
-    reason = "" if summary.passed else " | " + " ; ".join(reasons)
+    reason = "" if summary.passed or not show_errors else " | " + " ; ".join(reasons)
     return (
         f"MODEL {status} {summary.model_id} | pass={summary.pass_count}/{summary.attempts} "
         f"| first_load+answer={summary.first_latency_s:.2f}s "
