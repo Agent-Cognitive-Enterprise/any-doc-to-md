@@ -12,15 +12,11 @@ This probes an OpenAI-compatible endpoint (e.g. LM Studio) by:
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
-import os
 import sys
-import tempfile
 import time
-from collections.abc import Iterator
 from pathlib import Path
 
-from anydoc2md.judge_probe_case import EXPECTED_ISSUE_CLASSES, ProbeCase, build_probe_case
+from anydoc2md.judge_probe_case import EXPECTED_ISSUE_CLASSES
 from anydoc2md.find_judge_report import (
     _color_conclusion_line,
     _color_status,
@@ -32,67 +28,18 @@ from anydoc2md.find_judge_report import (
     _render_progress,
     _summarize_model,
 )
+from anydoc2md.find_judge_support import (
+    _env_int,
+    _print_artifact_paths,
+    _probe_case_context,
+    _select_models,
+)
 from anydoc2md.judge_probe_models import ModelInfo, fetch_model_ids, parse_size_hint_billions
 from anydoc2md.judge_probe_runner import ProbeResult, probe_one_model
 from anydoc2md.settings import DEFAULT_JUDGE_TIMEOUT_S, ENV_JUDGE_TIMEOUT_S
 
 _SLOW_JUDGE_TIMEOUT_MULTIPLIER = 4
 _DEFAULT_PROBE_JUDGE_TIMEOUT_S = DEFAULT_JUDGE_TIMEOUT_S * _SLOW_JUDGE_TIMEOUT_MULTIPLIER
-
-
-def _env_int(name: str) -> int | None:
-    value = os.getenv(name, "").strip()
-    if not value:
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        return None
-
-
-def _select_models(all_model_ids: list[str], requested_model_names: list[str]) -> list[str]:
-    if not requested_model_names:
-        return all_model_ids
-
-    requested = [name.strip() for name in requested_model_names if name.strip()]
-    requested_set = set(requested)
-    available_set = set(all_model_ids)
-    missing = [name for name in requested if name not in available_set]
-    if missing:
-        missing_joined = ", ".join(missing)
-        raise ValueError(f"Requested model(s) not found on endpoint: {missing_joined}")
-
-    return [model_id for model_id in all_model_ids if model_id in requested_set]
-
-
-@contextmanager
-def _probe_case_context(
-    *,
-    keep_artifacts: bool,
-    artifacts_dir: Path | None,
-) -> Iterator[tuple[ProbeCase, Path | None]]:
-    if keep_artifacts:
-        if artifacts_dir is not None:
-            root = artifacts_dir.expanduser().resolve()
-            root.mkdir(parents=True, exist_ok=True)
-            probe_case_dir = Path(tempfile.mkdtemp(prefix="anydoc2md-find-judge-", dir=root))
-        else:
-            probe_case_dir = Path(tempfile.mkdtemp(prefix="anydoc2md-find-judge-"))
-        yield build_probe_case(probe_case_dir), probe_case_dir
-        return
-
-    with tempfile.TemporaryDirectory(prefix="anydoc2md-find-judge-") as tmp:
-        yield build_probe_case(Path(tmp)), None
-
-
-def _print_artifact_paths(probe_case: ProbeCase, probe_case_dir: Path | None) -> None:
-    if probe_case_dir is None:
-        return
-    print(f"Artifacts kept at: {probe_case_dir}", flush=True)
-    print(f"  source:    {probe_case.source_pdf}", flush=True)
-    print(f"  candidate: {probe_case.candidate_pdf}", flush=True)
-    print(f"  staging:   {probe_case.candidate.staging_dir}", flush=True)
-    print("", flush=True)
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -173,6 +120,20 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print all model probe results, not just the fastest passing ones.",
     )
+    stop_group = parser.add_mutually_exclusive_group()
+    stop_group.add_argument(
+        "--stop-on-fail",
+        dest="stop_on_fail",
+        action="store_true",
+        default=True,
+        help="Stop testing a model after its first failed repeat (default).",
+    )
+    stop_group.add_argument(
+        "--no-stop-on-fail",
+        dest="stop_on_fail",
+        action="store_false",
+        help="Run every repeat for every selected model, even after failures.",
+    )
     color_group = parser.add_mutually_exclusive_group()
     color_group.add_argument(
         "--color",
@@ -242,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Probe judge timeout: {judge_timeout_s}s", flush=True)
     print(f"Production answer timeout: {answer_timeout_s:g}s", flush=True)
     print(f"Repeats per model: {repeats}", flush=True)
+    print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}", flush=True)
 
     results: list[ProbeResult] = []
     keep_artifacts = bool(args.keep_artifacts or args.artifacts_dir)
@@ -275,11 +237,12 @@ def main(argv: list[str] | None = None) -> int:
                 mean_attempt_s = elapsed_s / max(1, completed_attempts)
                 remaining_attempts = total_attempts - completed_attempts
                 eta_s = mean_attempt_s * remaining_attempts
-                status = "PASS" if result.passed else "FAIL"
                 answer_timed_out = (
                     result.latency_s > answer_timeout_s
                     and (repeat_index > 1 or repeats == 1)
                 )
+                attempt_failed = (not result.passed) or answer_timed_out
+                status = "FAIL" if attempt_failed else "PASS"
                 speed_note = f" | answer>{answer_timeout_s:g}s" if answer_timed_out else ""
                 reason = "" if result.passed else f" | {result.reason}"
                 print(
@@ -293,6 +256,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 results.append(result)
                 model_attempt_results.append(result)
+                if args.stop_on_fail and attempt_failed:
+                    skipped_attempts = repeats - repeat_index
+                    completed_attempts += skipped_attempts
+                    print(
+                        f"Stopping {model.model_id} after first failed repeat "
+                        f"({repeat_index}/{repeats}); skipping {skipped_attempts} "
+                        f"remaining repeat(s); strict pass requires {repeats}/{repeats}.",
+                        flush=True,
+                    )
+                    break
             summary = _summarize_model(
                 model,
                 model_attempt_results,
@@ -326,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Probe judge timeout: {judge_timeout_s}s")
     print(f"Production answer timeout: {answer_timeout_s:g}s")
     print(f"Repeats per model: {repeats}")
+    print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}")
     print(f"Elapsed time: {_format_duration(total_elapsed_s)}")
     print("Timing model: repeat 1 is load+answer; later repeats estimate steady answer time.")
     print("Models exceeding --timeout-s on steady answer time are excluded from passing results.")

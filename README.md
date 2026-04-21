@@ -140,6 +140,12 @@ used to estimate steady answer time. The live progress output includes elapsed
 time and ETA because this benchmark is usually a one-time hardware calibration,
 not something you want to babysit blindly.
 
+The pass policy is intentionally strict: one failed repeat disqualifies the
+model. `find_judge` therefore stops testing that model on the first fail by
+default, prints the model-level conclusion immediately, and continues with the
+next model. Use `--no-stop-on-fail` only when you want the full repeat history
+for diagnostics.
+
 `--timeout-s` is the production usefulness threshold for steady answer time. It
 does not replace `--judge-timeout-s`, which is the HTTP read timeout. A model can
 take a while to load and still be useful; a model that repeatedly takes more

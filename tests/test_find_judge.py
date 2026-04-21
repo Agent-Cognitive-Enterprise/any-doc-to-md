@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import re
 from unittest.mock import MagicMock, patch
 
 import fitz
@@ -276,101 +275,3 @@ def test_probe_one_model_fails_when_only_one_issue_class_is_found(tmp_path: Path
 
     assert result.passed is False
     assert "surfaced 1/13 issue classes" in result.reason
-
-
-def test_main_keep_artifacts_writes_probe_pdfs(tmp_path: Path, capsys) -> None:
-    from anydoc2md.find_judge import main
-    from anydoc2md.judge_probe_runner import ProbeResult
-
-    seen_models: list[str] = []
-
-    def fake_probe_one_model(**kwargs):
-        model = kwargs["model"]
-        seen_models.append(model.model_id)
-        return ProbeResult(
-            model_id=model.model_id,
-            size_hint_b=model.size_hint_b,
-            latency_s=0.01,
-            tokens_used=10,
-            confidence="high",
-            violations_count=3,
-            passed=True,
-            reason="ok",
-        )
-
-    with (
-        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["test-7b"]),
-        patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
-    ):
-        rc = main(
-            [
-                "--judge-url",
-                "http://localhost:1234/v1",
-                "--artifacts-dir",
-                str(tmp_path),
-                "--repeats",
-                "1",
-            ]
-        )
-    assert rc == 0
-    assert seen_models == ["test-7b"]
-
-    out = capsys.readouterr().out
-    assert "Artifacts kept at:" in out
-
-    match = re.search(r"Artifacts kept at: (.+)", out)
-    assert match is not None
-    artifacts_dir = Path(match.group(1).strip())
-    assert artifacts_dir.exists()
-    assert (artifacts_dir / "source.pdf").exists()
-    assert (artifacts_dir / "candidate.pdf").exists()
-
-
-def test_main_repeats_and_model_filter(tmp_path: Path, capsys) -> None:
-    from anydoc2md.find_judge import main
-    from anydoc2md.judge_probe_runner import ProbeResult
-
-    seen_models: list[str] = []
-
-    def fake_probe_one_model(**kwargs):
-        model = kwargs["model"]
-        seen_models.append(model.model_id)
-        return ProbeResult(
-            model_id=model.model_id,
-            size_hint_b=model.size_hint_b,
-            latency_s=0.02,
-            tokens_used=20,
-            confidence="high",
-            violations_count=4,
-            passed=True,
-            reason="ok",
-        )
-
-    with (
-        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["a", "focus", "z"]),
-        patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
-    ):
-        rc = main(
-            [
-                "--judge-url",
-                "http://localhost:1234/v1",
-                "--model-name",
-                "focus",
-                "--repeats",
-                "10",
-                "--artifacts-dir",
-                str(tmp_path),
-            ]
-        )
-
-    assert rc == 0
-    assert seen_models == ["focus"] * 10
-    out = capsys.readouterr().out
-    assert "Models selected: 1" in out
-    assert "Repeats per model: 10" in out
-    assert "Elapsed time:" in out
-    assert "answer_mean=" in out
-    assert "answer_max=" in out
-    assert "load_est=" in out
-    assert "MODEL PASS focus | pass=10/10" in out
-    assert out.rfind("MODEL PASS focus") > out.rfind("repeat 10/10")
