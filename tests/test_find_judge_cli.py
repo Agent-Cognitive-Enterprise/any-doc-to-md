@@ -158,8 +158,8 @@ def test_main_stop_on_fail_is_default_and_continues_to_next_model(
     assert seen_models == ["bad"] + ["good"] * 10
     out = capsys.readouterr().out
     assert "Stop on first fail: yes" in out
-    assert "Stopping bad after first failed repeat (1/10)" in out
-    assert "MODEL FAIL bad | pass=0/1" in out
+    assert "Stopping bad after first failed repeat" not in out
+    assert "MODEL FAIL bad" not in out
     assert "MODEL PASS good | pass=10/10" in out
     assert "low detection rate" not in out
 
@@ -205,7 +205,7 @@ def test_main_no_stop_on_fail_runs_all_repeats(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "Stop on first fail: no" in out
     assert "Stopping bad after first failed repeat" not in out
-    assert "MODEL FAIL bad | pass=0/3" in out
+    assert "MODEL FAIL bad" not in out
     assert "low detection rate" not in out
 
 
@@ -245,6 +245,6 @@ def test_main_show_errors_prints_failure_reasons(tmp_path: Path, capsys) -> None
     assert rc == 1
     out = capsys.readouterr().out
     assert "Show diagnostic errors: yes" in out
-    assert "MODEL FAIL bad | pass=0/1" in out
+    assert "MODEL FAIL bad" not in out
     assert "FAIL bad | size=? | first_load+answer=" in out
     assert "low detection rate: 1 violations reported; need at least 2" in out

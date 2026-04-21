@@ -271,28 +271,22 @@ def main(argv: list[str] | None = None) -> int:
                 results.append(result)
                 model_attempt_results.append(result)
                 if args.stop_on_fail and attempt_failed:
-                    skipped_attempts = repeats - repeat_index
-                    completed_attempts += skipped_attempts
-                    print(
-                        f"Stopping {model.model_id} after first failed repeat "
-                        f"({repeat_index}/{repeats}); skipping {skipped_attempts} "
-                        f"remaining repeat(s); strict pass requires {repeats}/{repeats}.",
-                        flush=True,
-                    )
+                    completed_attempts += repeats - repeat_index
                     break
             summary = _summarize_model(
                 model,
                 model_attempt_results,
                 answer_timeout_s=answer_timeout_s,
             )
-            print(
-                _color_conclusion_line(
-                    _render_model_conclusion(summary, show_errors=args.show_errors),
-                    passed=summary.passed,
-                    enabled=color_enabled,
-                ),
-                flush=True,
-            )
+            if summary.passed:
+                print(
+                    _color_conclusion_line(
+                        _render_model_conclusion(summary, show_errors=args.show_errors),
+                        passed=True,
+                        enabled=color_enabled,
+                    ),
+                    flush=True,
+                )
 
     summaries = [
         _summarize_model(
