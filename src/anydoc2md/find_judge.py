@@ -266,6 +266,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     repeats = args.repeats
     answer_timeout_s = args.timeout_s
+    color_enabled = args.color or (not args.no_color and sys.stdout.isatty())
     if judge_timeout_s <= 0:
         print("Error: judge timeout must be > 0.", flush=True)
         return 2
@@ -351,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
                 remaining_attempts = total_attempts - completed_attempts
                 eta_s = mean_attempt_s * remaining_attempts
                 status = "PASS" if result.passed else "FAIL"
+                display_status = _color_status(status, enabled=color_enabled)
                 answer_timed_out = (
                     result.latency_s > answer_timeout_s
                     and (repeat_index > 1 or repeats == 1)
@@ -358,7 +360,7 @@ def main(argv: list[str] | None = None) -> int:
                 speed_note = f" | answer>{answer_timeout_s:g}s" if answer_timed_out else ""
                 reason = "" if result.passed else f" | {result.reason}"
                 print(
-                    f"\r{_render_progress(completed_attempts, total_attempts)} {status} "
+                    f"\r{_render_progress(completed_attempts, total_attempts)} {display_status} "
                     f"{model.model_id} | repeat {repeat_index}/{repeats} "
                     f"| {'load+answer' if repeat_index == 1 else 'answer'} "
                     f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
@@ -393,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
                     remaining_attempts = total_attempts - completed_attempts
                     eta_s = mean_attempt_s * remaining_attempts
                     status = "PASS" if result.passed else "FAIL"
+                    display_status = _color_status(status, enabled=color_enabled)
                     answer_timed_out = (
                         result.latency_s > answer_timeout_s
                         and (repeat_index > 1 or repeats == 1)
@@ -400,7 +403,7 @@ def main(argv: list[str] | None = None) -> int:
                     speed_note = f" | answer>{answer_timeout_s:g}s" if answer_timed_out else ""
                     reason = "" if result.passed else f" | {result.reason}"
                     print(
-                        f"\r{_render_progress(completed_attempts, total_attempts)} {status} "
+                        f"\r{_render_progress(completed_attempts, total_attempts)} {display_status} "
                         f"{model.model_id} | repeat {repeat_index}/{repeats} "
                         f"| {'load+answer' if repeat_index == 1 else 'answer'} "
                         f"| {result.latency_s:.2f}s | tokens={result.tokens_used} "
@@ -468,6 +471,7 @@ def main(argv: list[str] | None = None) -> int:
         print("All results (size-sorted model summaries):")
         for summary in summaries:
             status = "PASS" if summary.passed else "FAIL"
+            display_status = _color_status(status, enabled=color_enabled)
             unique_reasons = tuple(dict.fromkeys(summary.reasons))
             load_est = (
                 "n/a"
@@ -483,7 +487,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 reason = " | " + " ; ".join(reasons)
             print(
-                f"{status} {summary.model_id} | size={_format_size(summary.size_hint_b)} "
+                f"{display_status} {summary.model_id} | size={_format_size(summary.size_hint_b)} "
                 f"| first_load+answer={summary.first_latency_s:.2f}s "
                 f"| answer_mean={summary.mean_answer_latency_s:.2f}s "
                 f"| answer_max={summary.max_answer_latency_s:.2f}s "

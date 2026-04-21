@@ -33,7 +33,7 @@ def test_parse_size_hint_billions_none_when_missing() -> None:
 
 
 def test_render_progress_bar_is_stable() -> None:
-    from anydoc2md.find_judge import _format_duration, _render_progress
+    from anydoc2md.find_judge import _color_status, _format_duration, _render_progress
 
     assert "0/3" in _render_progress(0, 3, width=10)
     assert "1/3" in _render_progress(1, 3, width=10)
@@ -41,6 +41,9 @@ def test_render_progress_bar_is_stable() -> None:
     assert _render_progress(0, 0) == "[?] 0/0"
     assert _format_duration(61) == "01:01"
     assert _format_duration(3661) == "1:01:01"
+    assert _color_status("PASS", enabled=False) == "PASS"
+    assert "\033[32mPASS\033[0m" == _color_status("PASS", enabled=True)
+    assert "\033[31mFAIL\033[0m" == _color_status("FAIL", enabled=True)
 
 
 def test_select_models_filters_exact_names() -> None:
