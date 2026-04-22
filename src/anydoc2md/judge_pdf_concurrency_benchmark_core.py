@@ -15,6 +15,9 @@ from anydoc2md._llm_judge_pdf_issue_localizer import (
     PdfSuspectedIssue,
     detect_pdf_suspected_issues,
 )
+from anydoc2md._llm_judge_pdf_issue_reviewer import (
+    judge_candidate_against_source_issues,
+)
 from anydoc2md._llm_judge_types import JudgeVerdict
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
@@ -271,18 +274,14 @@ def _run_attempt(
         status="ok",
     )
     tracker = CallTracker(llm_judge_module._call_lm_studio)
-    original_call = llm_judge_module._call_lm_studio
     started = time.monotonic()
-    try:
-        llm_judge_module._call_lm_studio = tracker
-        verdict = llm_judge_module._judge_candidate_against_source_issues(
-            candidate=candidate,
-            traits=traits,
-            issues=issues,
-            settings=settings,
-        )
-    finally:
-        llm_judge_module._call_lm_studio = original_call
+    verdict = judge_candidate_against_source_issues(
+        candidate=candidate,
+        traits=traits,
+        issues=issues,
+        settings=settings,
+        call_lm_studio=tracker,
+    )
     return _attempt_from_verdict(
         case_id=case.case_id,
         concurrency=settings.pdf_concurrency,

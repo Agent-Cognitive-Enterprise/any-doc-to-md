@@ -15,6 +15,7 @@ from anydoc2md._llm_judge_pdf_windows import (
     build_windowed_audit_prompt,
 )
 from anydoc2md._llm_judge_pdf_issue_localizer import PdfSuspectedIssue
+from anydoc2md._llm_judge_pdf_issue_reviewer import PDF_ISSUE_REVIEW_MAX_ATTEMPTS
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
 from anydoc2md.llm_judge import judge_candidate_against_source
@@ -312,7 +313,7 @@ def test_judge_candidate_against_source_returns_error_when_window_call_fails(tmp
     with patch(
         "anydoc2md.llm_judge.detect_pdf_suspected_issues",
         return_value=issues,
-    ), patch("anydoc2md.llm_judge._call_lm_studio", side_effect=RuntimeError("boom")):
+    ), patch("anydoc2md.llm_judge._call_lm_studio", side_effect=RuntimeError("boom")) as call_mock:
         verdict = judge_candidate_against_source(
             candidate,
             source_pdf,
@@ -322,4 +323,6 @@ def test_judge_candidate_against_source_returns_error_when_window_call_fails(tmp
         )
 
     assert verdict.succeeded is False
-    assert "issue-focused PDF review" in verdict.error
+    assert call_mock.call_count == PDF_ISSUE_REVIEW_MAX_ATTEMPTS
+    assert "Issue-focused PDF review" in verdict.error
+    assert f"after {PDF_ISSUE_REVIEW_MAX_ATTEMPTS} attempts" in verdict.error

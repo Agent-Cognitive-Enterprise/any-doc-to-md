@@ -139,11 +139,7 @@ def test_run_benchmark_matrix_passes_each_concurrency_level(
 
     monkeypatch.setattr(benchmark_core, "_pdf_traits", lambda _path: _traits())
     monkeypatch.setattr(benchmark_core, "detect_pdf_suspected_issues", lambda *_args: [_issue()])
-    monkeypatch.setattr(
-        benchmark_core.llm_judge_module,
-        "_judge_candidate_against_source_issues",
-        fake_judge,
-    )
+    monkeypatch.setattr(benchmark_core, "judge_candidate_against_source_issues", fake_judge)
 
     result = run_benchmark_matrix(
         cases=[case],

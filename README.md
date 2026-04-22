@@ -213,7 +213,8 @@ PYTHONPATH=src python -m anydoc2md.judge_pdf_concurrency_benchmark \
 Use a gitignored or `/tmp` output path. Treat a single run as a functional
 capacity check; use multiple repeats before choosing a production default for a
 new endpoint or model. HTTP failures, malformed JSON, and parser failures count
-as benchmark failures even when the endpoint stayed reachable.
+as benchmark failures when they still fail after the per-issue retry budget is
+exhausted.
 
 ### Python
 
@@ -243,6 +244,8 @@ For PDF sources, the post-selection audit now works like this:
 - if no suspicious windows are found, accept the PDF audit without an LLM call
 - if suspicious windows are found, expand them into narrow local review packets
 - run the judge only on those flagged packets
+- retry each issue review up to three attempts when the local endpoint fails or
+  returns unrepaired bad JSON
 - aggregate confirmed violations into one final verdict and remediation plan
 
 For non-PDF sources, ADTM still falls back to the older bounded evidence-packet prompt.
