@@ -334,6 +334,15 @@ Suggested control flow:
 
 The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and, for PDF sources, first runs deterministic page-anchor checks across the full source and candidate PDFs. If those checks find no suspicious windows, the PDF audit short-circuits without an LLM call. If they do find suspicious windows, ADTM expands those windows into narrow issue packets, asks the LLM to review only those localized suspects with configurable bounded concurrency (default `4`), and aggregates the confirmed violations into one final verdict with page-scoped evidence. Non-PDF sources still use the older bounded evidence-packet prompt. Host workflows may also persist a richer source evidence packet under `.any-doc-to-md/evidence-packets/` for offline review and coding-agent follow-up.
 
+PDF judge concurrency should be calibrated per endpoint and model with
+`python -m anydoc2md.judge_pdf_concurrency_benchmark`. The benchmark takes
+explicit `SOURCE_PDF::AUDIT_PDF::CANDIDATE` cases, runs deterministic suspect
+localization once per case, then sweeps configured issue-review concurrency
+levels such as `1,2,4,8`. A valid capacity result records success rate, elapsed
+time, tokens, and observed peak in-flight calls. Malformed JSON is a failed
+attempt, even if the HTTP request succeeded. This benchmark does not replace the
+separate `find_judge` quality gate.
+
 ---
 
 ## Stage 6: Fix-learning loop

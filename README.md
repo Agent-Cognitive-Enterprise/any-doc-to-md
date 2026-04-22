@@ -190,6 +190,31 @@ does not replace `--judge-timeout-s`, which is the HTTP read timeout. A model ca
 take a while to load and still be useful; a model that repeatedly takes more
 than `--timeout-s` to answer after loading is excluded from the passing list.
 
+To measure the PDF judge endpoint's safe issue-review concurrency after a model
+has already passed the quality probe, run a concurrency matrix over explicit
+source/audit-PDF cases. This benchmark reuses deterministic suspect
+localization, then times only the bounded issue-focused judge reviews. It
+records success count, wall time, tokens, and observed peak in-flight calls.
+
+Example against three already-staged PRAI large-PDF winners:
+
+```bash
+cd packages/any-doc-to-md
+PYTHONPATH=src python -m anydoc2md.judge_pdf_concurrency_benchmark \
+  --judge-url http://127.0.0.1:1234/v1 \
+  --judge-model qwen/qwen3-4b-2507 \
+  --judge-timeout-s 240 \
+  --concurrency-levels 1,2,4,8 \
+  --case /path/to/source-a.pdf::/path/to/winner-a/audit_candidate.pdf::inhouse \
+  --case /path/to/source-b.pdf::/path/to/winner-b/audit_candidate.pdf::markitdown \
+  --output-json /tmp/adtm-judge-concurrency/summary.json
+```
+
+Use a gitignored or `/tmp` output path. Treat a single run as a functional
+capacity check; use multiple repeats before choosing a production default for a
+new endpoint or model. HTTP failures, malformed JSON, and parser failures count
+as benchmark failures even when the endpoint stayed reachable.
+
 ### Python
 
 ```python
