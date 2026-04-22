@@ -11,6 +11,7 @@ ENV_JUDGE_TIMEOUT_S = "ANYDOC2MD_JUDGE_TIMEOUT_S"
 ENV_JUDGE_MAX_TOKENS = "ANYDOC2MD_JUDGE_MAX_TOKENS"
 ENV_JUDGE_DISABLE_THINKING = "ANYDOC2MD_JUDGE_DISABLE_THINKING"
 ENV_JUDGE_TEMPERATURE = "ANYDOC2MD_JUDGE_TEMPERATURE"
+ENV_JUDGE_PDF_CONCURRENCY = "ANYDOC2MD_JUDGE_PDF_CONCURRENCY"
 
 AUDIT_MODE_AUTO = "auto"
 AUDIT_MODE_LIGHT = "light"
@@ -20,6 +21,7 @@ DEFAULT_JUDGE_TIMEOUT_S = 90
 DEFAULT_JUDGE_MAX_TOKENS = 4096
 DEFAULT_JUDGE_DISABLE_THINKING = True
 DEFAULT_JUDGE_TEMPERATURE = 0.1
+DEFAULT_JUDGE_PDF_CONCURRENCY = 4
 
 
 class AnyDocToMdConfigError(ValueError):
@@ -36,6 +38,13 @@ class JudgeSettings:
     max_tokens: int = DEFAULT_JUDGE_MAX_TOKENS
     disable_thinking: bool = DEFAULT_JUDGE_DISABLE_THINKING
     temperature: float = DEFAULT_JUDGE_TEMPERATURE
+    pdf_concurrency: int = DEFAULT_JUDGE_PDF_CONCURRENCY
+
+    def __post_init__(self) -> None:
+        if self.pdf_concurrency < 1:
+            raise AnyDocToMdConfigError(
+                f"pdf_concurrency must be a positive integer; got {self.pdf_concurrency!r}"
+            )
 
 
 def normalize_audit_mode(value: str) -> str:
@@ -75,6 +84,10 @@ def load_judge_settings_from_env() -> JudgeSettings:
             DEFAULT_JUDGE_DISABLE_THINKING,
         ),
         temperature=_env_float(ENV_JUDGE_TEMPERATURE, DEFAULT_JUDGE_TEMPERATURE),
+        pdf_concurrency=_env_positive_int(
+            ENV_JUDGE_PDF_CONCURRENCY,
+            DEFAULT_JUDGE_PDF_CONCURRENCY,
+        ),
     )
 
 
@@ -113,3 +126,12 @@ def _env_bool(name: str, default: bool) -> bool:
     raise AnyDocToMdConfigError(
         f"{name} must be a boolean string; got {value!r}"
     )
+
+
+def _env_positive_int(name: str, default: int) -> int:
+    value = _env_int(name, default)
+    if value < 1:
+        raise AnyDocToMdConfigError(
+            f"{name} must be a positive integer; got {value!r}"
+        )
+    return value

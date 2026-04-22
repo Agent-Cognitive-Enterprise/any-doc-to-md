@@ -332,7 +332,7 @@ Suggested control flow:
 8. allow at most 3 LLM audits per document
 9. escalate to human review when the audit budget is exhausted
 
-The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and, for PDF sources, first runs deterministic page-anchor checks across the full source and candidate PDFs. If those checks find no suspicious windows, the PDF audit short-circuits without an LLM call. If they do find suspicious windows, ADTM expands those windows into narrow issue packets, asks the LLM to review only those localized suspects, and aggregates the confirmed violations into one final verdict with page-scoped evidence. Non-PDF sources still use the older bounded evidence-packet prompt. Host workflows may also persist a richer source evidence packet under `.any-doc-to-md/evidence-packets/` for offline review and coding-agent follow-up.
+The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and, for PDF sources, first runs deterministic page-anchor checks across the full source and candidate PDFs. If those checks find no suspicious windows, the PDF audit short-circuits without an LLM call. If they do find suspicious windows, ADTM expands those windows into narrow issue packets, asks the LLM to review only those localized suspects with configurable bounded concurrency (default `4`), and aggregates the confirmed violations into one final verdict with page-scoped evidence. Non-PDF sources still use the older bounded evidence-packet prompt. Host workflows may also persist a richer source evidence packet under `.any-doc-to-md/evidence-packets/` for offline review and coding-agent follow-up.
 
 ---
 

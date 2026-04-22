@@ -769,6 +769,7 @@ class TestJudgeSettings:
         monkeypatch.setenv("ANYDOC2MD_JUDGE_MAX_TOKENS", "2048")
         monkeypatch.setenv("ANYDOC2MD_JUDGE_DISABLE_THINKING", "false")
         monkeypatch.setenv("ANYDOC2MD_JUDGE_TEMPERATURE", "0.2")
+        monkeypatch.setenv("ANYDOC2MD_JUDGE_PDF_CONCURRENCY", "7")
 
         settings = load_judge_settings_from_env()
 
@@ -778,6 +779,16 @@ class TestJudgeSettings:
         assert settings.max_tokens == 2048
         assert settings.disable_thinking is False
         assert settings.temperature == 0.2
+        assert settings.pdf_concurrency == 7
+
+    def test_pdf_concurrency_defaults_to_four(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ANYDOC2MD_JUDGE_URL", "http://localhost:1234/v1")
+        monkeypatch.setenv("ANYDOC2MD_JUDGE_MODEL", "qwen/test-model")
+        monkeypatch.delenv("ANYDOC2MD_JUDGE_PDF_CONCURRENCY", raising=False)
+
+        settings = load_judge_settings_from_env()
+
+        assert settings.pdf_concurrency == 4
 
     def test_missing_required_env_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("ANYDOC2MD_JUDGE_URL", raising=False)
@@ -793,3 +804,19 @@ class TestJudgeSettings:
 
         with pytest.raises(AnyDocToMdConfigError):
             load_judge_settings_from_env()
+
+    def test_invalid_pdf_concurrency_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ANYDOC2MD_JUDGE_URL", "http://localhost:1234/v1")
+        monkeypatch.setenv("ANYDOC2MD_JUDGE_MODEL", "qwen/test-model")
+        monkeypatch.setenv("ANYDOC2MD_JUDGE_PDF_CONCURRENCY", "0")
+
+        with pytest.raises(AnyDocToMdConfigError):
+            load_judge_settings_from_env()
+
+    def test_explicit_invalid_pdf_concurrency_raises(self) -> None:
+        with pytest.raises(AnyDocToMdConfigError):
+            JudgeSettings(
+                url="http://localhost:1234/v1",
+                model="qwen/test-model",
+                pdf_concurrency=0,
+            )

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import threading
+import time
 from unittest.mock import patch
 
 import fitz
@@ -63,8 +65,12 @@ def _make_pdf(path: Path, *, pages: int, prefix: str) -> None:
     doc.close()
 
 
-def _judge_settings() -> JudgeSettings:
-    return JudgeSettings(url="http://localhost:1234/v1", model="test-model")
+def _judge_settings(*, pdf_concurrency: int = 1) -> JudgeSettings:
+    return JudgeSettings(
+        url="http://localhost:1234/v1",
+        model="test-model",
+        pdf_concurrency=pdf_concurrency,
+    )
 
 
 def test_build_pdf_audit_windows_splits_source_pages_and_maps_candidate_pages(tmp_path: Path) -> None:
@@ -205,6 +211,83 @@ def test_judge_candidate_against_source_aggregates_windowed_pdf_violations(tmp_p
     assert len(verdict.violations) == 1
     assert verdict.violations[0].pages == [2, 8]
     assert verdict.violations[0].count == 2
+
+
+def test_judge_candidate_against_source_reviews_pdf_issues_concurrently_in_order(
+    tmp_path: Path,
+) -> None:
+    source_pdf = tmp_path / "source.pdf"
+    candidate_pdf = tmp_path / "candidate.pdf"
+    _make_pdf(source_pdf, pages=6, prefix="Source")
+    _make_pdf(candidate_pdf, pages=6, prefix="Candidate")
+    candidate = _adapter_result("inhouse", tmp_path)
+    issues = [
+        PdfSuspectedIssue(
+            issue_type="suspected_content_mismatch",
+            description=f"Issue {index}",
+            source_page_start=index,
+            source_page_end=index,
+            candidate_page_start=index,
+            candidate_page_end=index,
+            source_excerpt=f"Source page {index}:\nAlpha",
+            candidate_excerpt=f"Candidate page {index}:\nBeta",
+        )
+        for index in range(1, 5)
+    ]
+    active_calls = 0
+    max_active_calls = 0
+    lock = threading.Lock()
+
+    def fake_call(_system: str, user: str, _settings: JudgeSettings) -> tuple[str, int]:
+        nonlocal active_calls, max_active_calls
+        issue_number = int(user.split("## Suspected issue ", 1)[1].split("/", 1)[0])
+        with lock:
+            active_calls += 1
+            max_active_calls = max(max_active_calls, active_calls)
+        try:
+            time.sleep(0.02)
+            return (
+                json.dumps(
+                    {
+                        "preferred": "inhouse",
+                        "confidence": "high",
+                        "reasoning": f"Window {issue_number} ok.",
+                        "notes": {"inhouse": "ok"},
+                        "violations": [
+                            {
+                                "type": "reading_order",
+                                "severity": "minor",
+                                "count": 1,
+                                "pages": [issue_number],
+                                "confidence": 0.8,
+                                "evidence": "brief",
+                                "root_cause": "test",
+                            }
+                        ],
+                    }
+                ),
+                10 + issue_number,
+            )
+        finally:
+            with lock:
+                active_calls -= 1
+
+    with patch(
+        "anydoc2md.llm_judge.detect_pdf_suspected_issues",
+        return_value=issues,
+    ), patch("anydoc2md.llm_judge._call_lm_studio", side_effect=fake_call):
+        verdict = judge_candidate_against_source(
+            candidate,
+            source_pdf,
+            _traits(),
+            audit_pdf_path=candidate_pdf,
+            settings=_judge_settings(pdf_concurrency=2),
+        )
+
+    assert verdict.succeeded is True
+    assert max_active_calls > 1
+    assert [window.window_index for window in verdict.window_verdicts] == [1, 2, 3, 4]
+    assert verdict.tokens_used == 50
 
 
 def test_judge_candidate_against_source_returns_error_when_window_call_fails(tmp_path: Path) -> None:

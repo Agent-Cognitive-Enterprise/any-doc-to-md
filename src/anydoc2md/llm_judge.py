@@ -29,6 +29,8 @@ Usage:
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 import re
 
@@ -55,6 +57,14 @@ from anydoc2md.settings import (
     JudgeSettings,
     load_judge_settings_from_env,
 )
+
+
+@dataclass(frozen=True)
+class _IssueReviewResult:
+    issue_index: int
+    tokens_used: int
+    window_verdict: JudgeWindowVerdict | None = None
+    error: str = ""
 
 
 def _call_lm_studio(
@@ -227,73 +237,143 @@ def _judge_candidate_against_source_issues(
 ) -> JudgeVerdict:
     window_verdicts: list[JudgeWindowVerdict] = []
     total_tokens = 0
+    concurrency = min(max(1, settings.pdf_concurrency), len(issues))
 
-    for index, issue in enumerate(issues, start=1):
-        system, user = _build_issue_review_prompt(
-            candidate_name=candidate.method_name,
+    for batch_start in range(0, len(issues), concurrency):
+        batch = list(
+            enumerate(
+                issues[batch_start:batch_start + concurrency],
+                start=batch_start + 1,
+            )
+        )
+        batch_results = _review_pdf_issue_batch(
+            candidate=candidate,
             traits=traits,
-            issue=issue,
-            issue_index=index,
+            issues=batch,
             total_issues=len(issues),
+            settings=settings,
+            max_workers=concurrency,
         )
-        try:
-            raw, tokens = _call_lm_studio(system, user, settings)
-        except Exception as exc:
-            return JudgeVerdict(
-                preferred_adapter="",
-                confidence="error",
-                reasoning="",
-                notes={},
-                model_used=settings.model,
-                tokens_used=total_tokens,
-                window_verdicts=window_verdicts,
-                error=(
-                    "LM Studio call failed during issue-focused PDF review "
-                    f"({index}/{len(issues)}): {exc}"
-                ),
-            )
-
-        parsed = _parse_verdict(raw, [candidate], settings.model, tokens)
-        if not parsed.succeeded:
-            return JudgeVerdict(
-                preferred_adapter="",
-                confidence="error",
-                reasoning="",
-                notes={},
-                model_used=settings.model,
-                tokens_used=total_tokens + tokens,
-                window_verdicts=window_verdicts,
-                error=(
-                    f"Issue-focused PDF review failed in issue {index}/"
-                    f"{len(issues)}: {parsed.error}"
-                ),
-            )
-
-        window_verdicts.append(
-            JudgeWindowVerdict(
-                window_index=index,
-                total_windows=len(issues),
-                source_page_start=issue.source_page_start,
-                source_page_end=issue.source_page_end,
-                candidate_page_start=issue.candidate_page_start,
-                candidate_page_end=issue.candidate_page_end,
-                confidence=parsed.confidence,
-                reasoning=parsed.reasoning,
-                tokens_used=tokens,
-                violations=_normalize_window_pages(
-                    parsed.violations,
-                    source_page_start=issue.source_page_start,
-                    source_page_end=issue.source_page_end,
-                ),
-            )
-        )
-        total_tokens += tokens
+        total_tokens += sum(result.tokens_used for result in batch_results)
+        for result in batch_results:
+            if result.error:
+                return JudgeVerdict(
+                    preferred_adapter="",
+                    confidence="error",
+                    reasoning="",
+                    notes={},
+                    model_used=settings.model,
+                    tokens_used=total_tokens,
+                    window_verdicts=window_verdicts,
+                    error=result.error,
+                )
+            if result.window_verdict is not None:
+                window_verdicts.append(result.window_verdict)
 
     return _aggregate_windowed_verdict(
         candidate_name=candidate.method_name,
         model_used=settings.model,
         tokens_used=total_tokens,
         window_verdicts=window_verdicts,
+    )
+
+
+def _review_pdf_issue_batch(
+    *,
+    candidate: AdapterResult,
+    traits: DocumentTraits,
+    issues: list[tuple[int, PdfSuspectedIssue]],
+    total_issues: int,
+    settings: JudgeSettings,
+    max_workers: int,
+) -> list[_IssueReviewResult]:
+    if max_workers <= 1 or len(issues) <= 1:
+        return [
+            _review_pdf_issue(
+                candidate=candidate,
+                traits=traits,
+                issue=issue,
+                issue_index=issue_index,
+                total_issues=total_issues,
+                settings=settings,
+            )
+            for issue_index, issue in issues
+        ]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(
+                _review_pdf_issue,
+                candidate=candidate,
+                traits=traits,
+                issue=issue,
+                issue_index=issue_index,
+                total_issues=total_issues,
+                settings=settings,
+            )
+            for issue_index, issue in issues
+        ]
+        return [future.result() for future in futures]
+
+
+def _review_pdf_issue(
+    *,
+    candidate: AdapterResult,
+    traits: DocumentTraits,
+    issue: PdfSuspectedIssue,
+    issue_index: int,
+    total_issues: int,
+    settings: JudgeSettings,
+) -> _IssueReviewResult:
+    system, user = _build_issue_review_prompt(
+        candidate_name=candidate.method_name,
+        traits=traits,
+        issue=issue,
+        issue_index=issue_index,
+        total_issues=total_issues,
+    )
+    try:
+        raw, tokens = _call_lm_studio(system, user, settings)
+    except Exception as exc:
+        return _IssueReviewResult(
+            issue_index=issue_index,
+            tokens_used=0,
+            error=(
+                "LM Studio call failed during issue-focused PDF review "
+                f"({issue_index}/{total_issues}): {exc}"
+            ),
+        )
+
+    parsed = _parse_verdict(raw, [candidate], settings.model, tokens)
+    if not parsed.succeeded:
+        return _IssueReviewResult(
+            issue_index=issue_index,
+            tokens_used=tokens,
+            error=(
+                f"Issue-focused PDF review failed in issue {issue_index}/"
+                f"{total_issues}: {parsed.error}"
+            ),
+        )
+
+    return _IssueReviewResult(
+        issue_index=issue_index,
+        tokens_used=tokens,
+        window_verdict=JudgeWindowVerdict(
+            window_index=issue_index,
+            total_windows=total_issues,
+            source_page_start=issue.source_page_start,
+            source_page_end=issue.source_page_end,
+            candidate_page_start=issue.candidate_page_start,
+            candidate_page_end=issue.candidate_page_end,
+            confidence=parsed.confidence,
+            reasoning=parsed.reasoning,
+            tokens_used=tokens,
+            violations=_normalize_window_pages(
+                parsed.violations,
+                source_page_start=issue.source_page_start,
+                source_page_end=issue.source_page_end,
+            ),
+        ),
     )
 
 

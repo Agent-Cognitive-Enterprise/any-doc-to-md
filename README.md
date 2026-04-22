@@ -534,6 +534,11 @@ Optional environment variables:
 - `ANYDOC2MD_JUDGE_MAX_TOKENS`
 - `ANYDOC2MD_JUDGE_DISABLE_THINKING`
 - `ANYDOC2MD_JUDGE_TEMPERATURE`
+- `ANYDOC2MD_JUDGE_PDF_CONCURRENCY`
+
+PDF issue reviews are bounded and run concurrently up to
+`ANYDOC2MD_JUDGE_PDF_CONCURRENCY`, which defaults to `4`. Set it to `1` for
+strictly serial local-judge calls or lower-resource endpoints.
 
 If required values are missing, the library raises `AnyDocToMdConfigError`
 when loading settings explicitly, or returns an error verdict when
