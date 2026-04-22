@@ -4,7 +4,10 @@ from pathlib import Path
 
 import fitz
 
-from anydoc2md._llm_judge_pdf_issue_localizer import detect_pdf_suspected_issues
+from anydoc2md._llm_judge_pdf_issue_localizer import (
+    _MAX_EXCERPT_TOTAL_CHARS,
+    detect_pdf_suspected_issues,
+)
 
 
 def _make_pdf(path: Path, page_texts: list[str]) -> None:
@@ -61,3 +64,35 @@ def test_detect_pdf_suspected_issues_localizes_mismatched_page(tmp_path: Path) -
     assert issue.candidate_page_start == 1
     assert issue.candidate_page_end == 3
     assert "page-anchor comparison" in issue.description
+
+
+def test_detect_pdf_suspected_issues_splits_large_clusters_and_caps_excerpts(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.pdf"
+    candidate = tmp_path / "candidate.pdf"
+    source_pages = [
+        (
+            f"Page {index} legal obligations and remedies with unique anchor token alpha{index} "
+            f"and repeated context about contracts and liability. "
+        ) * 8
+        for index in range(1, 16)
+    ]
+    candidate_pages = [
+        (
+            f"Page {index} unrelated canine-assisted mediation worksheet content "
+            f"with personality inventory and project-management vocabulary plus wolf{index}. "
+        ) * 8
+        for index in range(1, 16)
+    ]
+
+    _make_pdf(source, source_pages)
+    _make_pdf(candidate, candidate_pages)
+
+    issues = detect_pdf_suspected_issues(source, candidate)
+
+    assert len(issues) >= 2
+    assert max(issue.source_page_end - issue.source_page_start + 1 for issue in issues) <= 6
+    assert max(issue.candidate_page_end - issue.candidate_page_start + 1 for issue in issues) <= 10
+    assert max(len(issue.source_excerpt) for issue in issues) <= _MAX_EXCERPT_TOTAL_CHARS + 80
+    assert max(len(issue.candidate_excerpt) for issue in issues) <= _MAX_EXCERPT_TOTAL_CHARS + 80

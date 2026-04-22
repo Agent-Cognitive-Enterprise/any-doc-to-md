@@ -473,6 +473,31 @@ class TestParseVerdict:
         v = _parse_verdict(raw, self._candidates(tmp_path), "model", 0)
         assert v.preferred_adapter == "alpha"
 
+    def test_recovers_when_literal_newline_breaks_json_string(self, tmp_path: Path) -> None:
+        raw = (
+            '{\n'
+            '  "preferred": "alpha",\n'
+            '  "confidence": "medium",\n'
+            '  "reasoning": "line one\nline two",\n'
+            '  "notes": {}\n'
+            '}'
+        )
+        v = _parse_verdict(raw, self._candidates(tmp_path), "model", 0)
+        assert v.preferred_adapter == "alpha"
+        assert "line one" in v.reasoning
+
+    def test_recovers_when_json_tail_is_truncated(self, tmp_path: Path) -> None:
+        raw = (
+            '{\n'
+            '  "preferred": "alpha",\n'
+            '  "confidence": "low",\n'
+            '  "reasoning": "semantic mismatch detected'
+        )
+        v = _parse_verdict(raw, self._candidates(tmp_path), "model", 0)
+        assert v.preferred_adapter == "alpha"
+        assert v.confidence == "low"
+        assert "semantic mismatch detected" in v.reasoning
+
     def test_unknown_adapter_returns_error(self, tmp_path: Path) -> None:
         raw = json.dumps({"preferred": "nonexistent", "confidence": "high",
                            "reasoning": "ok", "notes": {}})

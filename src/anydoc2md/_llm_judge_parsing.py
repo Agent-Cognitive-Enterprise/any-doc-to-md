@@ -106,31 +106,113 @@ def _parse_verdict(
 
 
 def _try_parse_json(text: str) -> tuple[dict | None, str]:
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
+    data, error = _decode_json_object(text)
+    if data is not None:
+        return data, ""
+
+    candidate = _extract_json_candidate(text)
+    if not candidate:
+        return None, error
+
+    data, candidate_error = _decode_json_object(candidate)
+    if data is not None:
+        return data, ""
+
+    repaired = _repair_json_candidate(candidate)
+    if repaired != candidate:
+        data, repaired_error = _decode_json_object(repaired)
+        if data is not None:
             return data, ""
-        return None, f"expected JSON object, got {type(data).__name__}"
+        return None, repaired_error
+
+    return None, candidate_error
+
+
+def _decode_json_object(text: str) -> tuple[dict | None, str]:
+    stripped = text.lstrip()
+    if not stripped:
+        return None, "empty JSON response"
+    try:
+        data, _end = json.JSONDecoder().raw_decode(stripped)
     except json.JSONDecodeError as exc:
-        first = text.find("{")
-        last = text.rfind("}")
-        if first != -1 and last != -1 and first < last:
-            candidate = text[first:last + 1]
-            try:
-                data = json.loads(candidate)
-                if isinstance(data, dict):
-                    return data, ""
-                return None, f"expected JSON object, got {type(data).__name__}"
-            except json.JSONDecodeError:
-                sanitized = _sanitize_control_characters(candidate)
-                try:
-                    data = json.loads(sanitized)
-                    if isinstance(data, dict):
-                        return data, ""
-                    return None, f"expected JSON object, got {type(data).__name__}"
-                except json.JSONDecodeError:
-                    pass
         return None, str(exc)
+    if isinstance(data, dict):
+        return data, ""
+    return None, f"expected JSON object, got {type(data).__name__}"
+
+
+def _extract_json_candidate(text: str) -> str:
+    first = text.find("{")
+    if first < 0:
+        return ""
+    last = text.rfind("}")
+    if last > first:
+        return text[first:last + 1]
+    return text[first:]
+
+
+def _repair_json_candidate(text: str) -> str:
+    repaired: list[str] = []
+    closers: list[str] = []
+    in_string = False
+    escaped = False
+
+    for char in text:
+        if in_string:
+            if escaped:
+                repaired.append(char)
+                escaped = False
+                continue
+            if char == "\\":
+                repaired.append(char)
+                escaped = True
+                continue
+            if char == '"':
+                repaired.append(char)
+                in_string = False
+                continue
+            if char == "\n":
+                repaired.append("\\n")
+                continue
+            if char == "\r":
+                repaired.append("\\r")
+                continue
+            if char == "\t":
+                repaired.append("\\t")
+                continue
+            if ord(char) < 32:
+                repaired.append(" ")
+                continue
+            repaired.append(char)
+            continue
+
+        if char == '"':
+            repaired.append(char)
+            in_string = True
+            continue
+        if char == "{":
+            repaired.append(char)
+            closers.append("}")
+            continue
+        if char == "[":
+            repaired.append(char)
+            closers.append("]")
+            continue
+        if char in {"}", "]"}:
+            if closers and char == closers[-1]:
+                closers.pop()
+                repaired.append(char)
+            continue
+        repaired.append(char)
+
+    if in_string:
+        repaired.append('"')
+    while closers:
+        repaired.append(closers.pop())
+
+    compact = "".join(repaired)
+    compact = re.sub(r",(\s*[}\]])", r"\1", compact)
+    return _sanitize_control_characters(compact)
 
 
 def _normalize_json_candidate(raw: str) -> str:

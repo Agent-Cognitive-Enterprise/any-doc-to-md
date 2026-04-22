@@ -346,13 +346,16 @@ def _build_issue_review_prompt(
         "- Do not invent additional issue classes outside the provided suspect.\n"
         "- Do not treat harmless reflow, line wrapping, or different page counts as problems.\n"
         "- Confirm the issue only if the supplied source and candidate excerpts show a real semantic mismatch.\n"
-        "- If the deterministic suspicion is a false alarm, return an empty violations list.\n\n"
-        "Return ONLY valid JSON with this exact shape:\n"
+        "- If the deterministic suspicion is a false alarm, return an empty violations list.\n"
+        "- Keep reasoning to at most 2 short sentences.\n"
+        "- Return at most 2 violations, and prefer 1 when a single violation explains the issue.\n"
+        "- Keep notes, evidence, and root_cause terse, with no line breaks inside JSON strings.\n\n"
+        "Return ONLY compact valid JSON with this exact shape:\n"
         "{\n"
         '  "preferred": "<candidate_name>",\n'
         '  "confidence": "high|medium|low",\n'
-        '  "reasoning": "<one paragraph>",\n'
-        '  "notes": {"<candidate_name>": "<brief note>"},\n'
+        '  "reasoning": "<max 2 short sentences>",\n'
+        '  "notes": {"<candidate_name>": "<brief note, max 12 words>"},\n'
         '  "violations": [\n'
         "    {\n"
         '      "type": "<violation_type>",\n'
@@ -360,8 +363,8 @@ def _build_issue_review_prompt(
         '      "count": 1,\n'
         '      "pages": [12, 13],\n'
         '      "confidence": 0.0,\n'
-        '      "evidence": "<short evidence>",\n'
-        '      "root_cause": "<likely root cause>"\n'
+        '      "evidence": "<short evidence, max 25 words>",\n'
+        '      "root_cause": "<likely root cause, max 12 words>"\n'
         "    }\n"
         "  ],\n"
         '  "overall_confidence": 0.0,\n'

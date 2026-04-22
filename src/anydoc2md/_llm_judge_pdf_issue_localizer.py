@@ -25,6 +25,13 @@ _MAX_ANCHOR_TOKENS = 18
 _MAX_ISSUE_CLUSTERS = 12
 _DEFAULT_MIN_ANCHOR_COVERAGE = 0.45
 _SHORT_DOC_FULL_CONTEXT_PAGES = 10
+_SOURCE_CONTEXT_MARGIN_PAGES = 1
+_CANDIDATE_CONTEXT_MARGIN_PAGES = 1
+_MAX_SOURCE_PAGES_PER_ISSUE = 4
+_MAX_CANDIDATE_PAGES_PER_ISSUE = 8
+_MAX_EXCERPT_PAGES = 6
+_MAX_EXCERPT_CHARS_PER_PAGE = 350
+_MAX_EXCERPT_TOTAL_CHARS = 2600
 
 
 @dataclass(frozen=True)
@@ -110,13 +117,16 @@ def detect_pdf_suspected_issues(
         ]
 
     issues: list[PdfSuspectedIssue] = []
-    for cluster in _cluster_suspicious_pages(suspicious_pages):
+    for cluster in _split_suspicious_clusters(_cluster_suspicious_pages(suspicious_pages)):
         source_pages_in_cluster = [match.source_page for match in cluster]
         candidate_pages_in_cluster = [match.candidate_page for match in cluster]
-        source_start = max(1, min(source_pages_in_cluster) - 1)
-        source_end = min(len(source_pages), max(source_pages_in_cluster) + 1)
-        candidate_start = max(1, min(candidate_pages_in_cluster) - 1)
-        candidate_end = min(len(candidate_pages), max(candidate_pages_in_cluster) + 1)
+        source_start = max(1, min(source_pages_in_cluster) - _SOURCE_CONTEXT_MARGIN_PAGES)
+        source_end = min(len(source_pages), max(source_pages_in_cluster) + _SOURCE_CONTEXT_MARGIN_PAGES)
+        candidate_start = max(1, min(candidate_pages_in_cluster) - _CANDIDATE_CONTEXT_MARGIN_PAGES)
+        candidate_end = min(
+            len(candidate_pages),
+            max(candidate_pages_in_cluster) + _CANDIDATE_CONTEXT_MARGIN_PAGES,
+        )
         avg_coverage = sum(match.anchor_coverage for match in cluster) / len(cluster)
         issues.append(
             PdfSuspectedIssue(
@@ -265,6 +275,46 @@ def _cluster_suspicious_pages(matches: list[PdfPageMatch]) -> list[list[PdfPageM
     return clusters
 
 
+def _split_suspicious_clusters(clusters: list[list[PdfPageMatch]]) -> list[list[PdfPageMatch]]:
+    split_clusters: list[list[PdfPageMatch]] = []
+    for cluster in clusters:
+        current: list[PdfPageMatch] = []
+        current_source_start = 0
+        current_candidate_min = 0
+        current_candidate_max = 0
+
+        for match in cluster:
+            if not current:
+                current = [match]
+                current_source_start = match.source_page
+                current_candidate_min = match.candidate_page
+                current_candidate_max = match.candidate_page
+                continue
+
+            next_candidate_min = min(current_candidate_min, match.candidate_page)
+            next_candidate_max = max(current_candidate_max, match.candidate_page)
+            source_span = match.source_page - current_source_start + 1
+            candidate_span = next_candidate_max - next_candidate_min + 1
+            if (
+                source_span > _MAX_SOURCE_PAGES_PER_ISSUE
+                or candidate_span > _MAX_CANDIDATE_PAGES_PER_ISSUE
+            ):
+                split_clusters.append(current)
+                current = [match]
+                current_source_start = match.source_page
+                current_candidate_min = match.candidate_page
+                current_candidate_max = match.candidate_page
+                continue
+
+            current.append(match)
+            current_candidate_min = next_candidate_min
+            current_candidate_max = next_candidate_max
+
+        if current:
+            split_clusters.append(current)
+    return split_clusters
+
+
 def _format_page_excerpt(
     page_texts: list[str],
     start_page: int,
@@ -272,8 +322,32 @@ def _format_page_excerpt(
     label: str,
 ) -> str:
     parts: list[str] = []
-    for page_number in range(start_page, end_page + 1):
+    total_chars = 0
+    excerpt_pages = _select_excerpt_pages(start_page, end_page)
+    for page_number in excerpt_pages:
         text = page_texts[page_number - 1] if page_number - 1 < len(page_texts) else ""
-        excerpt = text[:700]
-        parts.append(f"{label} {page_number}:\n{excerpt}")
+        excerpt = text[:_MAX_EXCERPT_CHARS_PER_PAGE]
+        part = f"{label} {page_number}:\n{excerpt}"
+        separator_len = 2 if parts else 0
+        if total_chars + separator_len + len(part) > _MAX_EXCERPT_TOTAL_CHARS:
+            break
+        parts.append(part)
+        total_chars += separator_len + len(part)
+    if end_page - start_page + 1 > len(excerpt_pages):
+        parts.append(
+            f"[Selected {len(parts)} of {end_page - start_page + 1} {label.lower()}s for brevity.]"
+        )
     return "\n\n".join(parts)
+
+
+def _select_excerpt_pages(start_page: int, end_page: int) -> list[int]:
+    page_numbers = list(range(start_page, end_page + 1))
+    if len(page_numbers) <= _MAX_EXCERPT_PAGES:
+        return page_numbers
+
+    last_index = len(page_numbers) - 1
+    selected = {
+        page_numbers[round(index * last_index / (_MAX_EXCERPT_PAGES - 1))]
+        for index in range(_MAX_EXCERPT_PAGES)
+    }
+    return sorted(selected)
