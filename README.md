@@ -64,6 +64,10 @@ The canonical any-doc-to-md (ADTM) specification lives at
 Parent projects should reference that package-owned spec instead of maintaining
 their own copies.
 
+The package-owned judge model benchmark and current local/cloud fallback
+recommendations live at
+[`docs/specs/local-llm-benchmark.md`](docs/specs/local-llm-benchmark.md).
+
 If you work on ingestion, enterprise search, knowledge-base pipelines,
 compliance archives, or AI/RAG systems, this package is worth understanding
 because it encodes a hard-earned lesson:
