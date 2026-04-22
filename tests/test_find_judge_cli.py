@@ -130,8 +130,8 @@ def test_main_repeats_and_model_filter(tmp_path: Path, capsys) -> None:
     assert "Phase 1 checklist gate: find at least 7/13 expected checklist issues" in out
     assert "Repeat criteria: 10/10 repeats pass with no steady answer above 30s." in out
     assert "Phase 2/2: Freeform issue discovery" in out
-    assert "candidate_a: find at least 5/8 gold issues" in out
-    assert "candidate_b: find at least 2/3 gold issues" in out
+    assert "candidate_a: find at least 3/8 gold issues" in out
+    assert "candidate_b: find at least 1/3 gold issues" not in out
     assert "later repeats estimate steady answer and load_est" in out
     assert "Elapsed time:" in out
     assert "answer_mean=" in out
@@ -330,3 +330,65 @@ def test_main_show_errors_prints_failure_reasons(tmp_path: Path, capsys) -> None
     assert "MODEL FAIL bad" not in out
     assert "FAIL bad | size=? | first_load+answer=" in out
     assert "checklist detected 1/13 expected issues; need at least 7: flattened_table" in out
+
+
+def test_main_phase2_only_skips_checklist_shortlist(tmp_path: Path, capsys) -> None:
+    from anydoc2md.find_judge import main
+
+    seen_models: list[str] = []
+    freeform_seen_models: list[str] = []
+
+    def fake_probe_one_model(**kwargs):
+        model = kwargs["model"]
+        seen_models.append(model.model_id)
+        return ProbeResult(
+            model_id=model.model_id,
+            size_hint_b=model.size_hint_b,
+            latency_s=0.02,
+            tokens_used=20,
+            violations_count=4,
+            passed=True,
+            reason="ok",
+        )
+
+    def fake_probe_freeform_model(**kwargs):
+        model = kwargs["model"]
+        freeform_seen_models.append(model.model_id)
+        return ProbeResult(
+            model_id=model.model_id,
+            size_hint_b=model.size_hint_b,
+            latency_s=0.03,
+            tokens_used=30,
+            violations_count=4,
+            passed=True,
+            reason="ok",
+        )
+
+    with (
+        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["focus"]),
+        patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
+        patch("anydoc2md.find_judge.probe_freeform_model", side_effect=fake_probe_freeform_model),
+    ):
+        rc = main(
+            [
+                "--judge-url",
+                "http://localhost:1234/v1",
+                "--model-name",
+                "focus",
+                "--repeats",
+                "1",
+                "--phase2-only",
+                "--artifacts-dir",
+                str(tmp_path),
+                "--show-all",
+            ]
+        )
+
+    assert rc == 0
+    assert seen_models == []
+    assert freeform_seen_models == ["focus"]
+    out = capsys.readouterr().out
+    assert "Phase 2 only: yes" in out
+    assert "Phase 1 skipped: using selected models as the phase-2 shortlist." in out
+    assert "Models passing phase 1 checklist: skipped (--phase2-only)" in out
+    assert "Phase 1 checklist gate:" not in out

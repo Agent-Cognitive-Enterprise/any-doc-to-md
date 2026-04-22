@@ -22,8 +22,6 @@ The source is a 7-page warehouse handover packet. A faithful conversion should:
 """
 _SOURCE_PDF_NAME = "probe_freeform_source_reference.pdf"
 _CANDIDATE_A_MD_NAME = "probe_freeform_candidate_a.md"
-_CANDIDATE_B_MD_NAME = "probe_freeform_candidate_b.md"
-_RED_SQUARE_NAME = "probe_red_square.png"
 
 
 @dataclass(frozen=True)
@@ -62,14 +60,11 @@ def _write_candidate_staging(
     root: Path,
     dir_name: str,
     markdown_name: str,
-    image_name: str,
 ) -> Path:
     staging_dir = root / dir_name
     images_dir = staging_dir / "images"
     images_dir.mkdir(parents=True, exist_ok=True)
     (staging_dir / "index.md").write_text(_asset_text(markdown_name), encoding="utf-8")
-    if image_name == _RED_SQUARE_NAME:
-        (images_dir / image_name).write_bytes(_asset_bytes(image_name))
     return staging_dir
 
 
@@ -116,30 +111,6 @@ def _candidate_a_gold() -> tuple[FreeformGoldIssue, ...]:
         ),
     )
 
-
-def _candidate_b_gold() -> tuple[FreeformGoldIssue, ...]:
-    return (
-        FreeformGoldIssue(
-            "detached_caption",
-            (
-                ("amber square dock marker before sealing",),
-                ("appendix", "end", "detached", "separated", "far"),
-            ),
-        ),
-        FreeformGoldIssue(
-            "missing_countersign_line",
-            (
-                ("visitors must countersign the cold-room log",),
-                ("missing", "omitted", "lost", "not present"),
-            ),
-        ),
-        FreeformGoldIssue(
-            "missing_tamper_seal_note",
-            (("tamper-seal color",), ("missing", "omitted", "lost", "not present")),
-        ),
-    )
-
-
 def build_freeform_probe_suite(work_dir: Path) -> FreeformProbeSuite:
     work_dir.mkdir(parents=True, exist_ok=True)
     source_pdf = work_dir / "freeform_source.pdf"
@@ -149,13 +120,6 @@ def build_freeform_probe_suite(work_dir: Path) -> FreeformProbeSuite:
         root=work_dir,
         dir_name="candidate_a_staging",
         markdown_name=_CANDIDATE_A_MD_NAME,
-        image_name="missing-amber-square.png",
-    )
-    case_b_dir = _write_candidate_staging(
-        root=work_dir,
-        dir_name="candidate_b_staging",
-        markdown_name=_CANDIDATE_B_MD_NAME,
-        image_name=_RED_SQUARE_NAME,
     )
 
     return FreeformProbeSuite(
@@ -166,17 +130,9 @@ def build_freeform_probe_suite(work_dir: Path) -> FreeformProbeSuite:
                 case_id="candidate_a",
                 staging_dir=case_a_dir,
                 candidate_markdown=_asset_text(_CANDIDATE_A_MD_NAME),
-                min_expected_findings=5,
-                max_false_positives=1,
+                min_expected_findings=3,
+                max_false_positives=2,
                 gold_issues=_candidate_a_gold(),
-            ),
-            FreeformProbeCase(
-                case_id="candidate_b",
-                staging_dir=case_b_dir,
-                candidate_markdown=_asset_text(_CANDIDATE_B_MD_NAME),
-                min_expected_findings=2,
-                max_false_positives=1,
-                gold_issues=_candidate_b_gold(),
             ),
         ),
     )

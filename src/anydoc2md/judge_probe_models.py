@@ -19,15 +19,44 @@ def parse_size_hint_billions(model_id: str) -> float | None:
 
     Recognizes patterns like:
       - "7b", "13b", "1.5b"
-      - "35b-a3b" (returns active size: 3)
+      - "35b-a3b" (returns second hyphen term size: 35)
       - "8x7b" (returns 56)
     """
     text = model_id.lower()
+    basename = text.rsplit("/", 1)[-1]
 
     def _is_boundary(idx: int) -> bool:
         if idx < 0 or idx >= len(text):
             return True
         return not text[idx].isalnum()
+
+    def _parse_size_term(term: str) -> float | None:
+        if "x" in term:
+            left, _, right = term.partition("x")
+            if left.isdigit() and right.endswith("b"):
+                try:
+                    return int(left) * float(right[:-1])
+                except ValueError:
+                    return None
+        if term.startswith("a") and term.endswith("b"):
+            try:
+                return float(term[1:-1])
+            except ValueError:
+                return None
+        if term.endswith("b"):
+            try:
+                return float(term[:-1])
+            except ValueError:
+                return None
+        return None
+
+    # Prefer the second hyphen-separated term in the basename, e.g.:
+    # qwen3.6-35b-a3b-uncensored -> 35B
+    parts = basename.split("-")
+    if len(parts) >= 2:
+        second_term_size = _parse_size_term(parts[1])
+        if second_term_size is not None:
+            return second_term_size
 
     # MoE hint: 8x7b -> total parameter-ish size 56B.
     for i in range(len(text)):
@@ -125,4 +154,3 @@ def fetch_model_ids(judge_url: str, *, timeout_s: int = 10) -> list[str]:
                 ids.append(model_id.strip())
 
     return sorted(set(ids))
-

@@ -136,6 +136,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show diagnostic failure/error reasons in probe output.",
     )
+    parser.add_argument(
+        "--phase2-only",
+        action="store_true",
+        help="Skip checklist shortlisting and run only phase 2 on the selected models.",
+    )
     stop_group = parser.add_mutually_exclusive_group()
     stop_group.add_argument(
         "--stop-on-fail",
@@ -228,11 +233,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Pass threshold: {pass_threshold:.2f}", flush=True)
     print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}", flush=True)
     print(f"Show diagnostic errors: {'yes' if args.show_errors else 'no'}", flush=True)
-    print(
-        f"Phase 1 checklist gate: find at least {required_issue_count}/"
-        f"{len(EXPECTED_ISSUE_IDS)} expected checklist issues.",
-        flush=True,
-    )
+    print(f"Phase 2 only: {'yes' if args.phase2_only else 'no'}", flush=True)
+    if not args.phase2_only:
+        print(
+            f"Phase 1 checklist gate: find at least {required_issue_count}/"
+            f"{len(EXPECTED_ISSUE_IDS)} expected checklist issues.",
+            flush=True,
+        )
     print(
         f"Repeat criteria: {repeats}/{repeats} repeats pass with no steady answer "
         f"above {answer_timeout_s:g}s.",
@@ -257,38 +264,48 @@ def main(argv: list[str] | None = None) -> int:
     ) as (probe_case, freeform_suite, probe_case_dir):
         _print_artifact_paths(probe_case, freeform_suite, probe_case_dir)
 
-        print("Phase 1/2: Checklist shortlist", flush=True)
-        phase1_summaries, phase1_passing = run_probe_stage(
-            models=models,
-            repeats=repeats,
-            answer_timeout_s=answer_timeout_s,
-            stop_on_fail=args.stop_on_fail,
-            color_enabled=color_enabled,
-            show_errors=args.show_errors,
-            attempt_runner=lambda model: probe_one_model(
-                model=model,
-                judge_url=args.judge_url,
-                judge_timeout_s=judge_timeout_s,
-                probe_case=probe_case,
-                min_expected_issues=required_issue_count,
-            ),
-        )
-
-        if phase1_passing:
-            phase2_models = [
-                model for model in models if any(summary.model_id == model.model_id for summary in phase1_passing)
-            ]
-            print("", flush=True)
-            print(
-                f"Phase 1 shortlist complete: {len(phase1_passing)} model(s) passed.",
-                flush=True,
-            )
+        if args.phase2_only:
+            phase1_summaries = []
+            phase1_passing = []
+            phase2_models = models
             print("Phase 2/2: Freeform issue discovery", flush=True)
+            print("Phase 1 skipped: using selected models as the phase-2 shortlist.", flush=True)
+        else:
+            print("Phase 1/2: Checklist shortlist", flush=True)
+            phase1_summaries, phase1_passing = run_probe_stage(
+                models=models,
+                repeats=repeats,
+                answer_timeout_s=answer_timeout_s,
+                stop_on_fail=args.stop_on_fail,
+                color_enabled=color_enabled,
+                show_errors=args.show_errors,
+                attempt_runner=lambda model: probe_one_model(
+                    model=model,
+                    judge_url=args.judge_url,
+                    judge_timeout_s=judge_timeout_s,
+                    probe_case=probe_case,
+                    min_expected_issues=required_issue_count,
+                ),
+            )
+            phase2_models = [
+                model
+                for model in models
+                if any(summary.model_id == model.model_id for summary in phase1_passing)
+            ]
+            if phase2_models:
+                print("", flush=True)
+                print(
+                    f"Phase 1 shortlist complete: {len(phase1_passing)} model(s) passed.",
+                    flush=True,
+                )
+                print("Phase 2/2: Freeform issue discovery", flush=True)
+
+        if phase2_models:
             print("Phase 2 gate:", flush=True)
             for line in freeform_gate_lines(freeform_suite):
                 print(f"  {line}", flush=True)
             print(
-                "Phase 2 prompt does not expose a checklist; models must discover issues from evidence.",
+                "Phase 2 prompt audits one candidate at a time; no checklist is exposed.",
                 flush=True,
             )
             phase2_summaries, phase2_passing = run_probe_stage(
@@ -315,7 +332,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Judge URL: {args.judge_url}")
     print(f"Models discovered: {len(model_ids)}")
     print(f"Models selected: {len(models)}")
-    print(f"Models passing phase 1 checklist: {len(phase1_passing)}")
+    if args.phase2_only:
+        print("Models passing phase 1 checklist: skipped (--phase2-only)")
+    else:
+        print(f"Models passing phase 1 checklist: {len(phase1_passing)}")
     print(f"Models passing phase 2 freeform: {len(phase2_passing)}")
     print(f"Probe judge timeout: {judge_timeout_s}s")
     print(f"Production answer timeout: {answer_timeout_s:g}s")
@@ -323,10 +343,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Pass threshold: {pass_threshold:.2f}")
     print(f"Stop on first fail: {'yes' if args.stop_on_fail else 'no'}")
     print(f"Show diagnostic errors: {'yes' if args.show_errors else 'no'}")
-    print(
-        f"Phase 1 checklist gate: find at least {required_issue_count}/"
-        f"{len(EXPECTED_ISSUE_IDS)} expected checklist issues."
-    )
+    print(f"Phase 2 only: {'yes' if args.phase2_only else 'no'}")
+    if not args.phase2_only:
+        print(
+            f"Phase 1 checklist gate: find at least {required_issue_count}/"
+            f"{len(EXPECTED_ISSUE_IDS)} expected checklist issues."
+        )
     print(
         f"Repeat criteria: {repeats}/{repeats} repeats pass with no steady answer "
         f"above {answer_timeout_s:g}s."
@@ -348,7 +370,7 @@ def main(argv: list[str] | None = None) -> int:
     print("")
 
     if not passing:
-        if not phase1_passing:
+        if not args.phase2_only and not phase1_passing:
             print("No models passed the phase-1 checklist shortlist.", flush=True)
         else:
             print("No shortlisted models passed the phase-2 freeform probe.", flush=True)
@@ -383,11 +405,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.show_all:
         print("")
-        print("Phase 1 results (size-sorted model summaries):")
-        for summary in phase1_summaries:
-            print(_format_phase_summary(summary, color_enabled=color_enabled, show_errors=args.show_errors))
+        if phase1_summaries:
+            print("Phase 1 results (size-sorted model summaries):")
+            for summary in phase1_summaries:
+                print(
+                    _format_phase_summary(
+                        summary,
+                        color_enabled=color_enabled,
+                        show_errors=args.show_errors,
+                    )
+                )
         if phase2_summaries:
-            print("")
+            if phase1_summaries:
+                print("")
             print("Phase 2 results (shortlisted models):")
             for summary in phase2_summaries:
                 print(_format_phase_summary(summary, color_enabled=color_enabled, show_errors=args.show_errors))

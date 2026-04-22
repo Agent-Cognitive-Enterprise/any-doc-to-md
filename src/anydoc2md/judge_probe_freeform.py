@@ -86,6 +86,42 @@ def _coerce_issue_report(item: object) -> FreeformIssueReport | None:
     )
 
 
+def _extract_list_field(data: dict[str, object], case_id: str) -> list[object] | None:
+    for key in ("issues", "findings", case_id, "issues_found", "problems", "results"):
+        value = data.get(key)
+        if isinstance(value, list):
+            return value
+    nested_issue = data.get("issue")
+    if isinstance(nested_issue, dict):
+        return [nested_issue]
+    for value in data.values():
+        if isinstance(value, list):
+            return value
+    return None
+
+
+def _recover_issue_reports_from_jsonish(raw: str) -> list[FreeformIssueReport]:
+    compact = raw.replace("\\n", "\n")
+    pattern = re.compile(
+        r'"page"\s*:\s*"(?P<page>.*?)"'
+        r'.*?"candidate_excerpt"\s*:\s*"(?P<candidate_excerpt>.*?)"'
+        r'.*?"why_wrong"\s*:\s*"(?P<why_wrong>.*?)"'
+        r'(?:.*?"severity"\s*:\s*"(?P<severity>.*?)")?',
+        flags=re.DOTALL,
+    )
+    reports: list[FreeformIssueReport] = []
+    for match in pattern.finditer(compact):
+        reports.append(
+            FreeformIssueReport(
+                page=match.group("page").strip(),
+                candidate_excerpt=match.group("candidate_excerpt").strip(),
+                why_wrong=match.group("why_wrong").strip(),
+                severity=(match.group("severity") or "").strip(),
+            )
+        )
+    return reports
+
+
 def _matches_gold(issue: FreeformIssueReport, gold_issue: FreeformGoldIssue) -> bool:
     blob = issue.blob
     return all(any(term in blob for term in group) for group in gold_issue.required_term_groups)
@@ -128,7 +164,7 @@ def _score_case(
     )
 
 
-def _build_freeform_prompt(suite: FreeformProbeSuite) -> tuple[str, str]:
+def _build_freeform_prompt(case: FreeformProbeCase, *, source_notes: str) -> tuple[str, str]:
     system = (
         "You are a document conversion auditor. "
         "Discover material conversion issues from the evidence. "
@@ -139,81 +175,66 @@ def _build_freeform_prompt(suite: FreeformProbeSuite) -> tuple[str, str]:
         '{"page":"1","candidate_excerpt":"...","why_wrong":"...","severity":"medium"}'
     )
     user_lines = [
-        "Compare each candidate Markdown conversion against the source notes.",
+        "Compare one candidate Markdown conversion against the source notes.",
         "List only material conversion issues you can support from the evidence.",
-        "If a candidate has no issues, return an empty list for that candidate.",
+        "If the candidate has no material issues, return an empty list.",
         "",
         "Source notes:",
-        suite.source_notes,
+        source_notes,
+        "",
+        f"{case.case_id} Markdown:",
+        "```markdown",
+        case.candidate_markdown,
+        "```",
     ]
-    for case in suite.cases:
-        user_lines.extend(
-            [
-                "",
-                f"{case.case_id} Markdown:",
-                "```markdown",
-                case.candidate_markdown,
-                "```",
-            ]
-        )
-    cases_shape = ", ".join(f'"{case.case_id}":[{example_issue}]' for case in suite.cases)
     user_lines.extend(
         [
             "",
-            "Return exactly one JSON object shaped like:",
-            '{"cases": {' + cases_shape + "}}",
+            "Return either a JSON array of issue objects or an object shaped like:",
+            '{"issues": [' + example_issue + "]}",
         ]
     )
     return system, "\n".join(user_lines)
 
 
-def _parse_freeform_response(
+def _parse_freeform_case_response(
     raw: str,
     *,
-    suite: FreeformProbeSuite,
+    case: FreeformProbeCase,
     tokens_used: int,
-) -> FreeformProbeVerdict:
+) -> tuple[FreeformCaseScore | None, str]:
     try:
         text = _strip_json_fences(raw)
-        json_start = text.find("{")
-        if json_start < 0:
-            raise json.JSONDecodeError("No JSON object found", text, 0)
-        data, _end = json.JSONDecoder().raw_decode(text[json_start:])
+        object_start = text.find("{")
+        array_start = text.find("[")
+        starts = [idx for idx in (object_start, array_start) if idx >= 0]
+        if not starts:
+            raise json.JSONDecodeError("No JSON array or object found", text, 0)
+        data, _end = json.JSONDecoder().raw_decode(text[min(starts):])
     except json.JSONDecodeError as exc:
-        return FreeformProbeVerdict(
-            case_scores=(),
-            tokens_used=tokens_used,
-            raw=raw,
-            error=f"JSON parse error: {exc} — raw: {raw[:200]}",
-        )
+        reports = _recover_issue_reports_from_jsonish(raw)
+        if reports:
+            return _score_case(case, reports), ""
+        return None, f"JSON parse error: {exc} — raw: {raw[:200]}"
 
-    raw_cases = data.get("cases")
-    if not isinstance(raw_cases, dict):
-        return FreeformProbeVerdict(
-            case_scores=(),
-            tokens_used=tokens_used,
-            raw=raw,
-            error="Freeform JSON missing object field 'cases'",
-        )
+    if isinstance(data, list):
+        raw_items = data
+    elif isinstance(data, dict):
+        raw_items = _extract_list_field(data, case.case_id)
+        if raw_items is None:
+            return None, "Freeform JSON missing list field 'issues' or 'findings'"
+    else:
+        return None, "Freeform JSON must be an object or array"
 
-    case_scores: list[FreeformCaseScore] = []
-    for case in suite.cases:
-        raw_items = raw_cases.get(case.case_id, [])
-        if not isinstance(raw_items, list):
-            return FreeformProbeVerdict(
-                case_scores=(),
-                tokens_used=tokens_used,
-                raw=raw,
-                error=f"Freeform JSON field cases.{case.case_id!s} must be a list",
-            )
-        reports = [
-            report
-            for report in (_coerce_issue_report(item) for item in raw_items)
-            if report is not None
-        ]
-        case_scores.append(_score_case(case, reports))
+    if not isinstance(raw_items, list):
+        return None, "Freeform JSON issues/findings field must be a list"
 
-    return FreeformProbeVerdict(case_scores=tuple(case_scores), tokens_used=tokens_used, raw=raw)
+    reports = [
+        report
+        for report in (_coerce_issue_report(item) for item in raw_items)
+        if report is not None
+    ]
+    return _score_case(case, reports), ""
 
 
 def run_freeform_probe(
@@ -221,13 +242,33 @@ def run_freeform_probe(
     suite: FreeformProbeSuite,
     settings: JudgeSettings,
 ) -> FreeformProbeVerdict:
-    system, user = _build_freeform_prompt(suite)
-    try:
-        raw, tokens = _call_lm_studio(system, user, settings)
-    except Exception as exc:
-        return FreeformProbeVerdict(
-            case_scores=(),
-            tokens_used=0,
-            error=f"LM Studio call failed: {exc}",
-        )
-    return _parse_freeform_response(raw, suite=suite, tokens_used=tokens)
+    case_scores: list[FreeformCaseScore] = []
+    total_tokens = 0
+    raw_parts: list[str] = []
+    for case in suite.cases:
+        system, user = _build_freeform_prompt(case, source_notes=suite.source_notes)
+        try:
+            raw, tokens = _call_lm_studio(system, user, settings)
+        except Exception as exc:
+            return FreeformProbeVerdict(
+                case_scores=(),
+                tokens_used=total_tokens,
+                raw="\n\n".join(raw_parts),
+                error=f"LM Studio call failed: {exc}",
+            )
+        total_tokens += tokens
+        raw_parts.append(f"{case.case_id}:\n{raw}")
+        score, error = _parse_freeform_case_response(raw, case=case, tokens_used=tokens)
+        if score is None:
+            return FreeformProbeVerdict(
+                case_scores=tuple(case_scores),
+                tokens_used=total_tokens,
+                raw="\n\n".join(raw_parts),
+                error=error,
+            )
+        case_scores.append(score)
+    return FreeformProbeVerdict(
+        case_scores=tuple(case_scores),
+        tokens_used=total_tokens,
+        raw="\n\n".join(raw_parts),
+    )

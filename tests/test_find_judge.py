@@ -21,9 +21,9 @@ def test_parse_size_hint_billions_standard() -> None:
     assert parse_size_hint_billions("something-1.5b") == 1.5
 
 
-def test_parse_size_hint_billions_prefers_active_hint() -> None:
-    # MoE-style ids often include total + active; prefer active for "smallest" sorting.
-    assert parse_size_hint_billions("qwen/qwen3.6-35b-a3b") == 3.0
+def test_parse_size_hint_billions_prefers_second_hyphen_term() -> None:
+    assert parse_size_hint_billions("qwen/qwen3.6-35b-a3b") == 35.0
+    assert parse_size_hint_billions("qwen3.6-35b-a3b-uncensored-hauhaucs-aggressive") == 35.0
 
 
 def test_parse_size_hint_billions_moe_total() -> None:

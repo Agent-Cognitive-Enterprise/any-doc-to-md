@@ -117,10 +117,9 @@ the package. `find_judge` now runs in two phases:
   its caption. The screening prompt asks the model to fill a fixed boolean
   checklist, so scoring is deterministic rather than judged by another model.
 - Phase 2 takes only the Phase-1 passers and gives them a different committed
-  source packet plus two committed candidate conversions. No checklist is
-  exposed. The model has to discover material issues in freeform JSON, and the
-  scorer matches those findings against hidden gold defects plus false-positive
-  limits.
+  source packet plus one committed broken candidate conversion. No checklist is
+  exposed. The model audits that file in freeform JSON, and the scorer matches
+  those findings against hidden gold defects plus a false-positive limit.
 
 By default each selected model must pass both phases 10 times:
 
@@ -146,6 +145,18 @@ python -m anydoc2md.find_judge \
   --show-all
 ```
 
+To rerun only Phase 2 on a known shortlist:
+
+```bash
+python -m anydoc2md.find_judge \
+  --judge-url http://127.0.0.1:1234/v1 \
+  --phase2-only \
+  --model-name some-shortlisted-model \
+  --repeats 1 \
+  --timeout-s 120 \
+  --show-all
+```
+
 The first repeat is reported as `load+answer`, which captures model-switch or
 on-demand load time when the endpoint loads models lazily. Later repeats are
 used to estimate steady answer time. The live progress output includes elapsed
@@ -168,10 +179,10 @@ or checklist misses.
 The Phase-1 pass gate is configurable with `--pass-threshold`. The default is
 `0.6`, which means the model must mark at least 7 of 13 expected checklist
 issues and must not trigger negative controls such as OCR gibberish or
-wrong-language translation. Phase 2 uses fixed gold-set gates per candidate:
-the clearly broken candidate must surface at least 5 of 8 gold issues, and the
-near-good candidate must surface at least 2 of 3, both with low false-positive
-rates.
+wrong-language translation. Phase 2 uses a fixed gold set on the broken
+candidate: the model must surface at least 3 of 8 gold issues while staying
+under the false-positive cap. `--phase2-only` skips checklist shortlisting and
+runs just the freeform phase on the selected model ids.
 
 `--timeout-s` is the production usefulness threshold for steady answer time. It
 does not replace `--judge-timeout-s`, which is the HTTP read timeout. A model can
