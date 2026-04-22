@@ -15,7 +15,13 @@ from anydoc2md.judge_pdf_concurrency_benchmark_core import (
     run_benchmark_matrix,
     summarize_attempts,
 )
-from anydoc2md.settings import JudgeSettings
+from anydoc2md.settings import (
+    DEFAULT_CLAUDE_JUDGE_URL,
+    ENV_CLAUDE_API_KEY,
+    ENV_JUDGE_URL,
+    JUDGE_PROVIDER_CLAUDE,
+    JudgeSettings,
+)
 import anydoc2md.judge_pdf_concurrency_benchmark_core as benchmark_core
 
 
@@ -111,10 +117,12 @@ def test_run_benchmark_matrix_passes_each_concurrency_level(
         candidate_name="inhouse",
     )
     seen_concurrency: list[int] = []
+    seen_provider_settings: list[tuple[str, str]] = []
 
     def fake_judge(**kwargs):
         settings = kwargs["settings"]
         seen_concurrency.append(settings.pdf_concurrency)
+        seen_provider_settings.append((settings.provider, settings.api_key))
         return JudgeVerdict(
             preferred_adapter="inhouse",
             confidence="low",
@@ -145,10 +153,74 @@ def test_run_benchmark_matrix_passes_each_concurrency_level(
         cases=[case],
         concurrency_levels=[1, 4],
         repeats=2,
-        base_settings=JudgeSettings(url="http://judge.local/v1", model="test-model"),
+        base_settings=JudgeSettings(
+            url="https://api.anthropic.com/v1/messages",
+            model="test-model",
+            provider=JUDGE_PROVIDER_CLAUDE,
+            api_key="sk-test",
+        ),
     )
 
     assert seen_concurrency == [1, 1, 4, 4]
+    assert seen_provider_settings == [(JUDGE_PROVIDER_CLAUDE, "sk-test")] * 4
     assert len(result["attempts"]) == 4
     assert result["summary"][0]["success_count"] == 2
     assert result["cases"][0]["issue_count"] == 1
+
+
+def test_cli_uses_cloud_provider_default_url(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from anydoc2md.judge_pdf_concurrency_benchmark import main
+
+    source = tmp_path / "source.pdf"
+    audit = tmp_path / "audit_candidate.pdf"
+    output = tmp_path / "result.json"
+    source.write_bytes(b"source")
+    audit.write_bytes(b"audit")
+    seen_settings: list[JudgeSettings] = []
+
+    def fake_run_benchmark_matrix(**kwargs):
+        seen_settings.append(kwargs["base_settings"])
+        return {
+            "attempts": [{"succeeded": True}],
+            "summary": [
+                {
+                    "concurrency": 1,
+                    "success_count": 1,
+                    "attempt_count": 1,
+                    "mean_elapsed_s": 1.0,
+                    "max_active_calls": 1,
+                }
+            ],
+        }
+
+    monkeypatch.setenv(ENV_CLAUDE_API_KEY, "sk-test")
+    monkeypatch.setenv(ENV_JUDGE_URL, "http://localhost:1234/v1")
+    monkeypatch.setattr(
+        "anydoc2md.judge_pdf_concurrency_benchmark.run_benchmark_matrix",
+        fake_run_benchmark_matrix,
+    )
+
+    rc = main(
+        [
+            "--case",
+            f"{source}::{audit}::candidate",
+            "--judge-provider",
+            "claude",
+            "--judge-model",
+            "claude-haiku-test",
+            "--concurrency-levels",
+            "1",
+            "--output-json",
+            str(output),
+        ]
+    )
+
+    assert rc == 0
+    assert output.exists()
+    assert len(seen_settings) == 1
+    assert seen_settings[0].provider == JUDGE_PROVIDER_CLAUDE
+    assert seen_settings[0].url == DEFAULT_CLAUDE_JUDGE_URL
+    assert seen_settings[0].api_key == "sk-test"

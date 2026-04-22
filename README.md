@@ -233,6 +233,19 @@ PYTHONPATH=src python -m anydoc2md.judge_pdf_concurrency_benchmark \
   --output-json /tmp/adtm-judge-concurrency/summary.json
 ```
 
+For cloud providers, set the matching API key and use `--judge-provider`:
+
+```bash
+export CLAUDE_API_KEY="..."
+PYTHONPATH=src python -m anydoc2md.judge_pdf_concurrency_benchmark \
+  --judge-provider claude \
+  --judge-model claude-haiku-4-5-20251001 \
+  --judge-timeout-s 180 \
+  --concurrency-levels 2 \
+  --case /path/to/source-a.pdf::/path/to/winner-a/audit_candidate.pdf::inhouse \
+  --output-json /tmp/adtm-judge-concurrency/claude-summary.json
+```
+
 Use a gitignored or `/tmp` output path. Treat a single run as a functional
 capacity check; use multiple repeats before choosing a production default for a
 new endpoint or model. HTTP failures, malformed JSON, and parser failures count

@@ -120,12 +120,68 @@ Measured `find_judge` stability checks, all with `--repeats 3`,
 Current cloud fallback order:
 
 - Use Claude `claude-haiku-4-5-20251001` as the fastest measured cloud fallback
-  on this probe.
+  on this probe. For repeated real-PDF issue review, use `c=2` unless the
+  Anthropic account has higher rate limits or benchmark-specific rate backoff.
 - Use OpenAI `gpt-4o-mini` as the second measured cloud fallback; it was slower
   than Haiku but well inside the `120s` production usefulness threshold.
 - Use DeepSeek `deepseek-chat` when DeepSeek is preferred operationally; it
   passed cleanly but was materially slower on the freeform phase.
 
+## Cloud Real-PDF Issue-Review Snapshot, 2026-04-22
+
+This snapshot compares Claude Haiku 4.5 against the current `.57` local default
+on the same real-PDF issue-review benchmark cases.
+
+Pricing basis:
+
+- Anthropic currently lists Claude Haiku 4.5 at `$1/MTok` input and `$5/MTok`
+  output.
+- The benchmark currently records total tokens only, not input/output split, so
+  cloud cost is reported as a lower/upper bound. The true cost should be closer
+  to the lower bound because issue-review prompts are input-heavy.
+- The Anthropic dashboard reported `$0.54` actual spend for the full Claude
+  real-PDF test batch in this snapshot, including the `c=4` smoke, the
+  rate-limited `c=4 r=10` clinical run, the reliable `c=2 r=3` clinical run,
+  and the `c=2 r=1` three-PDF run.
+
+Measured outcome:
+
+- Claude `claude-haiku-4-5-20251001`, clinical PDF at `c=4`, `r=10`: failed
+  rate-limit reliability with `7/10` successful attempts. The successful
+  attempts had mean `14.012s`, but repeats 8, 9, and 10 failed with Anthropic
+  `429 Too Many Requests` after the per-issue retry budget. This is not a safe
+  setting for the current account/rate-limit envelope.
+- Claude `claude-haiku-4-5-20251001`, clinical PDF at `c=2`, `r=3`: passed
+  `3/3`, mean `25.715s`, min `24.823s`, max `27.186s`, mean total tokens
+  `20,334` per attempt. Estimated cost range for the three attempts:
+  `$0.061` to `$0.305`.
+- Claude `claude-haiku-4-5-20251001`, three representative PDFs at `c=2`,
+  `r=1`: passed `3/3`, mean `24.694s`, min `23.949s`, max `25.625s`, mean
+  total tokens `20,579` per PDF. Estimated cost range for the three PDFs:
+  `$0.062` to `$0.309`.
+
+Comparison against `.57` local default:
+
+- `.57` `qwen/qwen3-4b-2507`, clinical PDF at `c=4`, `r=10`: passed `10/10`,
+  mean `13.828s`, mean total tokens `17,985`.
+- `.57` `qwen/qwen3-4b-2507`, three representative PDFs at `c=4`, `r=1`:
+  passed `3/3`, mean `14.349s`, mean total tokens `18,058`.
+- Claude at the reliable measured setting `c=2` is about `1.86x` slower on the
+  clinical repeat and about `1.72x` slower on the three-PDF representative set
+  than the `.57` local default at `c=4`.
+
+Current recommendation:
+
+- Keep `.57` `qwen/qwen3-4b-2507` at `c=4` as the practical default when local
+  hardware is available.
+- Use Claude `claude-haiku-4-5-20251001` at `c=2` as the measured cloud fallback
+  when local hardware is unavailable or local judge quality is suspect. The
+  measured full test batch cost was `$0.54`; rerun cost estimates should use
+  provider billing data until the benchmark records input/output token splits.
+- Do not use Claude Haiku at `c=4` on the current account/rate-limit envelope
+  without adding provider-aware 429 backoff or raising Anthropic rate limits.
+
 Cloud probe artifacts from this run were written outside git under:
 
 - `/tmp/adtm-cloud-judge-probes/`
+- `/tmp/adtm-cloud-realpdf-benchmark/`

@@ -9,12 +9,18 @@ import sys
 import time
 from typing import Any
 
+from anydoc2md.find_judge_provider import resolve_judge_provider_config
 from anydoc2md.judge_pdf_concurrency_benchmark_core import (
     parse_case_spec,
     parse_concurrency_levels,
     run_benchmark_matrix,
 )
-from anydoc2md.settings import DEFAULT_JUDGE_TIMEOUT_S, JudgeSettings
+from anydoc2md.settings import (
+    DEFAULT_JUDGE_PROVIDER,
+    DEFAULT_JUDGE_TIMEOUT_S,
+    ENV_JUDGE_PROVIDER,
+    JudgeSettings,
+)
 
 _DEFAULT_CONCURRENCY_LEVELS = (1, 2, 4, 8)
 _SLOW_JUDGE_TIMEOUT_MULTIPLIER = 4
@@ -24,8 +30,8 @@ _DEFAULT_TIMEOUT_S = DEFAULT_JUDGE_TIMEOUT_S * _SLOW_JUDGE_TIMEOUT_MULTIPLIER
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run a PDF issue-review concurrency matrix against an OpenAI-compatible "
-            "judge endpoint using explicit source/audit-PDF cases."
+            "Run a PDF issue-review concurrency matrix against a judge provider "
+            "using explicit source/audit-PDF cases."
         )
     )
     parser.add_argument(
@@ -35,7 +41,22 @@ def build_argument_parser() -> argparse.ArgumentParser:
         metavar="SOURCE::AUDIT_PDF[::CANDIDATE]",
         help="Benchmark case. Repeat this flag to include multiple PDFs.",
     )
-    parser.add_argument("--judge-url", required=True, help="OpenAI-compatible base URL.")
+    parser.add_argument(
+        "--judge-url",
+        default=None,
+        help=(
+            "Judge endpoint base URL. Required for lm_studio unless "
+            "ANYDOC2MD_JUDGE_URL is set; cloud providers have defaults."
+        ),
+    )
+    parser.add_argument(
+        "--judge-provider",
+        default=None,
+        help=(
+            "Judge provider: lm_studio, openai, deepseek, or claude "
+            f"(default: {ENV_JUDGE_PROVIDER} or {DEFAULT_JUDGE_PROVIDER})."
+        ),
+    )
     parser.add_argument("--judge-model", required=True, help="Judge model id.")
     parser.add_argument(
         "--judge-timeout-s",
@@ -74,6 +95,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         cases = [parse_case_spec(spec) for spec in args.case]
         concurrency_levels = parse_concurrency_levels(args.concurrency_levels)
+        provider_config = resolve_judge_provider_config(
+            provider_arg=args.judge_provider,
+            url_arg=args.judge_url,
+        )
         if args.repeats < 1:
             raise ValueError("repeats must be positive")
         if args.judge_timeout_s < 1:
@@ -83,14 +108,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     settings = JudgeSettings(
-        url=args.judge_url,
+        url=provider_config.url,
         model=args.judge_model,
+        provider=provider_config.provider,
+        api_key=provider_config.api_key,
         timeout_s=args.judge_timeout_s,
+        anthropic_version=provider_config.anthropic_version,
     )
     print(f"Cases: {len(cases)}", flush=True)
     print(f"Concurrency levels: {', '.join(str(level) for level in concurrency_levels)}", flush=True)
     print(f"Repeats: {args.repeats}", flush=True)
-    print(f"Judge: {settings.url} model={settings.model}", flush=True)
+    print(
+        f"Judge: provider={settings.provider} url={settings.url} model={settings.model}",
+        flush=True,
+    )
 
     started = time.monotonic()
     try:

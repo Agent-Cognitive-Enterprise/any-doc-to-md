@@ -237,11 +237,14 @@ def _run_case_attempts(
         settings = JudgeSettings(
             url=base_settings.url,
             model=base_settings.model,
+            provider=base_settings.provider,
+            api_key=base_settings.api_key,
             timeout_s=base_settings.timeout_s,
             max_tokens=base_settings.max_tokens,
             disable_thinking=base_settings.disable_thinking,
             temperature=base_settings.temperature,
             pdf_concurrency=concurrency,
+            anthropic_version=base_settings.anthropic_version,
         )
         for repeat_index in range(1, repeats + 1):
             attempts.append(
