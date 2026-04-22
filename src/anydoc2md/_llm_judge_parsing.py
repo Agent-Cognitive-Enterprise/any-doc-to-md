@@ -51,13 +51,10 @@ def _parse_verdict(
     """
     valid_names = {r.method_name for r in candidates}
 
-    # Strip markdown code fences if present
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.MULTILINE)
-    text = text.strip()
+    text = _normalize_json_candidate(raw)
 
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as exc:
+    data, error = _try_parse_json(text)
+    if data is None:
         return JudgeVerdict(
             preferred_adapter="",
             confidence="error",
@@ -65,7 +62,7 @@ def _parse_verdict(
             notes={},
             model_used=model,
             tokens_used=tokens,
-            error=f"JSON parse error: {exc} — raw: {raw[:200]}",
+            error=f"JSON parse error: {error} — raw: {raw[:200]}",
         )
 
     preferred = data.get("preferred", "")
@@ -107,3 +104,43 @@ def _parse_verdict(
         error="",
     )
 
+
+def _try_parse_json(text: str) -> tuple[dict | None, str]:
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            return data, ""
+        return None, f"expected JSON object, got {type(data).__name__}"
+    except json.JSONDecodeError as exc:
+        first = text.find("{")
+        last = text.rfind("}")
+        if first != -1 and last != -1 and first < last:
+            candidate = text[first:last + 1]
+            try:
+                data = json.loads(candidate)
+                if isinstance(data, dict):
+                    return data, ""
+                return None, f"expected JSON object, got {type(data).__name__}"
+            except json.JSONDecodeError:
+                sanitized = _sanitize_control_characters(candidate)
+                try:
+                    data = json.loads(sanitized)
+                    if isinstance(data, dict):
+                        return data, ""
+                    return None, f"expected JSON object, got {type(data).__name__}"
+                except json.JSONDecodeError:
+                    pass
+        return None, str(exc)
+
+
+def _normalize_json_candidate(raw: str) -> str:
+    # Strip markdown code fences if present.
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.MULTILINE)
+    return text.strip()
+
+
+def _sanitize_control_characters(text: str) -> str:
+    return "".join(
+        ch if (ord(ch) >= 32 or ch in "\n\r\t") else " "
+        for ch in text
+    )

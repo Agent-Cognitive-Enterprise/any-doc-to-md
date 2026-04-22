@@ -101,9 +101,12 @@ def test_build_windowed_audit_prompt_mentions_page_ranges() -> None:
     system, user = build_windowed_audit_prompt("inhouse", _traits(), window)
 
     assert "absolute SOURCE page numbers" in system
+    assert "Do NOT treat different page counts" in system
+    assert "reflowed audit render of Markdown" in system
     assert "Audit window 1/3" in user
     assert "Source pages: 1-6 of 18" in user
     assert "Candidate pages: 1-5 of 15" in user
+    assert "not page-for-page visual alignment" in user
 
 
 def test_judge_candidate_against_source_aggregates_windowed_pdf_violations(tmp_path: Path) -> None:

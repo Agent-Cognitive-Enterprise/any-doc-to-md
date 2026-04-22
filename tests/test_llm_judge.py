@@ -452,6 +452,26 @@ class TestParseVerdict:
         v = _parse_verdict(raw, self._candidates(tmp_path), "model", 0)
         assert v.preferred_adapter == "beta"
 
+    def test_recovers_first_json_object_when_trailing_text_present(self, tmp_path: Path) -> None:
+        raw = (
+            json.dumps({"preferred": "alpha", "confidence": "high", "reasoning": "ok", "notes": {}})
+            + "\nextra trailing text"
+        )
+        v = _parse_verdict(raw, self._candidates(tmp_path), "model", 0)
+        assert v.preferred_adapter == "alpha"
+
+    def test_recovers_when_control_characters_break_json(self, tmp_path: Path) -> None:
+        raw = (
+            '{\n'
+            '  "preferred": "alpha",\n'
+            '  "confidence": "low",\n'
+            '  "reasoning": "bad\x08text",\n'
+            '  "notes": {}\n'
+            '}'
+        )
+        v = _parse_verdict(raw, self._candidates(tmp_path), "model", 0)
+        assert v.preferred_adapter == "alpha"
+
     def test_unknown_adapter_returns_error(self, tmp_path: Path) -> None:
         raw = json.dumps({"preferred": "nonexistent", "confidence": "high",
                            "reasoning": "ok", "notes": {}})

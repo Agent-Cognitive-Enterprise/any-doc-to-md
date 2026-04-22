@@ -12,7 +12,7 @@ import fitz
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
 
 PDF_AUDIT_WINDOW_PAGES = 6
-PDF_AUDIT_CANDIDATE_MARGIN_PAGES = 1
+PDF_AUDIT_CANDIDATE_MARGIN_PAGES = 2
 PDF_AUDIT_PAGE_TEXT_CHARS = 500
 _PAGE_FRONT_CHARS = 240
 _PAGE_MIDDLE_CHARS = 120
@@ -94,6 +94,16 @@ def build_windowed_audit_prompt(
         "You are an expert document-conversion quality evaluator. "
         "You will compare one window from the source PDF against the matching "
         "window from the rendered candidate PDF.\n\n"
+        "Important constraints:\n"
+        "- The candidate PDF is a reflowed audit render of Markdown, not a pagination-faithful copy.\n"
+        "- Do NOT treat different page counts, different line breaks, different paragraph wrapping, "
+        "or nearby within-window page shifts as issues by themselves.\n"
+        "- Content may move to a nearby candidate page inside this window; check the whole candidate "
+        "window before claiming missing or injected content.\n"
+        "- Ignore source-path boilerplate, repeated running headers/footers, and minor numbering drift "
+        "caused by reflow unless they create a real semantic error.\n"
+        "- Only report concrete, high-signal issues a coding agent could act on: true content loss, "
+        "material text injection, wrong figure/caption association, broken tables, or severe ordering corruption.\n\n"
         "Return ONLY valid JSON with this exact shape:\n"
         "{\n"
         '  "preferred": "<candidate_name>",\n'
@@ -136,8 +146,11 @@ def build_windowed_audit_prompt(
         f"```text\n{window.candidate_excerpt}\n```\n\n"
         "## Task\n"
         f"Audit candidate {candidate_name!r}. Compare the rendered candidate PDF "
-        "against the source PDF window. Report only material issues visible in "
-        "this window that a coding agent could turn into tests or converter fixes. "
+        "against the source PDF window. Evaluate semantic fidelity across the full "
+        "candidate window, not page-for-page visual alignment. Report only material "
+        "issues visible in this window that a coding agent could turn into tests "
+        "or converter fixes. If the source content is present with reflowed layout, "
+        "return no issue. "
         f'Set "preferred" to exactly "{candidate_name}".'
     )
     return system, user
