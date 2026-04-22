@@ -145,7 +145,7 @@ def _review_pdf_issue(
         try:
             raw, tokens = call_lm_studio(system, user, settings)
         except Exception as exc:
-            failures.append(_attempt_failure(attempt, f"LM Studio call failed: {exc}"))
+            failures.append(_attempt_failure(attempt, f"Judge call failed: {exc}"))
             continue
 
         tokens_used += tokens

@@ -254,7 +254,7 @@ def run_freeform_probe(
                 case_scores=(),
                 tokens_used=total_tokens,
                 raw="\n\n".join(raw_parts),
-                error=f"LM Studio call failed: {exc}",
+                error=f"Judge call failed: {exc}",
             )
         total_tokens += tokens
         raw_parts.append(f"{case.case_id}:\n{raw}")

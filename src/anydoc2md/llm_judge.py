@@ -30,6 +30,7 @@ Usage:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import requests
 
@@ -53,6 +54,8 @@ from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
 from anydoc2md.settings import (
     AnyDocToMdConfigError,
+    JUDGE_PROVIDER_CLAUDE,
+    JUDGE_PROVIDER_LM_STUDIO,
     JudgeSettings,
     load_judge_settings_from_env,
 )
@@ -64,11 +67,22 @@ def _call_lm_studio(
     settings: JudgeSettings,
 ) -> tuple[str, int]:
     """
-    Send a chat completion request to an OpenAI-compatible endpoint.
+    Send a judge request to the configured provider endpoint.
 
     Returns (response_text, tokens_used).
     Raises on network failure.
     """
+    if settings.provider == JUDGE_PROVIDER_CLAUDE:
+        return _call_claude_messages(system, user, settings)
+    return _call_openai_compatible(system, user, settings)
+
+
+def _call_openai_compatible(
+    system: str,
+    user: str,
+    settings: JudgeSettings,
+) -> tuple[str, int]:
+    """Send a chat completion request to an OpenAI-compatible endpoint."""
     payload = {
         "model": settings.model,
         "messages": [
@@ -77,22 +91,83 @@ def _call_lm_studio(
         ],
         "temperature": settings.temperature,
         "max_tokens": settings.max_tokens,
-        # chat_template_kwargs disables thinking mode on Qwen3 models,
-        # ensuring the JSON response lands in content (not reasoning_content).
-        "chat_template_kwargs": {"thinking": False} if settings.disable_thinking else {},
     }
+    if settings.provider == JUDGE_PROVIDER_LM_STUDIO and settings.disable_thinking:
+        # LM Studio exposes this Qwen3 knob; public provider APIs may reject it.
+        payload["chat_template_kwargs"] = {"thinking": False}
+
+    headers = {"Content-Type": "application/json"}
+    if settings.api_key:
+        headers["Authorization"] = f"Bearer {settings.api_key}"
 
     resp = requests.post(
         f"{settings.url.rstrip('/')}/chat/completions",
         json=payload,
+        headers=headers,
         timeout=settings.timeout_s,
     )
     resp.raise_for_status()
     data = resp.json()
 
-    text = data["choices"][0]["message"]["content"]
+    text = _message_content_text(data["choices"][0]["message"]["content"])
     tokens = data.get("usage", {}).get("total_tokens", 0)
     return text, tokens
+
+
+def _call_claude_messages(
+    system: str,
+    user: str,
+    settings: JudgeSettings,
+) -> tuple[str, int]:
+    """Send a request to Anthropic's Messages API."""
+    payload = {
+        "model": settings.model,
+        "max_tokens": settings.max_tokens,
+        "temperature": settings.temperature,
+        "system": system,
+        "messages": [{"role": "user", "content": user}],
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": settings.api_key,
+        "anthropic-version": settings.anthropic_version,
+    }
+    resp = requests.post(
+        _claude_messages_url(settings.url),
+        json=payload,
+        headers=headers,
+        timeout=settings.timeout_s,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+
+    text = "".join(
+        block.get("text", "")
+        for block in data.get("content", [])
+        if isinstance(block, dict) and block.get("type") == "text"
+    )
+    usage = data.get("usage", {})
+    tokens = int(usage.get("input_tokens", 0)) + int(usage.get("output_tokens", 0))
+    return text, tokens
+
+
+def _claude_messages_url(url: str) -> str:
+    stripped = url.rstrip("/")
+    if stripped.endswith("/v1"):
+        return f"{stripped}/messages"
+    return stripped
+
+
+def _message_content_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            part.get("text", "")
+            for part in content
+            if isinstance(part, dict)
+        )
+    return "" if content is None else str(content)
 
 
 def judge_near_tie(
@@ -145,7 +220,7 @@ def judge_near_tie(
             notes={},
             model_used=judge_settings.model,
             tokens_used=0,
-            error=f"LM Studio call failed: {exc}",
+            error=f"Judge call failed: {exc}",
         )
 
     return _parse_verdict(raw, candidates, judge_settings.model, tokens)
@@ -215,6 +290,6 @@ def judge_candidate_against_source(
             notes={},
             model_used=judge_settings.model,
             tokens_used=0,
-            error=f"LM Studio call failed: {exc}",
+            error=f"Judge call failed: {exc}",
         )
     return _parse_verdict(raw, [candidate], judge_settings.model, tokens)

@@ -157,6 +157,6 @@ def run_checklist_probe(
         return ChecklistProbeVerdict(
             issues={},
             tokens_used=0,
-            error=f"LM Studio call failed: {exc}",
+            error=f"Judge call failed: {exc}",
         )
     return _parse_checklist_response(raw, tokens_used=tokens)

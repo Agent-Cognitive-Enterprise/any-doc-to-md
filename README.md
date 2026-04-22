@@ -93,6 +93,7 @@ In PRAI (this monorepo), you can run the KB-pack pipeline CLI in tournament mode
 
 ```bash
 cd backend
+export ANYDOC2MD_JUDGE_PROVIDER="lm_studio"
 export ANYDOC2MD_JUDGE_URL="http://127.0.0.1:1234/v1"
 export ANYDOC2MD_JUDGE_MODEL="qwen/qwen3.6-35b-a3b"
 export ANYDOC2MD_JUDGE_TIMEOUT_S="360"
@@ -553,16 +554,29 @@ The current LLM judge configuration is exposed via `anydoc2md.settings`.
 
 Required environment variables:
 
-- `ANYDOC2MD_JUDGE_URL`
 - `ANYDOC2MD_JUDGE_MODEL`
 
 Optional environment variables:
 
+- `ANYDOC2MD_JUDGE_PROVIDER` (`lm_studio`, `openai`, `deepseek`, or `claude`;
+  defaults to `lm_studio`)
+- `ANYDOC2MD_JUDGE_URL`; required for `lm_studio`, optional for cloud providers
+  because provider defaults are built in
 - `ANYDOC2MD_JUDGE_TIMEOUT_S`
 - `ANYDOC2MD_JUDGE_MAX_TOKENS`
 - `ANYDOC2MD_JUDGE_DISABLE_THINKING`
 - `ANYDOC2MD_JUDGE_TEMPERATURE`
 - `ANYDOC2MD_JUDGE_PDF_CONCURRENCY`
+- `OPENAI_API_KEY` when `ANYDOC2MD_JUDGE_PROVIDER=openai`
+- `DEEPSEEK_API_KEY` when `ANYDOC2MD_JUDGE_PROVIDER=deepseek`
+- `CLAUDE_API_KEY` when `ANYDOC2MD_JUDGE_PROVIDER=claude`
+
+Provider defaults:
+
+- `lm_studio`: OpenAI-compatible chat completions at `ANYDOC2MD_JUDGE_URL`
+- `openai`: `https://api.openai.com/v1`
+- `deepseek`: `https://api.deepseek.com/v1`
+- `claude`: `https://api.anthropic.com/v1/messages`
 
 PDF issue reviews are bounded and run concurrently up to
 `ANYDOC2MD_JUDGE_PDF_CONCURRENCY`, which defaults to `4`. Set it to `1` for
@@ -584,6 +598,7 @@ from anydoc2md.settings import JudgeSettings
 settings = JudgeSettings(
     url="http://127.0.0.1:1234/v1",
     model="qwen/qwen3.6-35b-a3b",
+    provider="lm_studio",
 )
 
 verdict = judge_candidate_against_source(
