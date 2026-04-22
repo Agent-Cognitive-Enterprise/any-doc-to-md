@@ -217,7 +217,9 @@ To measure the PDF judge endpoint's safe issue-review concurrency after a model
 has already passed the quality probe, run a concurrency matrix over explicit
 source/audit-PDF cases. This benchmark reuses deterministic suspect
 localization, then times only the bounded issue-focused judge reviews. It
-records success count, wall time, tokens, and observed peak in-flight calls.
+records success count, wall time, input/output token usage, and observed peak
+in-flight calls. For cloud providers, 429 responses are retried with
+provider-aware backoff that honors `retry-after` when the provider returns it.
 
 Example against three already-staged PRAI large-PDF winners:
 
@@ -250,7 +252,8 @@ Use a gitignored or `/tmp` output path. Treat a single run as a functional
 capacity check; use multiple repeats before choosing a production default for a
 new endpoint or model. HTTP failures, malformed JSON, and parser failures count
 as benchmark failures when they still fail after the per-issue retry budget is
-exhausted.
+exhausted. The JSON output includes both aggregate `tokens_used` and split
+`input_tokens` / `output_tokens` fields when the provider reports them.
 
 ### Python
 

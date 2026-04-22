@@ -87,9 +87,35 @@ def test_parse_concurrency_levels_validates_positive_ints() -> None:
 
 def test_summarize_attempts_groups_by_concurrency() -> None:
     attempts = [
-        BenchmarkAttempt("a", 1, 1, True, 10.0, 100, 2, 1, "low", 1),
+        BenchmarkAttempt(
+            "a",
+            1,
+            1,
+            True,
+            10.0,
+            100,
+            2,
+            1,
+            "low",
+            1,
+            input_tokens=80,
+            output_tokens=20,
+        ),
         BenchmarkAttempt("b", 1, 1, False, 12.0, 0, 0, 0, "error", 1, "boom"),
-        BenchmarkAttempt("a", 4, 1, True, 3.0, 100, 2, 1, "low", 4),
+        BenchmarkAttempt(
+            "a",
+            4,
+            1,
+            True,
+            3.0,
+            100,
+            2,
+            1,
+            "low",
+            4,
+            input_tokens=75,
+            output_tokens=25,
+        ),
     ]
 
     summary = summarize_attempts(attempts)
@@ -98,6 +124,9 @@ def test_summarize_attempts_groups_by_concurrency() -> None:
     assert summary[0]["success_count"] == 1
     assert summary[0]["error_count"] == 1
     assert summary[0]["mean_elapsed_s"] == 10.0
+    assert summary[0]["total_tokens_used"] == 100
+    assert summary[0]["total_input_tokens"] == 80
+    assert summary[0]["total_output_tokens"] == 20
     assert summary[1]["concurrency"] == 4
     assert summary[1]["max_active_calls"] == 4
 
@@ -130,6 +159,8 @@ def test_run_benchmark_matrix_passes_each_concurrency_level(
             notes={},
             model_used=settings.model,
             tokens_used=10,
+            input_tokens=8,
+            output_tokens=2,
             window_verdicts=[
                 JudgeWindowVerdict(
                     window_index=1,
@@ -141,6 +172,8 @@ def test_run_benchmark_matrix_passes_each_concurrency_level(
                     confidence="low",
                     reasoning="ok",
                     tokens_used=10,
+                    input_tokens=8,
+                    output_tokens=2,
                 )
             ],
         )
@@ -164,7 +197,11 @@ def test_run_benchmark_matrix_passes_each_concurrency_level(
     assert seen_concurrency == [1, 1, 4, 4]
     assert seen_provider_settings == [(JUDGE_PROVIDER_CLAUDE, "sk-test")] * 4
     assert len(result["attempts"]) == 4
+    assert result["attempts"][0]["input_tokens"] == 8
+    assert result["attempts"][0]["output_tokens"] == 2
     assert result["summary"][0]["success_count"] == 2
+    assert result["summary"][0]["total_input_tokens"] == 16
+    assert result["summary"][0]["total_output_tokens"] == 4
     assert result["cases"][0]["issue_count"] == 1
 
 

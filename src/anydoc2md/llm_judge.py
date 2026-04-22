@@ -49,7 +49,7 @@ from anydoc2md._llm_judge_prompting import (
     build_audit_prompt,
     build_prompt,
 )
-from anydoc2md._llm_judge_types import JudgeVerdict, JudgeViolation
+from anydoc2md._llm_judge_types import JudgeCallResult, JudgeVerdict, JudgeViolation
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
 from anydoc2md.settings import (
@@ -65,11 +65,12 @@ def _call_lm_studio(
     system: str,
     user: str,
     settings: JudgeSettings,
-) -> tuple[str, int]:
+) -> JudgeCallResult:
     """
     Send a judge request to the configured provider endpoint.
 
-    Returns (response_text, tokens_used).
+    Returns a JudgeCallResult. The result still supports legacy tuple-unpacking
+    as (response_text, tokens_used).
     Raises on network failure.
     """
     if settings.provider == JUDGE_PROVIDER_CLAUDE:
@@ -81,7 +82,7 @@ def _call_openai_compatible(
     system: str,
     user: str,
     settings: JudgeSettings,
-) -> tuple[str, int]:
+) -> JudgeCallResult:
     """Send a chat completion request to an OpenAI-compatible endpoint."""
     payload = {
         "model": settings.model,
@@ -110,15 +111,27 @@ def _call_openai_compatible(
     data = resp.json()
 
     text = _message_content_text(data["choices"][0]["message"]["content"])
-    tokens = data.get("usage", {}).get("total_tokens", 0)
-    return text, tokens
+    usage = data.get("usage", {})
+    input_tokens = _int_usage_value(usage.get("prompt_tokens", usage.get("input_tokens", 0)))
+    output_tokens = _int_usage_value(
+        usage.get("completion_tokens", usage.get("output_tokens", 0))
+    )
+    tokens = _int_usage_value(usage.get("total_tokens", input_tokens + output_tokens))
+    if tokens == 0:
+        tokens = input_tokens + output_tokens
+    return JudgeCallResult(
+        text=text,
+        tokens_used=tokens,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
 
 
 def _call_claude_messages(
     system: str,
     user: str,
     settings: JudgeSettings,
-) -> tuple[str, int]:
+) -> JudgeCallResult:
     """Send a request to Anthropic's Messages API."""
     payload = {
         "model": settings.model,
@@ -147,8 +160,18 @@ def _call_claude_messages(
         if isinstance(block, dict) and block.get("type") == "text"
     )
     usage = data.get("usage", {})
-    tokens = int(usage.get("input_tokens", 0)) + int(usage.get("output_tokens", 0))
-    return text, tokens
+    input_tokens = (
+        _int_usage_value(usage.get("input_tokens", 0))
+        + _int_usage_value(usage.get("cache_creation_input_tokens", 0))
+        + _int_usage_value(usage.get("cache_read_input_tokens", 0))
+    )
+    output_tokens = _int_usage_value(usage.get("output_tokens", 0))
+    return JudgeCallResult(
+        text=text,
+        tokens_used=input_tokens + output_tokens,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
 
 
 def _claude_messages_url(url: str) -> str:
@@ -168,6 +191,17 @@ def _message_content_text(content: Any) -> str:
             if isinstance(part, dict)
         )
     return "" if content is None else str(content)
+
+
+def _int_usage_value(value: Any) -> int:
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def judge_near_tie(
@@ -211,7 +245,7 @@ def judge_near_tie(
     system, user = build_prompt(candidates, traits)
 
     try:
-        raw, tokens = _call_lm_studio(system, user, judge_settings)
+        call_result = _call_lm_studio(system, user, judge_settings)
     except Exception as exc:
         return JudgeVerdict(
             preferred_adapter="",
@@ -223,7 +257,14 @@ def judge_near_tie(
             error=f"Judge call failed: {exc}",
         )
 
-    return _parse_verdict(raw, candidates, judge_settings.model, tokens)
+    return _parse_verdict(
+        call_result.text,
+        candidates,
+        judge_settings.model,
+        call_result.tokens_used,
+        input_tokens=call_result.input_tokens,
+        output_tokens=call_result.output_tokens,
+    )
 
 
 def judge_candidate_against_source(
@@ -281,7 +322,7 @@ def judge_candidate_against_source(
 
     system, user = build_audit_prompt(candidate, source_path, traits, audit_pdf_path)
     try:
-        raw, tokens = _call_lm_studio(system, user, judge_settings)
+        call_result = _call_lm_studio(system, user, judge_settings)
     except Exception as exc:
         return JudgeVerdict(
             preferred_adapter="",
@@ -292,4 +333,11 @@ def judge_candidate_against_source(
             tokens_used=0,
             error=f"Judge call failed: {exc}",
         )
-    return _parse_verdict(raw, [candidate], judge_settings.model, tokens)
+    return _parse_verdict(
+        call_result.text,
+        [candidate],
+        judge_settings.model,
+        call_result.tokens_used,
+        input_tokens=call_result.input_tokens,
+        output_tokens=call_result.output_tokens,
+    )

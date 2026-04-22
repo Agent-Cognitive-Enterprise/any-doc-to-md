@@ -151,6 +151,9 @@ def _print_summary(result: dict[str, Any]) -> None:
             f"concurrency={row['concurrency']} "
             f"success={row['success_count']}/{row['attempt_count']} "
             f"mean_elapsed_s={row['mean_elapsed_s']} "
+            f"tokens={row.get('total_tokens_used', 0)} "
+            f"input_tokens={row.get('total_input_tokens', 0)} "
+            f"output_tokens={row.get('total_output_tokens', 0)} "
             f"max_active_calls={row['max_active_calls']}",
             flush=True,
         )

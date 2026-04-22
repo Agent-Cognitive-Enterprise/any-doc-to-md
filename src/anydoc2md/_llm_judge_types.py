@@ -6,6 +6,29 @@ from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
+class JudgeCallResult:
+    """Raw judge response plus provider-reported token usage."""
+
+    text: str
+    tokens_used: int
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    def __iter__(self):
+        """Preserve legacy `text, tokens = _call_lm_studio(...)` callers."""
+        yield self.text
+        yield self.tokens_used
+
+
+def coerce_judge_call_result(value: JudgeCallResult | tuple[str, int]) -> JudgeCallResult:
+    """Normalize legacy tuple call results into the richer usage shape."""
+    if isinstance(value, JudgeCallResult):
+        return value
+    text, tokens_used = value
+    return JudgeCallResult(text=text, tokens_used=int(tokens_used))
+
+
+@dataclass(frozen=True)
 class JudgeViolation:
     """Structured issue identified by the LLM judge."""
 
@@ -42,6 +65,8 @@ class JudgeWindowVerdict:
     confidence: str
     reasoning: str
     tokens_used: int
+    input_tokens: int = 0
+    output_tokens: int = 0
     violations: list[JudgeViolation] = field(default_factory=list)
     error: str = ""
 
@@ -56,6 +81,8 @@ class JudgeWindowVerdict:
             "confidence": self.confidence,
             "reasoning": self.reasoning,
             "tokens_used": self.tokens_used,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
             "violations": [violation.to_dict() for violation in self.violations],
             "error": self.error,
         }
@@ -71,6 +98,8 @@ class JudgeVerdict:
     notes: dict[str, str]  # {adapter_name: brief_note}
     model_used: str
     tokens_used: int
+    input_tokens: int = 0
+    output_tokens: int = 0
     violations: list[JudgeViolation] = field(default_factory=list)
     window_verdicts: list[JudgeWindowVerdict] = field(default_factory=list)
     overall_confidence: float | None = None
@@ -89,6 +118,8 @@ class JudgeVerdict:
             "notes": self.notes,
             "model_used": self.model_used,
             "tokens_used": self.tokens_used,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
             "violations": [violation.to_dict() for violation in self.violations],
             "window_verdicts": [window.to_dict() for window in self.window_verdicts],
             "overall_confidence": self.overall_confidence,

@@ -132,19 +132,22 @@ def test_local_request_uses_lm_studio_thinking_hint_without_auth() -> None:
     response = _response(
         {
             "choices": [{"message": {"content": '{"ok": true}'}}],
-            "usage": {"total_tokens": 7},
+            "usage": {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7},
         }
     )
 
     with patch("anydoc2md.llm_judge.requests") as mock_requests:
         mock_requests.post.return_value = response
-        text, tokens = _call_lm_studio("sys", "user", settings)
+        result = _call_lm_studio("sys", "user", settings)
+        text, tokens = result
 
     _, kwargs = mock_requests.post.call_args
     assert kwargs["headers"] == {"Content-Type": "application/json"}
     assert kwargs["json"]["chat_template_kwargs"] == {"thinking": False}
     assert text == '{"ok": true}'
     assert tokens == 7
+    assert result.input_tokens == 5
+    assert result.output_tokens == 2
 
 
 def test_openai_compatible_request_uses_bearer_auth_without_lm_studio_hint() -> None:
@@ -157,13 +160,14 @@ def test_openai_compatible_request_uses_bearer_auth_without_lm_studio_hint() -> 
     response = _response(
         {
             "choices": [{"message": {"content": [{"text": '{"ok": true}'}]}}],
-            "usage": {"total_tokens": 9},
+            "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9},
         }
     )
 
     with patch("anydoc2md.llm_judge.requests") as mock_requests:
         mock_requests.post.return_value = response
-        text, tokens = _call_lm_studio("sys", "user", settings)
+        result = _call_lm_studio("sys", "user", settings)
+        text, tokens = result
 
     url, kwargs = mock_requests.post.call_args
     assert url[0] == "https://api.openai.com/v1/chat/completions"
@@ -171,6 +175,8 @@ def test_openai_compatible_request_uses_bearer_auth_without_lm_studio_hint() -> 
     assert "chat_template_kwargs" not in kwargs["json"]
     assert text == '{"ok": true}'
     assert tokens == 9
+    assert result.input_tokens == 7
+    assert result.output_tokens == 2
 
 
 def test_claude_request_uses_messages_api_headers_and_token_sum() -> None:
@@ -189,7 +195,8 @@ def test_claude_request_uses_messages_api_headers_and_token_sum() -> None:
 
     with patch("anydoc2md.llm_judge.requests") as mock_requests:
         mock_requests.post.return_value = response
-        text, tokens = _call_lm_studio("sys", "user", settings)
+        result = _call_lm_studio("sys", "user", settings)
+        text, tokens = result
 
     url, kwargs = mock_requests.post.call_args
     assert url[0] == "https://api.anthropic.com/v1/messages"
@@ -199,3 +206,5 @@ def test_claude_request_uses_messages_api_headers_and_token_sum() -> None:
     assert kwargs["json"]["messages"] == [{"role": "user", "content": "user"}]
     assert text == '{"ok": true}'
     assert tokens == 16
+    assert result.input_tokens == 11
+    assert result.output_tokens == 5

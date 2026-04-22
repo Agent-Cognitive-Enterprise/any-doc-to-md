@@ -58,6 +58,8 @@ class BenchmarkAttempt:
     confidence: str
     max_active_calls: int
     error: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -67,6 +69,8 @@ class BenchmarkAttempt:
             "succeeded": self.succeeded,
             "elapsed_s": self.elapsed_s,
             "tokens_used": self.tokens_used,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
             "window_count": self.window_count,
             "violation_count": self.violation_count,
             "confidence": self.confidence,
@@ -185,6 +189,7 @@ def run_benchmark_matrix(
         )
 
     return {
+        "judge_provider": base_settings.provider,
         "judge_url": base_settings.url,
         "judge_model": base_settings.model,
         "concurrency_levels": concurrency_levels,
@@ -203,12 +208,21 @@ def summarize_attempts(attempts: list[BenchmarkAttempt]) -> list[dict[str, Any]]
     summaries: list[dict[str, Any]] = []
     for concurrency, level_attempts in sorted(by_level.items()):
         elapsed_values = [attempt.elapsed_s for attempt in level_attempts if attempt.succeeded]
+        total_tokens = sum(attempt.tokens_used for attempt in level_attempts)
+        total_input_tokens = sum(attempt.input_tokens for attempt in level_attempts)
+        total_output_tokens = sum(attempt.output_tokens for attempt in level_attempts)
         summaries.append(
             {
                 "concurrency": concurrency,
                 "attempt_count": len(level_attempts),
                 "success_count": sum(1 for attempt in level_attempts if attempt.succeeded),
                 "error_count": sum(1 for attempt in level_attempts if not attempt.succeeded),
+                "total_tokens_used": total_tokens,
+                "total_input_tokens": total_input_tokens,
+                "total_output_tokens": total_output_tokens,
+                "mean_tokens_used": round(total_tokens / len(level_attempts), 1)
+                if level_attempts
+                else None,
                 "mean_elapsed_s": round(statistics.mean(elapsed_values), 3)
                 if elapsed_values
                 else None,
@@ -316,6 +330,8 @@ def _attempt_from_verdict(
         confidence=verdict.confidence,
         max_active_calls=max_active_calls,
         error=verdict.error,
+        input_tokens=verdict.input_tokens,
+        output_tokens=verdict.output_tokens,
     )
 
 

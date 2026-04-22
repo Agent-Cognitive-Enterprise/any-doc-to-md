@@ -5,25 +5,37 @@ from __future__ import annotations
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-import re
+import time
 
 from anydoc2md._llm_judge_parsing import _parse_verdict
+from anydoc2md._llm_judge_pdf_issue_aggregation import (
+    aggregate_windowed_verdict,
+    normalize_window_pages,
+)
 from anydoc2md._llm_judge_pdf_issue_localizer import PdfSuspectedIssue
 from anydoc2md._llm_judge_prompting import _traits_summary
-from anydoc2md._llm_judge_types import JudgeVerdict, JudgeViolation, JudgeWindowVerdict
+from anydoc2md._llm_judge_rate_limit import rate_limit_retry_delay_s
+from anydoc2md._llm_judge_types import (
+    JudgeCallResult,
+    JudgeVerdict,
+    JudgeWindowVerdict,
+    coerce_judge_call_result,
+)
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
 from anydoc2md.settings import JudgeSettings
 
 PDF_ISSUE_REVIEW_MAX_ATTEMPTS = 3
 
-CallLmStudio = Callable[[str, str, JudgeSettings], tuple[str, int]]
+CallLmStudio = Callable[[str, str, JudgeSettings], JudgeCallResult | tuple[str, int]]
 
 
 @dataclass(frozen=True)
 class _IssueReviewResult:
     issue_index: int
     tokens_used: int
+    input_tokens: int = 0
+    output_tokens: int = 0
     window_verdict: JudgeWindowVerdict | None = None
     error: str = ""
 
@@ -38,6 +50,8 @@ def judge_candidate_against_source_issues(
 ) -> JudgeVerdict:
     window_verdicts: list[JudgeWindowVerdict] = []
     total_tokens = 0
+    total_input_tokens = 0
+    total_output_tokens = 0
     concurrency = min(max(1, settings.pdf_concurrency), len(issues))
 
     for batch_start in range(0, len(issues), concurrency):
@@ -57,6 +71,8 @@ def judge_candidate_against_source_issues(
             call_lm_studio=call_lm_studio,
         )
         total_tokens += sum(result.tokens_used for result in batch_results)
+        total_input_tokens += sum(result.input_tokens for result in batch_results)
+        total_output_tokens += sum(result.output_tokens for result in batch_results)
         for result in batch_results:
             if result.error:
                 return JudgeVerdict(
@@ -66,16 +82,20 @@ def judge_candidate_against_source_issues(
                     notes={},
                     model_used=settings.model,
                     tokens_used=total_tokens,
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
                     window_verdicts=window_verdicts,
                     error=result.error,
                 )
             if result.window_verdict is not None:
                 window_verdicts.append(result.window_verdict)
 
-    return _aggregate_windowed_verdict(
+    return aggregate_windowed_verdict(
         candidate_name=candidate.method_name,
         model_used=settings.model,
         tokens_used=total_tokens,
+        input_tokens=total_input_tokens,
+        output_tokens=total_output_tokens,
         window_verdicts=window_verdicts,
     )
 
@@ -140,16 +160,32 @@ def _review_pdf_issue(
     )
 
     tokens_used = 0
+    input_tokens = 0
+    output_tokens = 0
     failures: list[str] = []
     for attempt in range(1, PDF_ISSUE_REVIEW_MAX_ATTEMPTS + 1):
         try:
-            raw, tokens = call_lm_studio(system, user, settings)
+            call_result = coerce_judge_call_result(
+                call_lm_studio(system, user, settings)
+            )
         except Exception as exc:
             failures.append(_attempt_failure(attempt, f"Judge call failed: {exc}"))
+            delay_s = rate_limit_retry_delay_s(exc, attempt=attempt, settings=settings)
+            if delay_s > 0 and attempt < PDF_ISSUE_REVIEW_MAX_ATTEMPTS:
+                time.sleep(delay_s)
             continue
 
-        tokens_used += tokens
-        parsed = _parse_verdict(raw, [candidate], settings.model, tokens)
+        tokens_used += call_result.tokens_used
+        input_tokens += call_result.input_tokens
+        output_tokens += call_result.output_tokens
+        parsed = _parse_verdict(
+            call_result.text,
+            [candidate],
+            settings.model,
+            call_result.tokens_used,
+            input_tokens=call_result.input_tokens,
+            output_tokens=call_result.output_tokens,
+        )
         if not parsed.succeeded:
             failures.append(_attempt_failure(attempt, parsed.error))
             continue
@@ -157,6 +193,8 @@ def _review_pdf_issue(
         return _IssueReviewResult(
             issue_index=issue_index,
             tokens_used=tokens_used,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
             window_verdict=JudgeWindowVerdict(
                 window_index=issue_index,
                 total_windows=total_issues,
@@ -167,7 +205,9 @@ def _review_pdf_issue(
                 confidence=parsed.confidence,
                 reasoning=parsed.reasoning,
                 tokens_used=tokens_used,
-                violations=_normalize_window_pages(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                violations=normalize_window_pages(
                     parsed.violations,
                     source_page_start=issue.source_page_start,
                     source_page_end=issue.source_page_end,
@@ -178,6 +218,8 @@ def _review_pdf_issue(
     return _IssueReviewResult(
         issue_index=issue_index,
         tokens_used=tokens_used,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
         error=(
             f"Issue-focused PDF review failed in issue {issue_index}/"
             f"{total_issues} after {PDF_ISSUE_REVIEW_MAX_ATTEMPTS} attempts: "
@@ -188,39 +230,6 @@ def _review_pdf_issue(
 
 def _attempt_failure(attempt: int, message: str) -> str:
     return f"attempt {attempt}/{PDF_ISSUE_REVIEW_MAX_ATTEMPTS}: {message}"
-
-
-def _aggregate_windowed_verdict(
-    *,
-    candidate_name: str,
-    model_used: str,
-    tokens_used: int,
-    window_verdicts: list[JudgeWindowVerdict],
-) -> JudgeVerdict:
-    merged_violations = _merge_window_violations(window_verdicts)
-    confidence = _aggregate_confidence([window.confidence for window in window_verdicts])
-    return JudgeVerdict(
-        preferred_adapter=candidate_name,
-        confidence=confidence,
-        reasoning=(
-            f"Issue-focused PDF review across {len(window_verdicts)} suspect window(s); "
-            f"{len(merged_violations)} aggregated material violation(s)."
-        ),
-        notes={
-            candidate_name: (
-                f"Issue-focused PDF review across {len(window_verdicts)} suspect window(s)."
-            )
-        },
-        model_used=model_used,
-        tokens_used=tokens_used,
-        violations=merged_violations,
-        window_verdicts=window_verdicts,
-        overall_confidence=_confidence_score(confidence),
-        uncertainty_note=(
-            "Violations aggregated from deterministic suspect windows and narrow issue review."
-        ),
-        error="",
-    )
 
 
 def _build_issue_review_prompt(
@@ -283,85 +292,3 @@ def _build_issue_review_prompt(
         f'Set "preferred" to exactly "{candidate_name}".'
     )
     return system, user
-
-
-def _merge_window_violations(window_verdicts: list[JudgeWindowVerdict]) -> list[JudgeViolation]:
-    merged: dict[tuple[str, str, str, str], JudgeViolation] = {}
-    ordered_keys: list[tuple[str, str, str, str]] = []
-    for window in window_verdicts:
-        for violation in window.violations:
-            key = (
-                violation.type,
-                violation.severity,
-                _normalize_merge_text(violation.root_cause),
-                _normalize_merge_text(violation.evidence),
-            )
-            if key not in merged:
-                merged[key] = JudgeViolation(
-                    type=violation.type,
-                    severity=violation.severity,
-                    count=max(1, violation.count),
-                    pages=sorted(set(violation.pages)),
-                    confidence=violation.confidence,
-                    evidence=violation.evidence,
-                    root_cause=violation.root_cause,
-                )
-                ordered_keys.append(key)
-                continue
-
-            existing = merged[key]
-            merged[key] = JudgeViolation(
-                type=existing.type,
-                severity=existing.severity,
-                count=existing.count + max(1, violation.count),
-                pages=sorted(set(existing.pages + violation.pages)),
-                confidence=max(existing.confidence, violation.confidence),
-                evidence=existing.evidence,
-                root_cause=existing.root_cause,
-            )
-    return [merged[key] for key in ordered_keys]
-
-
-def _normalize_window_pages(
-    violations: list[JudgeViolation],
-    *,
-    source_page_start: int,
-    source_page_end: int,
-) -> list[JudgeViolation]:
-    normalized: list[JudgeViolation] = []
-    for violation in violations:
-        pages = [
-            page
-            for page in violation.pages
-            if source_page_start <= page <= source_page_end
-        ]
-        if not pages:
-            pages = [source_page_start]
-        normalized.append(
-            JudgeViolation(
-                type=violation.type,
-                severity=violation.severity,
-                count=violation.count,
-                pages=sorted(set(pages)),
-                confidence=violation.confidence,
-                evidence=violation.evidence,
-                root_cause=violation.root_cause,
-            )
-        )
-    return normalized
-
-
-def _aggregate_confidence(confidences: list[str]) -> str:
-    if not confidences:
-        return "medium"
-    order = {"low": 0, "medium": 1, "high": 2}
-    return min(confidences, key=lambda value: order.get(value, 1))
-
-
-def _confidence_score(confidence: str) -> float | None:
-    scores = {"low": 0.45, "medium": 0.7, "high": 0.9}
-    return scores.get(confidence)
-
-
-def _normalize_merge_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip().lower()

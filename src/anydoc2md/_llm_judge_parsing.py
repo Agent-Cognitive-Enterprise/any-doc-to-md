@@ -42,6 +42,9 @@ def _parse_verdict(
     candidates: list[AdapterResult],
     model: str,
     tokens: int,
+    *,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
 ) -> JudgeVerdict:
     """
     Parse the LLM JSON response into a JudgeVerdict.
@@ -62,6 +65,8 @@ def _parse_verdict(
             notes={},
             model_used=model,
             tokens_used=tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
             error=f"JSON parse error: {error} — raw: {raw[:200]}",
         )
 
@@ -74,6 +79,8 @@ def _parse_verdict(
             notes={},
             model_used=model,
             tokens_used=tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
             error=(
                 f"LLM returned unknown adapter {preferred!r}; expected one of {sorted(valid_names)}"
             ),
@@ -98,6 +105,8 @@ def _parse_verdict(
         notes=notes,
         model_used=model,
         tokens_used=tokens,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
         violations=_parse_violations(data.get("violations", [])),
         overall_confidence=float(overall_confidence) if overall_confidence is not None else None,
         uncertainty_note=str(data.get("uncertainty_note", "")),
