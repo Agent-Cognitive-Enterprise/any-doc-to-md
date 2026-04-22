@@ -39,6 +39,7 @@ from anydoc2md.llm_judge import (
     EXCERPT_CHARS_PER_ADAPTER,
 )
 from anydoc2md.format_converters.tournament.source_evidence import build_source_evidence_packet
+from anydoc2md._llm_judge_pdf_issue_localizer import PdfSuspectedIssue
 from anydoc2md.settings import (
     AnyDocToMdConfigError,
     JudgeSettings,
@@ -652,6 +653,87 @@ class TestJudgeCandidateAgainstSource:
             )
         assert verdict.succeeded is False
         assert "boom" in verdict.error
+
+    def test_pdf_audit_skips_llm_when_no_suspected_issues(self, tmp_path: Path) -> None:
+        candidate = _adapter_result("inhouse", tmp_path, "# Inhouse")
+        source_pdf = tmp_path / "source.pdf"
+        audit_pdf = tmp_path / "audit.pdf"
+        source_pdf.write_bytes(b"%PDF-1.4\n%%EOF")
+        audit_pdf.write_bytes(b"%PDF-1.4\n%%EOF")
+
+        with patch(
+            "anydoc2md.llm_judge.detect_pdf_suspected_issues",
+            return_value=[],
+        ), patch("anydoc2md.llm_judge._call_lm_studio") as call_mock:
+            verdict = judge_candidate_against_source(
+                candidate,
+                source_pdf,
+                _traits(),
+                audit_pdf_path=audit_pdf,
+                settings=_judge_settings(),
+            )
+
+        call_mock.assert_not_called()
+        assert verdict.succeeded is True
+        assert verdict.tokens_used == 0
+        assert verdict.violations == []
+
+    def test_pdf_audit_reviews_only_suspected_issues(self, tmp_path: Path) -> None:
+        candidate = _adapter_result("inhouse", tmp_path, "# Inhouse")
+        source_pdf = tmp_path / "source.pdf"
+        audit_pdf = tmp_path / "audit.pdf"
+        source_pdf.write_bytes(b"%PDF-1.4\n%%EOF")
+        audit_pdf.write_bytes(b"%PDF-1.4\n%%EOF")
+        suspected = PdfSuspectedIssue(
+            issue_type="suspected_content_mismatch",
+            description="Low anchor coverage on pages 3-4.",
+            source_page_start=2,
+            source_page_end=5,
+            candidate_page_start=2,
+            candidate_page_end=6,
+            source_excerpt="Source page 2:\nAlpha",
+            candidate_excerpt="Candidate page 2:\nBeta",
+        )
+        response = json.dumps(
+            {
+                "preferred": "inhouse",
+                "confidence": "medium",
+                "reasoning": "Confirmed one issue.",
+                "notes": {"inhouse": "issue confirmed"},
+                "violations": [
+                    {
+                        "type": "missing_content",
+                        "severity": "major",
+                        "count": 1,
+                        "pages": [3],
+                        "confidence": 0.9,
+                        "evidence": "Paragraph missing.",
+                        "root_cause": "bad merge",
+                    }
+                ],
+            }
+        )
+
+        with patch(
+            "anydoc2md.llm_judge.detect_pdf_suspected_issues",
+            return_value=[suspected],
+        ), patch(
+            "anydoc2md.llm_judge._call_lm_studio",
+            return_value=(response, 321),
+        ) as call_mock:
+            verdict = judge_candidate_against_source(
+                candidate,
+                source_pdf,
+                _traits(),
+                audit_pdf_path=audit_pdf,
+                settings=_judge_settings(),
+            )
+
+        call_mock.assert_called_once()
+        assert verdict.succeeded is True
+        assert verdict.tokens_used == 321
+        assert len(verdict.window_verdicts) == 1
+        assert verdict.violations[0].type == "missing_content"
 
 
 class TestJudgeSettings:

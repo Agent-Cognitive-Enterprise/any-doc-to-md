@@ -35,10 +35,9 @@ import re
 import requests
 
 from anydoc2md._llm_judge_parsing import _parse_verdict, _parse_violations
-from anydoc2md._llm_judge_pdf_windows import (
-    PdfAuditWindow,
-    build_pdf_audit_windows,
-    build_windowed_audit_prompt,
+from anydoc2md._llm_judge_pdf_issue_localizer import (
+    PdfSuspectedIssue,
+    detect_pdf_suspected_issues,
 )
 from anydoc2md._llm_judge_prompting import (
     EXCERPT_CHARS_PER_ADAPTER,
@@ -175,14 +174,31 @@ def judge_candidate_against_source(
 
     if source_path.suffix.lower() == ".pdf" and audit_pdf_path.suffix.lower() == ".pdf":
         try:
-            windows = build_pdf_audit_windows(source_path, audit_pdf_path)
+            issues = detect_pdf_suspected_issues(source_path, audit_pdf_path)
         except Exception:
-            windows = []
-        if windows:
-            return _judge_candidate_against_source_windows(
+            issues = None
+        if issues == []:
+            return JudgeVerdict(
+                preferred_adapter=candidate.method_name,
+                confidence="high",
+                reasoning=(
+                    "Deterministic source/candidate PDF checks found no suspicious "
+                    "windows that required LLM review."
+                ),
+                notes={candidate.method_name: "No deterministic PDF issues detected."},
+                model_used="",
+                tokens_used=0,
+                violations=[],
+                window_verdicts=[],
+                overall_confidence=0.95,
+                uncertainty_note="PDF audit short-circuited: no deterministic suspect windows.",
+                error="",
+            )
+        if issues:
+            return _judge_candidate_against_source_issues(
                 candidate=candidate,
                 traits=traits,
-                windows=windows,
+                issues=issues,
                 settings=judge_settings,
             )
 
@@ -202,18 +218,24 @@ def judge_candidate_against_source(
     return _parse_verdict(raw, [candidate], judge_settings.model, tokens)
 
 
-def _judge_candidate_against_source_windows(
+def _judge_candidate_against_source_issues(
     *,
     candidate: AdapterResult,
     traits: DocumentTraits,
-    windows: list[PdfAuditWindow],
+    issues: list[PdfSuspectedIssue],
     settings: JudgeSettings,
 ) -> JudgeVerdict:
     window_verdicts: list[JudgeWindowVerdict] = []
     total_tokens = 0
 
-    for window in windows:
-        system, user = build_windowed_audit_prompt(candidate.method_name, traits, window)
+    for index, issue in enumerate(issues, start=1):
+        system, user = _build_issue_review_prompt(
+            candidate_name=candidate.method_name,
+            traits=traits,
+            issue=issue,
+            issue_index=index,
+            total_issues=len(issues),
+        )
         try:
             raw, tokens = _call_lm_studio(system, user, settings)
         except Exception as exc:
@@ -226,8 +248,8 @@ def _judge_candidate_against_source_windows(
                 tokens_used=total_tokens,
                 window_verdicts=window_verdicts,
                 error=(
-                    "LM Studio call failed during windowed PDF audit "
-                    f"(window {window.window_index}/{window.total_windows}): {exc}"
+                    "LM Studio call failed during issue-focused PDF review "
+                    f"({index}/{len(issues)}): {exc}"
                 ),
             )
 
@@ -242,26 +264,26 @@ def _judge_candidate_against_source_windows(
                 tokens_used=total_tokens + tokens,
                 window_verdicts=window_verdicts,
                 error=(
-                    f"Windowed PDF audit failed in window {window.window_index}/"
-                    f"{window.total_windows}: {parsed.error}"
+                    f"Issue-focused PDF review failed in issue {index}/"
+                    f"{len(issues)}: {parsed.error}"
                 ),
             )
 
         window_verdicts.append(
             JudgeWindowVerdict(
-                window_index=window.window_index,
-                total_windows=window.total_windows,
-                source_page_start=window.source_page_start,
-                source_page_end=window.source_page_end,
-                candidate_page_start=window.candidate_page_start,
-                candidate_page_end=window.candidate_page_end,
+                window_index=index,
+                total_windows=len(issues),
+                source_page_start=issue.source_page_start,
+                source_page_end=issue.source_page_end,
+                candidate_page_start=issue.candidate_page_start,
+                candidate_page_end=issue.candidate_page_end,
                 confidence=parsed.confidence,
                 reasoning=parsed.reasoning,
                 tokens_used=tokens,
                 violations=_normalize_window_pages(
                     parsed.violations,
-                    source_page_start=window.source_page_start,
-                    source_page_end=window.source_page_end,
+                    source_page_start=issue.source_page_start,
+                    source_page_end=issue.source_page_end,
                 ),
             )
         )
@@ -288,12 +310,12 @@ def _aggregate_windowed_verdict(
         preferred_adapter=candidate_name,
         confidence=confidence,
         reasoning=(
-            f"Windowed PDF audit across {len(window_verdicts)} window(s); "
+            f"Issue-focused PDF review across {len(window_verdicts)} suspect window(s); "
             f"{len(merged_violations)} aggregated material violation(s)."
         ),
         notes={
             candidate_name: (
-                f"Windowed PDF audit across {len(window_verdicts)} window(s)."
+                f"Issue-focused PDF review across {len(window_verdicts)} suspect window(s)."
             )
         },
         model_used=model_used,
@@ -302,10 +324,69 @@ def _aggregate_windowed_verdict(
         window_verdicts=window_verdicts,
         overall_confidence=_confidence_score(confidence),
         uncertainty_note=(
-            "Violations aggregated from page-window source/candidate PDF comparisons."
+            "Violations aggregated from deterministic suspect windows and narrow issue review."
         ),
         error="",
     )
+
+
+def _build_issue_review_prompt(
+    *,
+    candidate_name: str,
+    traits: DocumentTraits,
+    issue: PdfSuspectedIssue,
+    issue_index: int,
+    total_issues: int,
+) -> tuple[str, str]:
+    system = (
+        "You are an expert document-conversion quality evaluator. "
+        "A deterministic checker already localized one suspected PDF issue. "
+        "Your job is to review only that suspected issue, not to audit the whole document.\n\n"
+        "Rules:\n"
+        "- Do not invent additional issue classes outside the provided suspect.\n"
+        "- Do not treat harmless reflow, line wrapping, or different page counts as problems.\n"
+        "- Confirm the issue only if the supplied source and candidate excerpts show a real semantic mismatch.\n"
+        "- If the deterministic suspicion is a false alarm, return an empty violations list.\n\n"
+        "Return ONLY valid JSON with this exact shape:\n"
+        "{\n"
+        '  "preferred": "<candidate_name>",\n'
+        '  "confidence": "high|medium|low",\n'
+        '  "reasoning": "<one paragraph>",\n'
+        '  "notes": {"<candidate_name>": "<brief note>"},\n'
+        '  "violations": [\n'
+        "    {\n"
+        '      "type": "<violation_type>",\n'
+        '      "severity": "critical|major|minor",\n'
+        '      "count": 1,\n'
+        '      "pages": [12, 13],\n'
+        '      "confidence": 0.0,\n'
+        '      "evidence": "<short evidence>",\n'
+        '      "root_cause": "<likely root cause>"\n'
+        "    }\n"
+        "  ],\n"
+        '  "overall_confidence": 0.0,\n'
+        '  "uncertainty_note": "<optional uncertainty note>"\n'
+        "}"
+    )
+    user = (
+        "## Source document\n"
+        f"{_traits_summary(traits)}\n\n"
+        f"## Suspected issue {issue_index}/{total_issues}\n"
+        f"Type: {issue.issue_type}\n"
+        f"Description: {issue.description}\n"
+        f"Source pages: {issue.source_page_start}-{issue.source_page_end}\n"
+        f"Candidate pages: {issue.candidate_page_start}-{issue.candidate_page_end}\n\n"
+        "## Source PDF excerpt\n\n"
+        f"```text\n{issue.source_excerpt}\n```\n\n"
+        "## Candidate PDF excerpt\n\n"
+        f"```text\n{issue.candidate_excerpt}\n```\n\n"
+        "## Task\n"
+        "Review only this suspected issue. If it is real, return the smallest set of "
+        "material violations needed to explain it. If the deterministic checker was too "
+        "strict and the source meaning is preserved, return no violations. "
+        f'Set "preferred" to exactly "{candidate_name}".'
+    )
+    return system, user
 
 
 def _merge_window_violations(window_verdicts: list[JudgeWindowVerdict]) -> list[JudgeViolation]:

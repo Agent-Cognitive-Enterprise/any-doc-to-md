@@ -29,7 +29,7 @@ Implemented today:
 - hard gates for missing/empty output, broken image refs, charset plausibility, and sampled PDF text coverage
 - weighted programmatic QA scoring
 - score-based candidate selection
-- post-selection LLM audit loop over ranked candidates, with windowed PDF-to-PDF auditing for PDF sources and bounded fallback evidence for non-PDF sources
+- post-selection LLM audit loop over ranked candidates, with deterministic PDF suspect localization plus narrow issue-focused review for PDF sources and bounded fallback evidence for non-PDF sources
 - major-finding penalty and rescore of the currently audited candidate before advancing to the next ranked candidate
 - `auto` vs `light` audit modes, where `auto` falls back to score-only selection if no judge is configured
 - persisted ADTM findings under project-local `.any-doc-to-md/` state when the host project enables it
@@ -332,7 +332,7 @@ Suggested control flow:
 8. allow at most 3 LLM audits per document
 9. escalate to human review when the audit budget is exhausted
 
-The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and, for PDF sources, compares the source PDF against the rendered candidate PDF in 6-page windows. Each window is judged separately and aggregated into one final verdict with page-scoped violations. Non-PDF sources still use the older bounded evidence-packet prompt. Host workflows may also persist a richer source evidence packet under `.any-doc-to-md/evidence-packets/` for offline review and coding-agent follow-up.
+The current implementation now runs this post-selection audit loop, renders a simple audit PDF from candidate Markdown, and, for PDF sources, first runs deterministic page-anchor checks across the full source and candidate PDFs. If those checks find no suspicious windows, the PDF audit short-circuits without an LLM call. If they do find suspicious windows, ADTM expands those windows into narrow issue packets, asks the LLM to review only those localized suspects, and aggregates the confirmed violations into one final verdict with page-scoped evidence. Non-PDF sources still use the older bounded evidence-packet prompt. Host workflows may also persist a richer source evidence packet under `.any-doc-to-md/evidence-packets/` for offline review and coding-agent follow-up.
 
 ---
 

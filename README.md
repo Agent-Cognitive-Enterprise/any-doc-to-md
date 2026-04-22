@@ -15,7 +15,8 @@ too varied. So `anydoc2md` treats conversion as a tournament:
 - run multiple conversion methods
 - normalize their outputs
 - score structural quality
-- audit the leading candidate against the source, page window by page window for PDFs
+- localize deterministic suspect windows first, then review only those with the
+  LLM for PDFs
 - promote one winner
 - persist findings that can drive remediation, overrides, and faster future
   decisions
@@ -213,10 +214,11 @@ print(result.winner, result.winner_staging_dir)
 For PDF sources, the post-selection audit now works like this:
 
 - render the winning Markdown to a simple audit PDF
-- split the source PDF into 6-page windows
-- map each source window to the proportional candidate-PDF page range
-- run the judge once per window
-- aggregate concrete violations across windows into one final verdict and remediation plan
+- run deterministic page-anchor comparison across the full source PDF
+- if no suspicious windows are found, accept the PDF audit without an LLM call
+- if suspicious windows are found, expand them into narrow local review packets
+- run the judge only on those flagged packets
+- aggregate confirmed violations into one final verdict and remediation plan
 
 For non-PDF sources, ADTM still falls back to the older bounded evidence-packet prompt.
 
@@ -239,7 +241,8 @@ The core move is deceptively strong:
 - run more than one converter
 - normalize the outputs into one comparable layout
 - score them programmatically
-- audit the leading candidate against the source in bounded windows for PDFs
+- audit the leading candidate against the source with deterministic PDF suspect
+  localization first
 - keep the evidence and the failure reasons
 
 This changes the operational posture of document conversion.
@@ -279,13 +282,14 @@ through these stages:
 3. Hard-disqualify obviously broken outputs.
 4. Run programmatic QA on surviving candidates and rank them by weighted score.
 5. Select the current leading candidate.
-6. Build a source evidence packet from the source document, sampling across
-   the document so larger files retain first, middle, and end coverage.
-7. Render the candidate Markdown to an audit PDF.
-8. Audit that candidate against the source via an LLM, using the source
-   evidence packet, the rendered candidate PDF, and the candidate Markdown as
-   supporting detail.
-9. If the LLM finds major issues, optionally build a remediation plan, persist
+6. Render the candidate Markdown to an audit PDF.
+7. For PDF sources, run deterministic source-vs-candidate checks to localize
+   suspicious windows; for non-PDF sources, build a bounded source evidence
+   packet.
+8. If PDF checks find suspect windows, ask the LLM to review only those narrow
+   issue packets. If they find nothing suspicious, accept the PDF audit without
+   an LLM call. Non-PDF sources still use the bounded evidence-packet prompt.
+9. If the judge finds major issues, optionally build a remediation plan, persist
    findings in `.any-doc-to-md/`, penalize and rescore the candidate, and
    retry with the next ranked candidate only if the rescored candidate is no
    longer leading.
@@ -309,7 +313,8 @@ via a local `.any-doc-to-md/` directory.
 
 When persisting project-local findings, hosts may also persist a richer source
 evidence packet under `.any-doc-to-md/evidence-packets/` so escalations and
-coding-agent follow-up can reference broader evidence than the in-prompt sample.
+coding-agent follow-up can reference broader evidence than the in-prompt
+summary.
 
 ```mermaid
 flowchart TD
@@ -343,8 +348,9 @@ flowchart TD
 The diagram above describes the intended ADTM end-state. The current code
 already has the post-selection audit loop, rendered candidate PDF generation,
 winner promotion, remediation-plan persistence, project-local findings flow,
-and both a bounded in-prompt source evidence packet and an optional persisted
-evidence packet for offline review.
+deterministic PDF suspect localization, narrow issue-focused LLM review for
+flagged PDF regions, and both a bounded in-prompt source evidence packet and an
+optional persisted evidence packet for offline review.
 
 Per-adapter staging layout:
 
@@ -364,7 +370,10 @@ converters uniformly and lets host projects ingest one stable winner path.
 
 Audit artifacts currently added by the loop:
 
-- source evidence packet embedded into the audit prompt
+- localized PDF issue packets embedded into narrow review prompts when
+  deterministic checks flag suspicious windows
+- bounded source evidence packet embedded into the audit prompt for non-PDF
+  sources
 - `audit_candidate.pdf` inside the selected candidate staging dir
 - `winner/qa_report.json`
 - `winner/remediation_plan.json` when judge findings produced one

@@ -12,6 +12,7 @@ from anydoc2md._llm_judge_pdf_windows import (
     build_pdf_audit_windows,
     build_windowed_audit_prompt,
 )
+from anydoc2md._llm_judge_pdf_issue_localizer import PdfSuspectedIssue
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
 from anydoc2md.llm_judge import judge_candidate_against_source
@@ -115,6 +116,28 @@ def test_judge_candidate_against_source_aggregates_windowed_pdf_violations(tmp_p
     _make_pdf(source_pdf, pages=12, prefix="Source")
     _make_pdf(candidate_pdf, pages=10, prefix="Candidate")
     candidate = _adapter_result("inhouse", tmp_path)
+    issues = [
+        PdfSuspectedIssue(
+            issue_type="suspected_content_mismatch",
+            description="Issue 1",
+            source_page_start=1,
+            source_page_end=3,
+            candidate_page_start=1,
+            candidate_page_end=4,
+            source_excerpt="Source page 1:\nAlpha",
+            candidate_excerpt="Candidate page 1:\nBeta",
+        ),
+        PdfSuspectedIssue(
+            issue_type="suspected_content_mismatch",
+            description="Issue 2",
+            source_page_start=7,
+            source_page_end=9,
+            candidate_page_start=6,
+            candidate_page_end=8,
+            source_excerpt="Source page 7:\nGamma",
+            candidate_excerpt="Candidate page 6:\nDelta",
+        ),
+    ]
 
     responses = [
         (
@@ -163,7 +186,10 @@ def test_judge_candidate_against_source_aggregates_windowed_pdf_violations(tmp_p
         ),
     ]
 
-    with patch("anydoc2md.llm_judge._call_lm_studio", side_effect=responses):
+    with patch(
+        "anydoc2md.llm_judge.detect_pdf_suspected_issues",
+        return_value=issues,
+    ), patch("anydoc2md.llm_judge._call_lm_studio", side_effect=responses):
         verdict = judge_candidate_against_source(
             candidate,
             source_pdf,
@@ -187,8 +213,23 @@ def test_judge_candidate_against_source_returns_error_when_window_call_fails(tmp
     _make_pdf(source_pdf, pages=6, prefix="Source")
     _make_pdf(candidate_pdf, pages=6, prefix="Candidate")
     candidate = _adapter_result("inhouse", tmp_path)
+    issues = [
+        PdfSuspectedIssue(
+            issue_type="suspected_content_mismatch",
+            description="Issue 1",
+            source_page_start=1,
+            source_page_end=3,
+            candidate_page_start=1,
+            candidate_page_end=3,
+            source_excerpt="Source page 1:\nAlpha",
+            candidate_excerpt="Candidate page 1:\nBeta",
+        )
+    ]
 
-    with patch("anydoc2md.llm_judge._call_lm_studio", side_effect=RuntimeError("boom")):
+    with patch(
+        "anydoc2md.llm_judge.detect_pdf_suspected_issues",
+        return_value=issues,
+    ), patch("anydoc2md.llm_judge._call_lm_studio", side_effect=RuntimeError("boom")):
         verdict = judge_candidate_against_source(
             candidate,
             source_pdf,
@@ -198,4 +239,4 @@ def test_judge_candidate_against_source_returns_error_when_window_call_fails(tmp
         )
 
     assert verdict.succeeded is False
-    assert "windowed PDF audit" in verdict.error
+    assert "issue-focused PDF review" in verdict.error
