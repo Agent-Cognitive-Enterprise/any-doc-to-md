@@ -30,6 +30,38 @@ class JudgeViolation:
 
 
 @dataclass(frozen=True)
+class JudgeWindowVerdict:
+    """Per-window result from a chunked PDF-to-PDF audit."""
+
+    window_index: int
+    total_windows: int
+    source_page_start: int
+    source_page_end: int
+    candidate_page_start: int
+    candidate_page_end: int
+    confidence: str
+    reasoning: str
+    tokens_used: int
+    violations: list[JudgeViolation] = field(default_factory=list)
+    error: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "window_index": self.window_index,
+            "total_windows": self.total_windows,
+            "source_page_start": self.source_page_start,
+            "source_page_end": self.source_page_end,
+            "candidate_page_start": self.candidate_page_start,
+            "candidate_page_end": self.candidate_page_end,
+            "confidence": self.confidence,
+            "reasoning": self.reasoning,
+            "tokens_used": self.tokens_used,
+            "violations": [violation.to_dict() for violation in self.violations],
+            "error": self.error,
+        }
+
+
+@dataclass(frozen=True)
 class JudgeVerdict:
     """Structured output from the LLM judge."""
 
@@ -40,6 +72,7 @@ class JudgeVerdict:
     model_used: str
     tokens_used: int
     violations: list[JudgeViolation] = field(default_factory=list)
+    window_verdicts: list[JudgeWindowVerdict] = field(default_factory=list)
     overall_confidence: float | None = None
     uncertainty_note: str = ""
     error: str = ""  # non-empty only on failure
@@ -57,8 +90,8 @@ class JudgeVerdict:
             "model_used": self.model_used,
             "tokens_used": self.tokens_used,
             "violations": [violation.to_dict() for violation in self.violations],
+            "window_verdicts": [window.to_dict() for window in self.window_verdicts],
             "overall_confidence": self.overall_confidence,
             "uncertainty_note": self.uncertainty_note,
             "error": self.error,
         }
-

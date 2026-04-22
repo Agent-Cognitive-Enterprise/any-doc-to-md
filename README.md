@@ -15,7 +15,7 @@ too varied. So `anydoc2md` treats conversion as a tournament:
 - run multiple conversion methods
 - normalize their outputs
 - score structural quality
-- audit the leading candidate against the source
+- audit the leading candidate against the source, page window by page window for PDFs
 - promote one winner
 - persist findings that can drive remediation, overrides, and faster future
   decisions
@@ -210,6 +210,16 @@ result = run_full_tournament(
 print(result.winner, result.winner_staging_dir)
 ```
 
+For PDF sources, the post-selection audit now works like this:
+
+- render the winning Markdown to a simple audit PDF
+- split the source PDF into 6-page windows
+- map each source window to the proportional candidate-PDF page range
+- run the judge once per window
+- aggregate concrete violations across windows into one final verdict and remediation plan
+
+For non-PDF sources, ADTM still falls back to the older bounded evidence-packet prompt.
+
 ## Why ADTM Exists
 
 Most conversion stacks are optimized for one of two stories:
@@ -229,7 +239,7 @@ The core move is deceptively strong:
 - run more than one converter
 - normalize the outputs into one comparable layout
 - score them programmatically
-- audit the leading candidate against the source
+- audit the leading candidate against the source in bounded windows for PDFs
 - keep the evidence and the failure reasons
 
 This changes the operational posture of document conversion.

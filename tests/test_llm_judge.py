@@ -143,7 +143,7 @@ class TestJudgeVerdict:
         )
         d = v.to_dict()
         for k in ("preferred_adapter", "confidence", "reasoning", "notes",
-                  "model_used", "tokens_used", "violations",
+                  "model_used", "tokens_used", "violations", "window_verdicts",
                   "overall_confidence", "uncertainty_note", "error"):
             assert k in d
 
