@@ -6,6 +6,14 @@ from dataclasses import dataclass
 
 import requests
 
+from anydoc2md.settings import (
+    DEFAULT_CLAUDE_ANTHROPIC_VERSION,
+    JUDGE_PROVIDER_CLAUDE,
+    JUDGE_PROVIDER_DEEPSEEK,
+    JUDGE_PROVIDER_LM_STUDIO,
+    JUDGE_PROVIDER_OPENAI,
+)
+
 
 @dataclass(frozen=True)
 class ModelInfo:
@@ -125,15 +133,33 @@ def parse_size_hint_billions(model_id: str) -> float | None:
     return None
 
 
-def fetch_model_ids(judge_url: str, *, timeout_s: int = 10) -> list[str]:
+def fetch_model_ids(
+    judge_url: str,
+    *,
+    timeout_s: int = 10,
+    provider: str = JUDGE_PROVIDER_LM_STUDIO,
+    api_key: str = "",
+    anthropic_version: str = DEFAULT_CLAUDE_ANTHROPIC_VERSION,
+) -> list[str]:
     """
-    Fetch model ids from an OpenAI-compatible endpoint.
+    Fetch model ids from a judge provider endpoint.
 
     Expects GET <judge_url>/models to return either:
       - {"data": [{"id": "..."}, ...]}
       - [{"id": "..."}, ...]
     """
-    resp = requests.get(f"{judge_url.rstrip('/')}/models", timeout=timeout_s)
+    headers: dict[str, str] = {}
+    if provider in {JUDGE_PROVIDER_OPENAI, JUDGE_PROVIDER_DEEPSEEK} and api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    elif provider == JUDGE_PROVIDER_CLAUDE:
+        headers["x-api-key"] = api_key
+        headers["anthropic-version"] = anthropic_version
+
+    resp = requests.get(
+        model_listing_url(judge_url, provider=provider),
+        headers=headers,
+        timeout=timeout_s,
+    )
     resp.raise_for_status()
     data = resp.json()
 
@@ -154,3 +180,10 @@ def fetch_model_ids(judge_url: str, *, timeout_s: int = 10) -> list[str]:
                 ids.append(model_id.strip())
 
     return sorted(set(ids))
+
+
+def model_listing_url(judge_url: str, *, provider: str) -> str:
+    base = judge_url.rstrip("/")
+    if provider == JUDGE_PROVIDER_CLAUDE and base.endswith("/messages"):
+        base = base.removesuffix("/messages")
+    return f"{base}/models"

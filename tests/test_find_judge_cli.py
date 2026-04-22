@@ -40,7 +40,7 @@ def test_main_keep_artifacts_writes_probe_pdfs(tmp_path: Path, capsys) -> None:
         )
 
     with (
-        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["test-7b"]),
+        patch("anydoc2md.find_judge.fetch_judge_model_ids", return_value=["test-7b"]),
         patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
         patch("anydoc2md.find_judge.probe_freeform_model", side_effect=fake_probe_freeform_model),
     ):
@@ -103,7 +103,7 @@ def test_main_repeats_and_model_filter(tmp_path: Path, capsys) -> None:
         )
 
     with (
-        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["a", "focus", "z"]),
+        patch("anydoc2md.find_judge.fetch_judge_model_ids", return_value=["a", "focus", "z"]),
         patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
         patch("anydoc2md.find_judge.probe_freeform_model", side_effect=fake_probe_freeform_model),
     ):
@@ -192,7 +192,7 @@ def test_main_stop_on_fail_is_default_and_continues_to_next_model(
         )
 
     with (
-        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["bad", "good"]),
+        patch("anydoc2md.find_judge.fetch_judge_model_ids", return_value=["bad", "good"]),
         patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
         patch("anydoc2md.find_judge.probe_freeform_model", side_effect=fake_probe_freeform_model),
     ):
@@ -252,7 +252,7 @@ def test_main_no_stop_on_fail_runs_all_repeats(tmp_path: Path, capsys) -> None:
         )
 
     with (
-        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["bad"]),
+        patch("anydoc2md.find_judge.fetch_judge_model_ids", return_value=["bad"]),
         patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
         patch("anydoc2md.find_judge.probe_freeform_model", side_effect=fake_probe_freeform_model),
     ):
@@ -307,7 +307,7 @@ def test_main_show_errors_prints_failure_reasons(tmp_path: Path, capsys) -> None
         )
 
     with (
-        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["bad"]),
+        patch("anydoc2md.find_judge.fetch_judge_model_ids", return_value=["bad"]),
         patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
         patch("anydoc2md.find_judge.probe_freeform_model", side_effect=fake_probe_freeform_model),
     ):
@@ -365,7 +365,7 @@ def test_main_phase2_only_skips_checklist_shortlist(tmp_path: Path, capsys) -> N
         )
 
     with (
-        patch("anydoc2md.find_judge.fetch_model_ids", return_value=["focus"]),
+        patch("anydoc2md.find_judge.fetch_judge_model_ids", return_value=["focus"]),
         patch("anydoc2md.find_judge.probe_one_model", side_effect=fake_probe_one_model),
         patch("anydoc2md.find_judge.probe_freeform_model", side_effect=fake_probe_freeform_model),
     ):

@@ -159,6 +159,24 @@ python -m anydoc2md.find_judge \
   --show-all
 ```
 
+Cloud providers can be listed and probed by setting the matching API key and
+using `--judge-provider`. The CLI uses the provider default URL for explicit
+cloud provider selections unless `--judge-url` is passed:
+
+```bash
+export OPENAI_API_KEY="..."
+python -m anydoc2md.find_judge --judge-provider openai --list-models-only
+python -m anydoc2md.find_judge \
+  --judge-provider openai \
+  --model-name gpt-4o-mini \
+  --repeats 3 \
+  --timeout-s 120 \
+  --show-all
+```
+
+The same pattern works for `deepseek` with `DEEPSEEK_API_KEY` and `claude` with
+`CLAUDE_API_KEY`.
+
 The first repeat is reported as `load+answer`, which captures model-switch or
 on-demand load time when the endpoint loads models lazily. Later repeats are
 used to estimate steady answer time. The live progress output includes elapsed

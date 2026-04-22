@@ -9,8 +9,10 @@ from anydoc2md.judge_probe_case import build_probe_case
 from anydoc2md.judge_probe_models import (
     ModelInfo,
     fetch_model_ids,
+    model_listing_url,
     parse_size_hint_billions,
 )
+from anydoc2md.settings import JUDGE_PROVIDER_CLAUDE, JUDGE_PROVIDER_OPENAI
 from anydoc2md.judge_probe_checklist import ChecklistProbeVerdict
 from anydoc2md.judge_probe_runner import probe_one_model
 from anydoc2md.output_qa.runner import run_all
@@ -135,6 +137,49 @@ def test_fetch_model_ids_parses_openai_shape() -> None:
         get.assert_called_once()
 
     assert ids == ["a", "b"]
+
+
+def test_fetch_model_ids_sends_bearer_auth_for_openai_provider() -> None:
+    mock = MagicMock()
+    mock.raise_for_status = MagicMock()
+    mock.json.return_value = {"data": [{"id": "gpt-test"}]}
+
+    with patch("anydoc2md.judge_probe_models.requests.get", return_value=mock) as get:
+        ids = fetch_model_ids(
+            "https://api.openai.com/v1",
+            provider=JUDGE_PROVIDER_OPENAI,
+            api_key="sk-test",
+        )
+
+    assert ids == ["gpt-test"]
+    assert get.call_args.kwargs["headers"]["Authorization"] == "Bearer sk-test"
+
+
+def test_fetch_model_ids_uses_claude_model_headers_and_url() -> None:
+    mock = MagicMock()
+    mock.raise_for_status = MagicMock()
+    mock.json.return_value = {"data": [{"id": "claude-test"}]}
+
+    with patch("anydoc2md.judge_probe_models.requests.get", return_value=mock) as get:
+        ids = fetch_model_ids(
+            "https://api.anthropic.com/v1/messages",
+            provider=JUDGE_PROVIDER_CLAUDE,
+            api_key="sk-claude",
+        )
+
+    assert ids == ["claude-test"]
+    assert get.call_args.args[0] == "https://api.anthropic.com/v1/models"
+    assert get.call_args.kwargs["headers"]["x-api-key"] == "sk-claude"
+
+
+def test_model_listing_url_removes_claude_messages_suffix() -> None:
+    assert (
+        model_listing_url(
+            "https://api.anthropic.com/v1/messages",
+            provider=JUDGE_PROVIDER_CLAUDE,
+        )
+        == "https://api.anthropic.com/v1/models"
+    )
 
 
 def test_build_probe_case_writes_pdfs_and_markdown(tmp_path: Path) -> None:

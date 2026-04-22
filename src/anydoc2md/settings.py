@@ -102,6 +102,38 @@ def normalize_judge_provider(value: str) -> str:
     return normalized
 
 
+def default_judge_url_for_provider(provider: str) -> str:
+    """Return the built-in endpoint URL for cloud judge providers."""
+    provider = normalize_judge_provider(provider)
+    if provider == JUDGE_PROVIDER_OPENAI:
+        return DEFAULT_OPENAI_JUDGE_URL
+    if provider == JUDGE_PROVIDER_DEEPSEEK:
+        return DEFAULT_DEEPSEEK_JUDGE_URL
+    if provider == JUDGE_PROVIDER_CLAUDE:
+        return DEFAULT_CLAUDE_JUDGE_URL
+    return ""
+
+
+def judge_api_key_env_for_provider(provider: str) -> str:
+    """Return the API-key env var used by a cloud judge provider."""
+    provider = normalize_judge_provider(provider)
+    if provider == JUDGE_PROVIDER_OPENAI:
+        return ENV_OPENAI_API_KEY
+    if provider == JUDGE_PROVIDER_DEEPSEEK:
+        return ENV_DEEPSEEK_API_KEY
+    if provider == JUDGE_PROVIDER_CLAUDE:
+        return ENV_CLAUDE_API_KEY
+    return ""
+
+
+def judge_api_key_from_env(provider: str) -> str:
+    """Read the configured API key for a cloud judge provider."""
+    env_var = judge_api_key_env_for_provider(provider)
+    if not env_var:
+        return ""
+    return os.getenv(env_var, "").strip()
+
+
 def load_judge_settings_from_env() -> JudgeSettings:
     """Read judge settings from environment variables."""
     provider = normalize_judge_provider(
@@ -109,7 +141,7 @@ def load_judge_settings_from_env() -> JudgeSettings:
     )
     url = os.getenv(ENV_JUDGE_URL, "").strip()
     model = os.getenv(ENV_JUDGE_MODEL, "").strip()
-    api_key = _provider_api_key(provider)
+    api_key = judge_api_key_from_env(provider)
 
     missing: list[str] = []
     if not url and provider == JUDGE_PROVIDER_LM_STUDIO:
@@ -117,7 +149,7 @@ def load_judge_settings_from_env() -> JudgeSettings:
     if not model:
         missing.append(ENV_JUDGE_MODEL)
     if provider != JUDGE_PROVIDER_LM_STUDIO and not api_key:
-        missing.append(_provider_api_key_env(provider))
+        missing.append(judge_api_key_env_for_provider(provider))
     if missing:
         joined = ", ".join(missing)
         raise AnyDocToMdConfigError(
@@ -125,7 +157,7 @@ def load_judge_settings_from_env() -> JudgeSettings:
         )
 
     if not url:
-        url = _default_provider_url(provider)
+        url = default_judge_url_for_provider(provider)
 
     return JudgeSettings(
         url=url,
@@ -144,33 +176,6 @@ def load_judge_settings_from_env() -> JudgeSettings:
             DEFAULT_JUDGE_PDF_CONCURRENCY,
         ),
     )
-
-
-def _default_provider_url(provider: str) -> str:
-    if provider == JUDGE_PROVIDER_OPENAI:
-        return DEFAULT_OPENAI_JUDGE_URL
-    if provider == JUDGE_PROVIDER_DEEPSEEK:
-        return DEFAULT_DEEPSEEK_JUDGE_URL
-    if provider == JUDGE_PROVIDER_CLAUDE:
-        return DEFAULT_CLAUDE_JUDGE_URL
-    return ""
-
-
-def _provider_api_key(provider: str) -> str:
-    env_var = _provider_api_key_env(provider)
-    if not env_var:
-        return ""
-    return os.getenv(env_var, "").strip()
-
-
-def _provider_api_key_env(provider: str) -> str:
-    if provider == JUDGE_PROVIDER_OPENAI:
-        return ENV_OPENAI_API_KEY
-    if provider == JUDGE_PROVIDER_DEEPSEEK:
-        return ENV_DEEPSEEK_API_KEY
-    if provider == JUDGE_PROVIDER_CLAUDE:
-        return ENV_CLAUDE_API_KEY
-    return ""
 
 
 def _env_int(name: str, default: int) -> int:
