@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import patch
 
+from anydoc2md.format_converters.adapters import _unstructured_backend
 from anydoc2md.format_converters.adapters import unstructured
 from anydoc2md.format_converters.adapters._unstructured_markdown import (
     render_elements_to_markdown,
@@ -77,3 +78,41 @@ def test_render_elements_to_markdown_uses_table_text_when_html_missing() -> None
     markdown = render_elements_to_markdown([_Element("Table", "Cell A | Cell B")])
 
     assert markdown == "Cell A | Cell B"
+
+
+def test_partition_elements_routes_pdf_to_fast_strategy() -> None:
+    seen: dict[str, object] = {}
+
+    def _fake_partition_pdf(**kwargs):
+        seen.update(kwargs)
+        return []
+
+    with patch(
+        "unstructured.partition.pdf.partition_pdf",
+        side_effect=_fake_partition_pdf,
+    ):
+        result = _unstructured_backend._partition_elements(Path("doc.pdf"))
+
+    assert result == []
+    assert seen["filename"] == "doc.pdf"
+    assert seen["include_page_breaks"] is True
+    assert seen["strategy"] == "fast"
+    assert seen["infer_table_structure"] is False
+
+
+def test_partition_elements_routes_non_pdf_to_auto_partition() -> None:
+    seen: dict[str, object] = {}
+
+    def _fake_partition(**kwargs):
+        seen.update(kwargs)
+        return []
+
+    with patch(
+        "unstructured.partition.auto.partition",
+        side_effect=_fake_partition,
+    ):
+        result = _unstructured_backend._partition_elements(Path("doc.docx"))
+
+    assert result == []
+    assert seen["filename"] == "doc.docx"
+    assert seen["include_page_breaks"] is True

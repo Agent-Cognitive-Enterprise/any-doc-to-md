@@ -528,9 +528,12 @@ dependency footprint.
 Note: `pandoc` and `marker` are GPL-licensed external tools. Review their terms
 before enabling them in commercial or redistributable pipelines.
 
-Note: `unstructured` is now an experimental implemented adapter. Upstream docs
-recommend `pip install 'unstructured[all-docs]'` plus system dependencies such
-as `libmagic`, `poppler`, `tesseract`, and `libreoffice` depending on the file
+Note: `unstructured` is now an experimental implemented adapter. ADTM currently
+routes PDFs through Unstructured's text-first `fast` strategy rather than the
+default OCR/layout-heavy auto path so the adapter remains usable on hosts
+without `tesseract`. Upstream docs still recommend
+`pip install 'unstructured[all-docs]'` plus system dependencies such as
+`libmagic`, `poppler`, `tesseract`, and `libreoffice` depending on the file
 types you want to process.
 
 ### What "In-house" Means

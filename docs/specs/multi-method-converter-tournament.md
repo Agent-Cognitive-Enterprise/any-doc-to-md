@@ -128,7 +128,7 @@ output_qa/
 |---|---|---|---|
 | MarkItDown | MIT | Broad default, office/general docs | `markitdown input.pdf -o output.md` |
 | Docling | MIT | General high-fidelity (PDF, DOCX, tables) | `docling input.pdf --to md --output ./out` |
-| Unstructured | Apache-2.0 | Broad partitioning baseline; OCR/table-aware ecosystem | subprocess-backed `unstructured.partition.auto.partition()` |
+| Unstructured | Apache-2.0 | Broad partitioning baseline; text-first PDF fallback plus OCR/table-aware ecosystem | subprocess-backed Unstructured partitioners |
 | Marker | GPL-3.0 + model terms | Specialist: complex layout, equations, tables | `marker_single input.pdf --output_format markdown --output_dir ./out` |
 | Pandoc | GPL-2.0+ | Deterministic normaliser for structured formats | `pandoc -f <fmt> -t markdown` |
 | In-house | Internal | First-class candidate; existing converters | existing `pdf_converter`, `html_converter`, etc. |
