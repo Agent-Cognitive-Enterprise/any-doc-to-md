@@ -8,7 +8,7 @@ Use it as directional evidence, not as a universal performance claim.
 - Date: `2026-04-23`
 - Hardware: Intel Core i5-8400, 6 CPU cores, 15 GiB RAM
 - Runtime: PRAI `backend/.venv`
-- Corpus: `/home/user/PycharmProjects/prai/tmp/tournament-test/sources`
+- Corpus (PRAI repo): `tmp/tournament-test/sources`
 - Corpus size: `14` documents, `1505` known PDF pages
 - Audit mode: `light`
 - Adapter concurrency: `max_workers=4`
@@ -29,7 +29,7 @@ It should be read alongside wins, gate pass rate, and adapter speed.
 
 ## Side-By-Side Adapter Totals
 
-Source artifact:
+Generated artifact (local only, not committed):
 `/tmp/adtm-side-by-side-corpus-20260423/matrix.md`
 
 | Adapter | Attempts | Gate passes | Wins | Total pages | Adapter time | Pages/sec | Mean score | Quality tier | Signal |
@@ -81,7 +81,7 @@ Interpretation:
 After adding the PyMuPDF classifier guardrail and removing `pymupdf-layout`, the
 default run was repeated with no explicit adapter list.
 
-Source artifact:
+Generated artifact (local only, not committed):
 `/tmp/adtm-default-inhouse-guardrail-20260423/matrix.md`
 
 | Adapter | Attempts | Gate passes | Wins | Total pages | Adapter time | Pages/sec | Mean score | Quality tier |
@@ -99,7 +99,7 @@ Default smoke result:
 
 ## Reproduce
 
-Run the full side-by-side adapter corpus benchmark:
+If using the PRAI integration, run the full side-by-side adapter corpus benchmark:
 
 ```bash
 PYTHONPATH=backend:packages/any-doc-to-md/src \
@@ -116,7 +116,7 @@ Generate a matrix:
 PYTHONPATH=packages/any-doc-to-md/src \
 backend/.venv/bin/python -m anydoc2md.converter_benchmark_matrix \
   /tmp/adtm-side-by-side-corpus-YYYYMMDD \
-  --sources-dir /home/user/PycharmProjects/prai/tmp/tournament-test/sources \
+  --sources-dir tmp/tournament-test/sources \
   --measured-at YYYY-MM-DD \
   --hardware "describe CPU/RAM/runtime/audit mode/concurrency" \
   --output-json /tmp/adtm-side-by-side-corpus-YYYYMMDD/matrix.json \

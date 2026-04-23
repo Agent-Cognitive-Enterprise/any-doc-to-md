@@ -587,6 +587,24 @@ A dated adapter comparison snapshot is maintained in
 It records the 2026-04-23 side-by-side corpus matrix, hardware context, cost
 context, and reproduction commands.
 
+2026-04-23 corpus snapshot, measured on an Intel Core i5-8400 with 6 CPU cores
+and 15 GiB RAM in `light` audit mode:
+
+Cloud/API cost for this specific table: `$0` on `2026-04-23` (light mode; no
+cloud LLM judge).
+
+| Adapter | Attempts | Gate passes | Wins | Total pages | Adapter time | Pages/sec | Mean score | Recommendation |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| `inhouse` | 14 | 14 | 10 | 1505 | 35.689s | 42.170 | 2.214 | Default |
+| `docling` | 14 | 4 | 4 | 1505 | 1615.241s | 0.932 | 0.000 | First-class optional |
+| `markitdown` | 14 | 12 | 0 | 1505 | 358.270s | 4.201 | 21.000 | Optional |
+| `unstructured` | 14 | 12 | 0 | 1505 | 244.220s | 6.162 | 20.417 | Optional |
+| `pandoc` | 14 | 1 | 0 | 1505 | 2.925s | 514.530 | 0.000 | Optional, limited eligibility |
+| `marker` | 14 | 0 | 0 | 1505 | n/a | n/a | n/a | Not available in this environment |
+
+Smaller `mean_score` is better. This table is date-, hardware-, corpus-, and
+dependency-dependent; provider pricing and cloud costs can change over time.
+
 ## Project-local ADTM state
 
 Host projects can optionally keep project-specific tournament state under a
