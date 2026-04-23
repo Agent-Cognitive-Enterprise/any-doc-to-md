@@ -255,6 +255,20 @@ as benchmark failures when they still fail after the per-issue retry budget is
 exhausted. The JSON output includes both aggregate `tokens_used` and split
 `input_tokens` / `output_tokens` fields when the provider reports them.
 
+To estimate cloud benchmark cost from a benchmark JSON artifact, use the cost
+report helper. Built-in prices are explicitly dated because provider pricing can
+change:
+
+```bash
+PYTHONPATH=src python -m anydoc2md.judge_benchmark_cost_report \
+  /tmp/adtm-judge-concurrency/claude-summary.json \
+  --output-json /tmp/adtm-judge-concurrency/claude-cost.json
+```
+
+For models without built-in pricing, pass `--input-price-per-mtok`,
+`--output-price-per-mtok`, `--priced-at`, and `--price-source-url` so the report
+is auditable.
+
 ### Python
 
 ```python
