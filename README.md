@@ -582,6 +582,11 @@ selectable by explicit adapter list. The default runtime set is intentionally
 back to the default path. This keeps normal conversions fast while preserving
 the full multi-adapter tournament for explicit benchmark or diagnostic runs.
 
+A dated adapter comparison snapshot is maintained in
+[`docs/benchmarks/adapter-corpus-2026-04-23.md`](docs/benchmarks/adapter-corpus-2026-04-23.md).
+It records the 2026-04-23 side-by-side corpus matrix, hardware context, cost
+context, and reproduction commands.
+
 ## Project-local ADTM state
 
 Host projects can optionally keep project-specific tournament state under a
