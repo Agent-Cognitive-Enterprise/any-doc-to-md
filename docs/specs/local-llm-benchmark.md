@@ -100,7 +100,7 @@ Artifacts from this run were written outside git under:
 - `/tmp/adtm-judge-retry-validation/`
 - `/tmp/adtm-judge-qwen36-27b/`
 
-## Cloud Judge Snapshot, 2026-04-22
+## Cloud Judge Snapshot, 2026-04-23
 
 Cloud providers are optional fallbacks for environments where local judge
 quality, latency, or hardware availability is insufficient. They must not
@@ -124,33 +124,59 @@ Measured `find_judge` stability checks, all with `--repeats 3`,
 - OpenAI `gpt-4o-mini`: checklist `3/3`, answer mean `2.81s`, max `3.14s`,
   mean tokens `1656`; freeform `3/3`, answer mean `8.44s`, max `10.14s`, mean
   tokens `878`.
+- OpenAI `gpt-5.1-codex-mini`, using the automatic OpenAI Responses fallback:
+  checklist `3/3`, answer mean `11.00s`, max `13.55s`, mean tokens `2877`;
+  freeform failed on repeat `1/3` by matching `5/8` gold issues with `3` false
+  positives, above the cap of `2`.
+- OpenAI `gpt-5.1-codex`, using the automatic OpenAI Responses fallback:
+  checklist `3/3`, answer mean `7.09s`, max `7.35s`, mean tokens `2303`;
+  freeform failed on repeat `1/3` by matching `5/8` gold issues with `3` false
+  positives, above the cap of `2`.
 - DeepSeek `deepseek-chat`: checklist `3/3`, answer mean `7.98s`, max `8.18s`,
   mean tokens `1739`; freeform `3/3`, answer mean `28.45s`, max `28.93s`, mean
   tokens `1154`.
 
+OpenAI pricing checked on `2026-04-23` for coding-model experiments:
+
+- `gpt-5.1-codex-mini`: `$0.25/MTok` input, `$2.00/MTok` output
+- `gpt-5.1-codex`: `$1.25/MTok` input, `$10.00/MTok` output
+
+Re-check provider pricing before future runs because these prices can change.
+
 Current cloud fallback order:
 
-- Use Claude `claude-haiku-4-5-20251001` as the fastest measured cloud fallback
-  on this probe. For repeated real-PDF issue review, `c=4` is now viable when
-  the provider-aware 429 backoff path is available.
-- Use OpenAI `gpt-4o-mini` as the second measured cloud fallback; it was slower
-  than Haiku but well inside the `120s` production usefulness threshold.
+- Use OpenAI `gpt-4o-mini` as the current measured cloud fallback for the full
+  real-PDF issue-review path; it passed both the probe and the real-PDF gate at
+  low measured cost.
+- Keep Claude `claude-haiku-4-5-20251001` as a viable cloud fallback when
+  Anthropic is preferred operationally; it remained reliable at `c=4` after the
+  provider-aware 429 backoff path was added.
 - Use DeepSeek `deepseek-chat` when DeepSeek is preferred operationally; it
-  passed cleanly but was materially slower on the freeform phase.
+  passed both the probe and the real-PDF gate, but it was materially slower on
+  both the freeform phase and the real-PDF issue-review runs.
+- Do not promote `gpt-5.1-codex-mini` or `gpt-5.1-codex` as current judge
+  defaults for the PDF audit workload. Both reached the OpenAI Responses API
+  correctly, but both failed the hidden freeform gate because they produced too
+  many false positives on the current prompt contract.
 
-## Cloud Real-PDF Issue-Review Snapshot, 2026-04-22
+## Cloud Real-PDF Issue-Review Snapshot, 2026-04-23
 
-This snapshot compares Claude Haiku 4.5 and OpenAI `gpt-4o-mini` against the
-current `.57` local default on the same real-PDF issue-review benchmark cases.
+This snapshot compares Claude Haiku 4.5, OpenAI `gpt-4o-mini`, and DeepSeek
+`deepseek-chat` against the current `.57` local default on the same real-PDF
+issue-review benchmark cases.
 
 Pricing basis:
 
 - Anthropic pricing checked on `2026-04-22`: Claude Haiku 4.5 standard API is
   listed at `$1/MTok` input and `$5/MTok` output. Re-check provider pricing
   before quoting future cost estimates because prices can change.
-- OpenAI pricing checked on `2026-04-22`: `gpt-4o-mini` standard API is listed
+- OpenAI pricing checked on `2026-04-23`: `gpt-4o-mini` standard API is listed
   at `$0.15/MTok` input and `$0.60/MTok` output. Re-check provider pricing
   before quoting future cost estimates because prices can change.
+- DeepSeek pricing checked on `2026-04-23`: `deepseek-chat` is listed at
+  `$0.27/MTok` input for cache misses and `$1.10/MTok` output. Cache-hit input
+  pricing is lower, but the benchmark cost helper uses cache-miss pricing for
+  one-off benchmark estimates unless a caller supplies different pricing.
 - The benchmark now records input and output tokens separately when providers
   expose those usage fields. Cost estimates below use the recorded split token
   usage and do not include any provider dashboard rounding or unrelated usage.
@@ -191,7 +217,15 @@ Measured outcome:
 - OpenAI `gpt-4o-mini`, three representative PDFs at `c=4`, `r=1`: passed
   `3/3`, mean `10.878s`, min `10.353s`, max `11.563s`, total tokens `50,488`,
   input tokens `44,469`, output tokens `6,019`. Estimated token cost with
-  prices checked on `2026-04-22`: `$0.010281`.
+  prices checked on `2026-04-23`: `$0.010281`.
+- DeepSeek `deepseek-chat`, clinical PDF at `c=4`, `r=3`: passed `3/3`, mean
+  `21.726s`, min `21.198s`, max `21.995s`, total tokens `48,636`, input tokens
+  `43,098`, output tokens `5,538`. Estimated token cost with prices checked on
+  `2026-04-23`: `$0.017728`.
+- DeepSeek `deepseek-chat`, three representative PDFs at `c=4`, `r=1`: passed
+  `3/3`, mean `23.512s`, min `22.193s`, max `24.646s`, total tokens `50,831`,
+  input tokens `44,589`, output tokens `6,242`. Estimated token cost with
+  prices checked on `2026-04-23`: `$0.018905`.
 
 Comparison against `.57` local default:
 
@@ -206,6 +240,10 @@ Comparison against `.57` local default:
   Claude on these real-PDF issue-review runs, with lower estimated token spend.
   The local default remains the product default because it preserves offline
   operation and avoids per-call cloud spend.
+- DeepSeek `deepseek-chat` at `c=4` was reliable on the measured real-PDF path,
+  but slower than both OpenAI `gpt-4o-mini` and Claude on these runs while
+  still incurring cloud spend. Its estimated cost remained low, but it does not
+  currently beat `gpt-4o-mini` on the combined speed-and-cost tradeoff.
 
 Current recommendation:
 
@@ -217,6 +255,9 @@ Current recommendation:
   when Claude is operationally preferred, provided the 429 backoff path is
   available. Use `c=2` if an Anthropic account still cannot sustain the `c=4`
   token/request burst.
+- Use DeepSeek `deepseek-chat` at `c=4` only when DeepSeek is preferred
+  operationally; the measured path was reliable, but slower than the current
+  OpenAI fallback on this workload.
 - Keep using provider billing data as the final cost source. The benchmark's
   split token accounting is suitable for per-run estimates and model
   comparison, but provider invoices may include rounding, caching, or unrelated

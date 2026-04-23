@@ -181,6 +181,13 @@ python -m anydoc2md.find_judge \
 The same pattern works for `deepseek` with `DEEPSEEK_API_KEY` and `claude` with
 `CLAUDE_API_KEY`.
 
+For `--judge-provider openai`, the judge client starts with
+`/v1/chat/completions` and automatically retries through `/v1/responses` when
+OpenAI reports that the selected model is not a chat-completions model. This is
+required for some Codex-oriented models. The default judge temperature is
+omitted on the Responses fallback unless you explicitly override it because some
+Responses-only models reject a `temperature` parameter.
+
 The first repeat is reported as `load+answer`, which captures model-switch or
 on-demand load time when the endpoint loads models lazily. Later repeats are
 used to estimate steady answer time. The live progress output includes elapsed
@@ -626,7 +633,8 @@ Optional environment variables:
 Provider defaults:
 
 - `lm_studio`: OpenAI-compatible chat completions at `ANYDOC2MD_JUDGE_URL`
-- `openai`: `https://api.openai.com/v1`
+- `openai`: `https://api.openai.com/v1`; the client automatically falls back to
+  `/v1/responses` for OpenAI models that reject `/v1/chat/completions`
 - `deepseek`: `https://api.deepseek.com/v1`
 - `claude`: `https://api.anthropic.com/v1/messages`
 

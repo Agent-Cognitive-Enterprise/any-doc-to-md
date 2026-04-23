@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from anydoc2md.llm_judge import _call_lm_studio
 from anydoc2md.settings import (
@@ -29,6 +30,15 @@ def _response(payload: dict) -> MagicMock:
     mock = MagicMock()
     mock.json.return_value = payload
     mock.raise_for_status = MagicMock()
+    return mock
+
+
+def _error_response(status_code: int, payload: dict) -> MagicMock:
+    mock = MagicMock()
+    mock.status_code = status_code
+    mock.json.return_value = payload
+    mock.text = str(payload)
+    mock.raise_for_status.side_effect = requests.HTTPError(response=mock)
     return mock
 
 
@@ -208,3 +218,94 @@ def test_claude_request_uses_messages_api_headers_and_token_sum() -> None:
     assert tokens == 16
     assert result.input_tokens == 11
     assert result.output_tokens == 5
+
+
+def test_openai_responses_only_model_falls_back_to_responses_api() -> None:
+    settings = JudgeSettings(
+        url=DEFAULT_OPENAI_JUDGE_URL,
+        model="gpt-5.1-codex-mini",
+        provider=JUDGE_PROVIDER_OPENAI,
+        api_key="sk-openai-test",
+    )
+    chat_404 = _error_response(
+        404,
+        {
+            "error": {
+                "message": (
+                    "This model is only supported in v1/responses "
+                    "and not in v1/chat/completions."
+                )
+            }
+        },
+    )
+    responses_ok = _response(
+        {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": '{"ok": true}'}],
+                }
+            ],
+            "usage": {"input_tokens": 24, "output_tokens": 72, "total_tokens": 96},
+        }
+    )
+
+    with patch("anydoc2md.llm_judge.requests") as mock_requests:
+        mock_requests.post.side_effect = [chat_404, responses_ok]
+        result = _call_lm_studio("sys", "user", settings)
+        text, tokens = result
+
+    first_url = mock_requests.post.call_args_list[0].args[0]
+    second_url = mock_requests.post.call_args_list[1].args[0]
+    assert first_url == "https://api.openai.com/v1/chat/completions"
+    assert second_url == "https://api.openai.com/v1/responses"
+    assert text == '{"ok": true}'
+    assert tokens == 96
+    assert result.input_tokens == 24
+    assert result.output_tokens == 72
+
+
+def test_openai_not_chat_model_falls_back_to_responses_api() -> None:
+    settings = JudgeSettings(
+        url=DEFAULT_OPENAI_JUDGE_URL,
+        model="gpt-5.1-codex",
+        provider=JUDGE_PROVIDER_OPENAI,
+        api_key="sk-openai-test",
+    )
+    chat_404 = _error_response(
+        404,
+        {
+            "error": {
+                "message": (
+                    "This is not a chat model and thus not supported in the "
+                    "v1/chat/completions endpoint. Did you mean to use "
+                    "v1/completions?"
+                )
+            }
+        },
+    )
+    responses_ok = _response(
+        {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": '{"ok": true}'}],
+                }
+            ],
+            "usage": {"input_tokens": 40, "output_tokens": 56, "total_tokens": 96},
+        }
+    )
+
+    with patch("anydoc2md.llm_judge.requests") as mock_requests:
+        mock_requests.post.side_effect = [chat_404, responses_ok]
+        result = _call_lm_studio("sys", "user", settings)
+        text, tokens = result
+
+    first_url = mock_requests.post.call_args_list[0].args[0]
+    second_url = mock_requests.post.call_args_list[1].args[0]
+    assert first_url == "https://api.openai.com/v1/chat/completions"
+    assert second_url == "https://api.openai.com/v1/responses"
+    assert text == '{"ok": true}'
+    assert tokens == 96
+    assert result.input_tokens == 40
+    assert result.output_tokens == 56

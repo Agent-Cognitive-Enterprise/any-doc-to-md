@@ -54,8 +54,10 @@ from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import DocumentTraits
 from anydoc2md.settings import (
     AnyDocToMdConfigError,
+    DEFAULT_JUDGE_TEMPERATURE,
     JUDGE_PROVIDER_CLAUDE,
     JUDGE_PROVIDER_LM_STUDIO,
+    JUDGE_PROVIDER_OPENAI,
     JudgeSettings,
     load_judge_settings_from_env,
 )
@@ -107,6 +109,8 @@ def _call_openai_compatible(
         headers=headers,
         timeout=settings.timeout_s,
     )
+    if _should_use_openai_responses_api(resp=resp, settings=settings):
+        return _call_openai_responses(system, user, settings)
     resp.raise_for_status()
     data = resp.json()
 
@@ -124,6 +128,67 @@ def _call_openai_compatible(
         tokens_used=tokens,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+    )
+
+
+def _call_openai_responses(
+    system: str,
+    user: str,
+    settings: JudgeSettings,
+) -> JudgeCallResult:
+    """Send a request to the OpenAI Responses API."""
+    payload = {
+        "model": settings.model,
+        "input": [
+            {
+                "role": "system",
+                "content": [{"type": "input_text", "text": system}],
+            },
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": user}],
+            },
+        ],
+        "max_output_tokens": settings.max_tokens,
+    }
+    if settings.temperature != DEFAULT_JUDGE_TEMPERATURE:
+        payload["temperature"] = settings.temperature
+    headers = {"Content-Type": "application/json"}
+    if settings.api_key:
+        headers["Authorization"] = f"Bearer {settings.api_key}"
+
+    resp = _post_openai_responses(payload=payload, headers=headers, settings=settings)
+    if _should_retry_openai_responses_without_temperature(resp=resp, payload=payload):
+        retry_payload = dict(payload)
+        retry_payload.pop("temperature", None)
+        resp = _post_openai_responses(payload=retry_payload, headers=headers, settings=settings)
+    resp.raise_for_status()
+    data = resp.json()
+    usage = data.get("usage", {})
+    input_tokens = _int_usage_value(usage.get("input_tokens", 0))
+    output_tokens = _int_usage_value(usage.get("output_tokens", 0))
+    total_tokens = _int_usage_value(usage.get("total_tokens", input_tokens + output_tokens))
+    if total_tokens == 0:
+        total_tokens = input_tokens + output_tokens
+    return JudgeCallResult(
+        text=_responses_output_text(data),
+        tokens_used=total_tokens,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
+
+
+def _post_openai_responses(
+    *,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    settings: JudgeSettings,
+) -> requests.Response:
+    return requests.post(
+        f"{settings.url.rstrip('/')}/responses",
+        json=payload,
+        headers=headers,
+        timeout=settings.timeout_s,
     )
 
 
@@ -191,6 +256,57 @@ def _message_content_text(content: Any) -> str:
             if isinstance(part, dict)
         )
     return "" if content is None else str(content)
+
+
+def _responses_output_text(data: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for output_item in data.get("output", []):
+        if not isinstance(output_item, dict) or output_item.get("type") != "message":
+            continue
+        for content_item in output_item.get("content", []):
+            if not isinstance(content_item, dict):
+                continue
+            if content_item.get("type") == "output_text":
+                parts.append(str(content_item.get("text", "")))
+    return "".join(parts)
+
+
+def _should_use_openai_responses_api(
+    *,
+    resp: requests.Response,
+    settings: JudgeSettings,
+) -> bool:
+    if settings.provider != JUDGE_PROVIDER_OPENAI or resp.status_code != 404:
+        return False
+    try:
+        data = resp.json()
+    except ValueError:
+        return False
+    error = data.get("error", {})
+    if not isinstance(error, dict):
+        return False
+    message = str(error.get("message", "")).lower()
+    if "only supported in v1/responses" in message and "v1/chat/completions" in message:
+        return True
+    return "not a chat model" in message and "v1/chat/completions" in message
+
+
+def _should_retry_openai_responses_without_temperature(
+    *,
+    resp: requests.Response,
+    payload: dict[str, Any],
+) -> bool:
+    if resp.status_code != 400 or "temperature" not in payload:
+        return False
+    try:
+        data = resp.json()
+    except ValueError:
+        return False
+    error = data.get("error", {})
+    if not isinstance(error, dict):
+        return False
+    message = str(error.get("message", "")).lower()
+    return "unsupported parameter" in message and "temperature" in message
 
 
 def _int_usage_value(value: Any) -> int:

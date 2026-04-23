@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 
 from anydoc2md.judge_benchmark_cost import (
+    DEEPSEEK_PRICE_CHECKED_DATE,
+    OPENAI_PRICE_CHECKED_DATE,
     PRICE_CHECKED_DATE,
     custom_model_price,
     estimate_benchmark_cost,
@@ -59,7 +61,59 @@ def test_estimates_openai_cost_from_summary_when_attempts_absent(tmp_path: Path)
     report = estimate_benchmark_cost(path)
 
     assert report.attempt_count == 2
+    assert report.priced_at == OPENAI_PRICE_CHECKED_DATE
     assert float(report.total_cost_usd) == 0.045
+
+
+def test_estimates_deepseek_cost_from_builtin_price(tmp_path: Path) -> None:
+    path = tmp_path / "benchmark.json"
+    _write_benchmark(
+        path,
+        {
+            "judge_provider": "deepseek",
+            "judge_model": "deepseek-chat",
+            "attempts": [{"input_tokens": 100000, "output_tokens": 50000}],
+        },
+    )
+
+    report = estimate_benchmark_cost(path)
+
+    assert report.priced_at == DEEPSEEK_PRICE_CHECKED_DATE
+    assert float(report.total_cost_usd) == 0.082
+
+
+def test_estimates_codex_mini_cost_from_builtin_price(tmp_path: Path) -> None:
+    path = tmp_path / "benchmark.json"
+    _write_benchmark(
+        path,
+        {
+            "judge_provider": "openai",
+            "judge_model": "gpt-5.1-codex-mini",
+            "attempts": [{"input_tokens": 100000, "output_tokens": 50000}],
+        },
+    )
+
+    report = estimate_benchmark_cost(path)
+
+    assert report.priced_at == OPENAI_PRICE_CHECKED_DATE
+    assert float(report.total_cost_usd) == 0.125
+
+
+def test_estimates_codex_cost_from_builtin_price(tmp_path: Path) -> None:
+    path = tmp_path / "benchmark.json"
+    _write_benchmark(
+        path,
+        {
+            "judge_provider": "openai",
+            "judge_model": "gpt-5.1-codex",
+            "attempts": [{"input_tokens": 100000, "output_tokens": 50000}],
+        },
+    )
+
+    report = estimate_benchmark_cost(path)
+
+    assert report.priced_at == OPENAI_PRICE_CHECKED_DATE
+    assert float(report.total_cost_usd) == 0.625
 
 
 def test_custom_price_requires_dated_source(tmp_path: Path) -> None:
@@ -106,5 +160,5 @@ def test_cli_writes_cost_report_json(tmp_path: Path) -> None:
 
     assert rc == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["priced_at"] == PRICE_CHECKED_DATE
+    assert payload["priced_at"] == OPENAI_PRICE_CHECKED_DATE
     assert payload["total_cost_usd"] == 0.00075

@@ -8,8 +8,13 @@ from pathlib import Path
 from typing import Any
 
 OPENAI_PRICING_URL = "https://platform.openai.com/docs/models/gpt-4o-mini"
+OPENAI_CODEX_PRICING_URL = "https://platform.openai.com/docs/models/gpt-5.1-codex"
+OPENAI_CODEX_MINI_PRICING_URL = "https://platform.openai.com/docs/models/gpt-5.1-codex-mini"
 ANTHROPIC_PRICING_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
+DEEPSEEK_PRICING_URL = "https://api-docs.deepseek.com/quick_start/pricing-details-usd/"
 PRICE_CHECKED_DATE = "2026-04-22"
+OPENAI_PRICE_CHECKED_DATE = "2026-04-23"
+DEEPSEEK_PRICE_CHECKED_DATE = "2026-04-23"
 _ONE_MILLION = Decimal("1000000")
 _USD_QUANT = Decimal("0.000001")
 
@@ -88,9 +93,39 @@ DEFAULT_JUDGE_MODEL_PRICES = (
         model_match="gpt-4o-mini",
         input_usd_per_mtok=Decimal("0.15"),
         output_usd_per_mtok=Decimal("0.60"),
-        priced_at=PRICE_CHECKED_DATE,
+        priced_at=OPENAI_PRICE_CHECKED_DATE,
         source_url=OPENAI_PRICING_URL,
         notes="OpenAI standard API token pricing; excludes Batch discounts.",
+    ),
+    JudgeModelPrice(
+        provider="openai",
+        model_match="gpt-5.1-codex-mini",
+        input_usd_per_mtok=Decimal("0.25"),
+        output_usd_per_mtok=Decimal("2.00"),
+        priced_at=OPENAI_PRICE_CHECKED_DATE,
+        source_url=OPENAI_CODEX_MINI_PRICING_URL,
+        notes="OpenAI standard API token pricing; excludes Batch discounts.",
+    ),
+    JudgeModelPrice(
+        provider="openai",
+        model_match="gpt-5.1-codex",
+        input_usd_per_mtok=Decimal("1.25"),
+        output_usd_per_mtok=Decimal("10.00"),
+        priced_at=OPENAI_PRICE_CHECKED_DATE,
+        source_url=OPENAI_CODEX_PRICING_URL,
+        notes="OpenAI standard API token pricing; excludes Batch discounts.",
+    ),
+    JudgeModelPrice(
+        provider="deepseek",
+        model_match="deepseek-chat",
+        input_usd_per_mtok=Decimal("0.27"),
+        output_usd_per_mtok=Decimal("1.10"),
+        priced_at=DEEPSEEK_PRICE_CHECKED_DATE,
+        source_url=DEEPSEEK_PRICING_URL,
+        notes=(
+            "DeepSeek cache-miss input pricing for one-off requests; "
+            "cache-hit pricing is lower but not assumed here."
+        ),
     ),
 )
 
