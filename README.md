@@ -509,8 +509,10 @@ Current tournament adapters:
 
 Adapter selection policy:
 
-- default behavior: run all implemented adapters
+- default behavior: run `inhouse` only
 - explicit adapter list: run exactly the adapters requested by the host project or user
+- benchmark/all-adapter runs: pass an explicit all-adapter list from
+  `available_adapter_names()` or use the parent PRAI script's `--adapters all`
 - adapter failures such as missing CLIs are treated as candidate-level failures, not fatal tournament errors
 
 External tools used:
@@ -573,9 +575,12 @@ The external adapters are useful as competing opinions in the tournament.
 The in-house path is useful as the package-controlled baseline.
 
 `pandoc` and `marker` are implemented adapters, not second-class placeholders.
-By design, the default tournament policy should run all implemented adapters.
-Hosts that want tighter control should pass an explicit adapter list instead of
-relying on a partial default set.
+`markitdown`, `docling`, `unstructured`, `pandoc`, and `marker` remain
+first-class optional adapters: they are documented, tested, benchmarkable, and
+selectable by explicit adapter list. The default runtime set is intentionally
+`inhouse` only until dated benchmark evidence justifies adding another adapter
+back to the default path. This keeps normal conversions fast while preserving
+the full multi-adapter tournament for explicit benchmark or diagnostic runs.
 
 ## Project-local ADTM state
 

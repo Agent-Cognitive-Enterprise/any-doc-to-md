@@ -25,7 +25,9 @@ Implemented today:
 - classifier heuristics
 - `inhouse`, `markitdown`, `docling`, `unstructured`, `pandoc`, and `marker`
   adapters
-- adapter-selection policy where the default tournament runs all implemented adapters unless the host passes an explicit adapter list
+- adapter-selection policy where the default runtime set is `inhouse` only and
+  every implemented external adapter remains first-class optional through
+  explicit adapter lists
 - parallel tournament runner
 - hard gates for missing/empty output, broken image refs, charset plausibility, and sampled PDF text coverage
 - weighted programmatic QA scoring
@@ -125,18 +127,21 @@ output_qa/
 
 ### Implemented adapters
 
-| Converter | License | Primary use case | CLI |
-|---|---|---|---|
-| MarkItDown | MIT | Broad default, office/general docs | `markitdown input.pdf -o output.md` |
-| Docling | MIT | General high-fidelity (PDF, DOCX, tables) | `docling input.pdf --to md --output ./out` |
-| Unstructured | Apache-2.0 | Broad partitioning baseline; text-first PDF fallback plus OCR/table-aware ecosystem | subprocess-backed Unstructured partitioners |
-| Marker | GPL-3.0 + model terms | Specialist: complex layout, equations, tables | `marker_single input.pdf --output_format markdown --output_dir ./out` |
-| Pandoc | GPL-2.0+ | Deterministic normaliser for structured formats | `pandoc -f <fmt> -t markdown` |
-| In-house | Internal | First-class candidate; existing converters | existing `pdf_converter`, `html_converter`, etc. |
+| Converter | Status | License | Primary use case | CLI |
+|---|---|---|---|---|
+| In-house | default | Internal | First-class baseline; existing converters | existing `pdf_converter`, `html_converter`, etc. |
+| MarkItDown | first-class optional | MIT | Text-oriented broad converter; useful as explicit fallback | `markitdown input.pdf -o output.md` |
+| Docling | first-class optional | MIT | General high-fidelity (PDF, DOCX, tables); benchmark showed wins but large-PDF cost needs routing/caps | `docling input.pdf --to md --output ./out` |
+| Unstructured | first-class optional | Apache-2.0 | Broad partitioning baseline; text-first PDF fallback plus OCR/table-aware ecosystem | subprocess-backed Unstructured partitioners |
+| Marker | first-class optional | GPL-3.0 + model terms | Specialist: complex layout, equations, tables | `marker_single input.pdf --output_format markdown --output_dir ./out` |
+| Pandoc | first-class optional/routed | GPL-2.0+ | Deterministic normaliser for structured formats | `pandoc -f <fmt> -t markdown` |
 
-Default selection behavior should use every implemented adapter above.
-If a host project or user passes an explicit adapter list, the tournament should
-run exactly that list instead.
+Default selection behavior currently uses `inhouse` only. This is an evidence
+based runtime default from the 2026-04-23 matrix, not a demotion of the other
+adapters. If a host project or user passes an explicit adapter list, the
+tournament runs exactly that list instead. Benchmark workflows should pass an
+explicit full list from `available_adapter_names()`; PRAI's corpus script also
+accepts `--adapters all` for this purpose.
 
 ### Planned adapters
 

@@ -33,9 +33,11 @@ from anydoc2md.format_converters.adapters.base import (
 )
 from anydoc2md.format_converters.adapters import docling, inhouse, markitdown, marker, pandoc
 from anydoc2md.format_converters.tournament.runner import (
+    DEFAULT_ADAPTERS,
     _ADAPTER_MODULES,
     _load_adapter,
     available_adapter_names,
+    default_adapter_names,
     run_tournament,
 )
 
@@ -383,13 +385,17 @@ class TestTournamentRunnerRegistry:
     def test_available_adapter_names_matches_registry_order(self) -> None:
         assert available_adapter_names() == list(_ADAPTER_MODULES)
 
+    def test_default_adapter_names_is_inhouse_only(self) -> None:
+        assert DEFAULT_ADAPTERS == ["inhouse"]
+        assert default_adapter_names() == ["inhouse"]
+
 
 # =========================================================================== #
 # Tournament runner
 # =========================================================================== #
 
 class TestTournamentRunner:
-    def test_default_selection_runs_all_implemented_adapters(self, tmp_path: Path) -> None:
+    def test_default_selection_runs_default_adapters_only(self, tmp_path: Path) -> None:
         src = _txt_source(tmp_path)
         calls: list[str] = []
 
@@ -417,10 +423,10 @@ class TestTournamentRunner:
         ):
             results = run_tournament(src, tmp_path / "staging", adapters=None)
 
-        assert sorted(calls) == sorted(available_adapter_names())
-        assert {r.method_name for r in results} == set(available_adapter_names())
+        assert calls == default_adapter_names()
+        assert {r.method_name for r in results} == set(default_adapter_names())
 
-    def test_runs_all_adapters(self, tmp_path: Path) -> None:
+    def test_explicit_adapter_list_runs_exactly_requested_adapters(self, tmp_path: Path) -> None:
         src = _txt_source(tmp_path)
         results = run_tournament(src, tmp_path / "staging", adapters=["inhouse"])
         assert len(results) == 1

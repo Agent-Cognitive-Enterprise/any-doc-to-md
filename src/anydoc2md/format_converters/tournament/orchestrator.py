@@ -32,7 +32,7 @@ from anydoc2md.format_converters.classification.classify_document import (
     classify,
 )
 from anydoc2md.format_converters.tournament.runner import (
-    available_adapter_names,
+    default_adapter_names,
     run_tournament,
 )
 from anydoc2md.format_converters.tournament.audit import (
@@ -131,7 +131,7 @@ def run_full_tournament(
         source_path:        Source document to convert.
         staging_root:       Root dir; each adapter writes to staging_root/{name}/;
                             winner is promoted to staging_root/winner/.
-        adapters:           Adapter names to run (default: all implemented adapters).
+        adapters:           Adapter names to run (default: inhouse only).
         near_tie_threshold: Score delta retained for backward-compatible ranking metadata.
         judge_settings:     Optional explicit settings for the LLM audit.
         audit_mode:         "auto" uses the judge when configured, otherwise
@@ -144,7 +144,7 @@ def run_full_tournament(
     Returns:
         TournamentResult.  Never raises — failures are captured in result fields.
     """
-    adapter_names = adapters or available_adapter_names()
+    adapter_names = adapters or default_adapter_names()
     normalized_audit_mode = normalize_audit_mode(audit_mode)
     staging_root.mkdir(parents=True, exist_ok=True)
 

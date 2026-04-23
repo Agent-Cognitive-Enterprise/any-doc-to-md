@@ -4,11 +4,7 @@ Tournament runner — run N adapters against one source document in parallel.
 Usage:
     from anydoc2md.format_converters.tournament.runner import run_tournament
 
-    results = run_tournament(
-        source_path,
-        staging_root,
-        adapters=["inhouse", "markitdown", "docling"],
-    )
+    results = run_tournament(source_path, staging_root)
     for r in results:
         print(r.method_name, r.status, r.timing_ms, "ms", len(r.markdown_text), "chars")
 """
@@ -37,7 +33,12 @@ def available_adapter_names() -> list[str]:
     return list(_ADAPTER_MODULES)
 
 
-DEFAULT_ADAPTERS = available_adapter_names()
+DEFAULT_ADAPTERS = ["inhouse"]
+
+
+def default_adapter_names() -> list[str]:
+    """Return adapters used when the caller does not request an explicit set."""
+    return list(DEFAULT_ADAPTERS)
 
 
 def run_tournament(
@@ -55,7 +56,7 @@ def run_tournament(
         source_path:  Source document to convert.
         staging_root: Root under which per-method dirs are created:
                       staging_root/{method_name}/
-        adapters:     List of adapter names to run (default: all implemented adapters).
+        adapters:     List of adapter names to run (default: inhouse only).
         timeout_s:    Per-adapter subprocess timeout (passed to each adapter).
         max_workers:  Thread pool size for parallel execution.
 
@@ -63,7 +64,7 @@ def run_tournament(
         List of AdapterResult, one per adapter, in completion order.
         Failed adapters produce error AdapterResults (status != "ok") — never raise.
     """
-    names = adapters or available_adapter_names()
+    names = adapters or default_adapter_names()
     results: list[AdapterResult] = []
 
     def _run_one(name: str) -> AdapterResult:

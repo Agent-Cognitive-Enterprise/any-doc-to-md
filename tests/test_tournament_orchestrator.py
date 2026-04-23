@@ -193,14 +193,14 @@ class TestTournamentResultContract:
 
 
 class TestOrchestratorFlow:
-    def test_default_selection_uses_all_implemented_adapters(self, tmp_path: Path) -> None:
+    def test_default_selection_uses_default_adapters(self, tmp_path: Path) -> None:
         source_path = tmp_path / "doc.pdf"
         staging_root = tmp_path / "staging"
         source_path.write_bytes(b"%PDF-1.4")
         selection = _selection("inhouse")
         audit_result = _audit_result(winner="inhouse", verdict=_verdict("inhouse"))
 
-        with patch(f"{MOCK_BASE}.available_adapter_names", return_value=["inhouse", "markitdown", "docling", "pandoc", "marker"]) as adapters_mock, \
+        with patch(f"{MOCK_BASE}.default_adapter_names", return_value=["inhouse"]) as adapters_mock, \
              patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
              patch(f"{MOCK_BASE}.run_tournament", return_value=[]) as tournament_mock, \
              patch(f"{MOCK_BASE}.select_candidate", return_value=selection) as selector_mock, \
@@ -217,16 +217,51 @@ class TestOrchestratorFlow:
         tournament_mock.assert_called_once_with(
             source_path,
             staging_root,
-            ["inhouse", "markitdown", "docling", "pandoc", "marker"],
+            ["inhouse"],
             timeout_s=600,
         )
         selector_mock.assert_called_once_with(
             source_path,
             staging_root,
-            ["inhouse", "markitdown", "docling", "pandoc", "marker"],
+            ["inhouse"],
             near_tie_threshold=NEAR_TIE_THRESHOLD,
         )
         audit_mock.assert_called_once()
+
+    def test_explicit_adapters_remain_first_class_selectable(self, tmp_path: Path) -> None:
+        source_path = tmp_path / "doc.pdf"
+        staging_root = tmp_path / "staging"
+        source_path.write_bytes(b"%PDF-1.4")
+        adapters = ["inhouse", "docling", "markitdown", "unstructured"]
+        selection = _selection("inhouse")
+        audit_result = _audit_result(winner="inhouse", verdict=_verdict("inhouse"))
+
+        with patch(f"{MOCK_BASE}.default_adapter_names") as default_mock, \
+             patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament", return_value=[]) as tournament_mock, \
+             patch(f"{MOCK_BASE}.select_candidate", return_value=selection) as selector_mock, \
+             patch(f"{MOCK_BASE}.run_post_selection_audit_loop", return_value=audit_result):
+            run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=adapters,
+                judge_settings=_judge_settings(),
+                promote=False,
+            )
+
+        default_mock.assert_not_called()
+        tournament_mock.assert_called_once_with(
+            source_path,
+            staging_root,
+            adapters,
+            timeout_s=600,
+        )
+        selector_mock.assert_called_once_with(
+            source_path,
+            staging_root,
+            adapters,
+            near_tie_threshold=NEAR_TIE_THRESHOLD,
+        )
 
     def test_audit_loop_winner_becomes_final_winner(self, tmp_path: Path) -> None:
         selection = _selection("docling", "docling", "inhouse")
@@ -315,7 +350,7 @@ class TestOrchestratorFlow:
         source_path.write_bytes(b"%PDF-1.4")
         selection = _selection("inhouse", "docling")
 
-        with patch(f"{MOCK_BASE}.available_adapter_names", return_value=["inhouse", "docling"]), \
+        with patch(f"{MOCK_BASE}.default_adapter_names", return_value=["inhouse"]), \
              patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
              patch(f"{MOCK_BASE}.run_tournament", return_value=[]), \
              patch(f"{MOCK_BASE}.select_candidate", return_value=selection), \
