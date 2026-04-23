@@ -26,6 +26,7 @@ _ADAPTER_MODULES: dict[str, str] = {
     "inhouse":    "anydoc2md.format_converters.adapters.inhouse",
     "markitdown": "anydoc2md.format_converters.adapters.markitdown",
     "docling":    "anydoc2md.format_converters.adapters.docling",
+    "unstructured": "anydoc2md.format_converters.adapters.unstructured",
     "pandoc":     "anydoc2md.format_converters.adapters.pandoc",
     "marker":     "anydoc2md.format_converters.adapters.marker",
 }

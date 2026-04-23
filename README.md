@@ -485,6 +485,7 @@ Current tournament adapters:
 - `inhouse`
 - `markitdown`
 - `docling`
+- `unstructured`
 - `pandoc`
 - `marker`
 
@@ -501,6 +502,7 @@ External tools used:
 | `inhouse` | none beyond Python libraries used internally | direct Python call | PDF, DOCX, HTML, TXT |
 | `markitdown` | `markitdown` CLI | subprocess | PDF, DOCX, PPTX, XLSX, HTML, TXT, EPUB, ZIP |
 | `docling` | `docling` CLI | subprocess | PDF, DOCX, PPTX, XLSX, HTML, Markdown, AsciiDoc, TXT |
+| `unstructured` | `unstructured` Python package | subprocess-backed Python module | PDF, DOCX, PPTX, XLSX, HTML, TXT, Markdown, RTF, EPUB, XML, JSON, CSV, TSV |
 | `pandoc` | `pandoc` CLI | subprocess | HTML, DOCX, Markdown, TXT, RST, AsciiDoc |
 | `marker` | `marker_single` CLI | subprocess | PDF |
 
@@ -514,17 +516,22 @@ and `adapter_result.json`) so the tournament can score and audit them uniformly.
 The main differences are the conversion engine, image extraction behavior, and
 dependency footprint.
 
-| Dimension | `inhouse` | `markitdown` | `docling` | `pandoc` | `marker` |
-|---|---|---|---|---|---|
-| Execution model | direct Python modules | external CLI via subprocess | external CLI via subprocess | external CLI via subprocess | external CLI via subprocess |
-| Normal output shape | already aimed at package staging layout | flat Markdown output, adapter writes `index.md` | `<stem>.md` + artifacts dir, adapter normalizes to `index.md` + `images/` | adapter writes `index.md` | marker output normalized into `index.md` + `images/` |
-| Image handling | package-native staging + image-dimension annotation when images are present | typically no extracted image files; `images/` often empty | exports referenced image files and adapter rewrites them into `images/` | does not extract images; creates `images/` but leaves it empty | extracts images for PDFs and rewrites paths into `images/` |
-| Dependency surface | only the package + Python libs | requires installed `markitdown` CLI | requires installed `docling` CLI | requires installed `pandoc` CLI | requires installed `marker_single` CLI |
-| Failure mode | Python exception becomes structured adapter error | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI |
-| Main strength | tight integration and predictable staging semantics | broad input support and simple CLI contract | strong document-structure and image-export behavior | deterministic normalizer for text-centric formats | strong layout retention for PDFs |
+| Dimension | `inhouse` | `markitdown` | `docling` | `unstructured` | `pandoc` | `marker` |
+|---|---|---|---|---|---|---|
+| Execution model | direct Python modules | external CLI via subprocess | external CLI via subprocess | subprocess-backed Python module | external CLI via subprocess | external CLI via subprocess |
+| Normal output shape | already aimed at package staging layout | flat Markdown output, adapter writes `index.md` | `<stem>.md` + artifacts dir, adapter normalizes to `index.md` + `images/` | ordered elements rendered back into `index.md` | adapter writes `index.md` | marker output normalized into `index.md` + `images/` |
+| Image handling | package-native staging + image-dimension annotation when images are present | typically no extracted image files; `images/` often empty | exports referenced image files and adapter rewrites them into `images/` | does not currently extract image files; `images/` stays empty | does not extract images; creates `images/` but leaves it empty | extracts images for PDFs and rewrites paths into `images/` |
+| Dependency surface | only the package + Python libs | requires installed `markitdown` CLI | requires installed `docling` CLI | requires `unstructured[all-docs]` plus upstream system deps for some formats | requires installed `pandoc` CLI | requires installed `marker_single` CLI |
+| Failure mode | Python exception becomes structured adapter error | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing package | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI |
+| Main strength | tight integration and predictable staging semantics | broad input support and simple CLI contract | strong document-structure and image-export behavior | broad partitioning coverage and table/OCR-oriented ecosystem | deterministic normalizer for text-centric formats | strong layout retention for PDFs |
 
 Note: `pandoc` and `marker` are GPL-licensed external tools. Review their terms
 before enabling them in commercial or redistributable pipelines.
+
+Note: `unstructured` is now an experimental implemented adapter. Upstream docs
+recommend `pip install 'unstructured[all-docs]'` plus system dependencies such
+as `libmagic`, `poppler`, `tesseract`, and `libreoffice` depending on the file
+types you want to process.
 
 ### What "In-house" Means
 

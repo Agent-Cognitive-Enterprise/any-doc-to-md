@@ -23,7 +23,8 @@ Implemented today:
 
 - shared `AdapterResult` contract
 - classifier heuristics
-- `inhouse`, `markitdown`, `docling`, `pandoc`, and `marker` adapters
+- `inhouse`, `markitdown`, `docling`, `unstructured`, `pandoc`, and `marker`
+  adapters
 - adapter-selection policy where the default tournament runs all implemented adapters unless the host passes an explicit adapter list
 - parallel tournament runner
 - hard gates for missing/empty output, broken image refs, charset plausibility, and sampled PDF text coverage
@@ -127,6 +128,7 @@ output_qa/
 |---|---|---|---|
 | MarkItDown | MIT | Broad default, office/general docs | `markitdown input.pdf -o output.md` |
 | Docling | MIT | General high-fidelity (PDF, DOCX, tables) | `docling input.pdf --to md --output ./out` |
+| Unstructured | Apache-2.0 | Broad partitioning baseline; OCR/table-aware ecosystem | subprocess-backed `unstructured.partition.auto.partition()` |
 | Marker | GPL-3.0 + model terms | Specialist: complex layout, equations, tables | `marker_single input.pdf --output_format markdown --output_dir ./out` |
 | Pandoc | GPL-2.0+ | Deterministic normaliser for structured formats | `pandoc -f <fmt> -t markdown` |
 | In-house | Internal | First-class candidate; existing converters | existing `pdf_converter`, `html_converter`, etc. |
@@ -149,7 +151,8 @@ run exactly that list instead.
 
 ### Licensing notes
 
-- **MarkItDown (MIT)** and **Docling (MIT)**: safe for any deployment.
+- **MarkItDown (MIT)**, **Docling (MIT)**, and **Unstructured (Apache-2.0)**:
+  safe for any deployment.
 - **Marker (GPL-3.0)**: CLI invocation from a non-GPL process (subprocess boundary) is generally fine, but requires explicit legal review before deep embedding or library import. The model weights have additional licensing terms.
 - **Pandoc (GPL-2.0+)**: same subprocess-boundary reasoning as Marker; safe to invoke as a tool.
 - **MinerU**: custom open-source licence based on Apache 2.0 with additional terms; review before committing.
