@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 OPENAI_PRICING_URL = "https://platform.openai.com/docs/models/gpt-4o-mini"
+OPENAI_MODEL_COMPARE_URL = "https://developers.openai.com/api/docs/models/compare"
 OPENAI_CODEX_PRICING_URL = "https://platform.openai.com/docs/models/gpt-5.1-codex"
 OPENAI_CODEX_MINI_PRICING_URL = "https://platform.openai.com/docs/models/gpt-5.1-codex-mini"
 ANTHROPIC_PRICING_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
@@ -95,6 +96,24 @@ DEFAULT_JUDGE_MODEL_PRICES = (
         output_usd_per_mtok=Decimal("0.60"),
         priced_at=OPENAI_PRICE_CHECKED_DATE,
         source_url=OPENAI_PRICING_URL,
+        notes="OpenAI standard API token pricing; excludes Batch discounts.",
+    ),
+    JudgeModelPrice(
+        provider="openai",
+        model_match="gpt-5.4-mini",
+        input_usd_per_mtok=Decimal("0.75"),
+        output_usd_per_mtok=Decimal("4.50"),
+        priced_at=OPENAI_PRICE_CHECKED_DATE,
+        source_url=OPENAI_MODEL_COMPARE_URL,
+        notes="OpenAI standard API token pricing; excludes Batch discounts.",
+    ),
+    JudgeModelPrice(
+        provider="openai",
+        model_match="o4-mini",
+        input_usd_per_mtok=Decimal("1.10"),
+        output_usd_per_mtok=Decimal("4.40"),
+        priced_at=OPENAI_PRICE_CHECKED_DATE,
+        source_url=OPENAI_MODEL_COMPARE_URL,
         notes="OpenAI standard API token pricing; excludes Batch discounts.",
     ),
     JudgeModelPrice(

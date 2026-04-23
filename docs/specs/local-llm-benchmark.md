@@ -153,8 +153,11 @@ Measured `find_judge` stability checks, all with `--repeats 3`,
   mean tokens `1739`; freeform `3/3`, answer mean `28.45s`, max `28.93s`, mean
   tokens `1154`.
 
-OpenAI pricing checked on `2026-04-23` for coding-model experiments:
+OpenAI pricing checked on `2026-04-23` for recent judge experiments:
 
+- `gpt-4o-mini`: `$0.15/MTok` input, `$0.60/MTok` output
+- `gpt-5.4-mini`: `$0.75/MTok` input, `$4.50/MTok` output
+- `o4-mini`: `$1.10/MTok` input, `$4.40/MTok` output
 - `gpt-5.1-codex-mini`: `$0.25/MTok` input, `$2.00/MTok` output
 - `gpt-5.1-codex`: `$1.25/MTok` input, `$10.00/MTok` output
 
@@ -165,9 +168,12 @@ Current cloud fallback order:
 - Use OpenAI `gpt-4o-mini` as the current measured cloud fallback for the full
   real-PDF issue-review path; it passed both the probe and the real-PDF gate at
   low measured cost.
-- Keep `gpt-5.4-mini` and `o4-mini` as promising OpenAI probe passers, but do
-  not promote them ahead of `gpt-4o-mini` until they clear the same real-PDF
-  issue-review benchmark.
+- Use OpenAI `gpt-5.4-mini` as the measured fast-premium OpenAI fallback when
+  lower latency matters more than standard API list price; it now passes the
+  same real-PDF gate as `gpt-4o-mini`, but at materially higher estimated cost.
+- Do not promote `o4-mini` for this workload; it passed the probe and a
+  clinical real-PDF smoke at `c=4`, but it was materially slower and more
+  expensive than both `gpt-4o-mini` and `gpt-5.4-mini`.
 - Keep Claude `claude-haiku-4-5-20251001` as a viable cloud fallback when
   Anthropic is preferred operationally; it remained reliable at `c=4` after the
   provider-aware 429 backoff path was added.
@@ -181,9 +187,11 @@ Current cloud fallback order:
 
 ## Cloud Real-PDF Issue-Review Snapshot, 2026-04-23
 
-This snapshot compares Claude Haiku 4.5, OpenAI `gpt-4o-mini`, and DeepSeek
-`deepseek-chat` against the current `.57` local default on the same real-PDF
-issue-review benchmark cases.
+This snapshot compares Claude Haiku 4.5, OpenAI `gpt-4o-mini`, OpenAI
+`gpt-5.4-mini`, DeepSeek `deepseek-chat`, and the current `.57` local default
+on the same real-PDF issue-review benchmark cases. `o4-mini` was also checked
+through the clinical case as a triage run because it passed `find_judge`, but
+it was not promoted to a full three-PDF run after the clinical result.
 
 Pricing basis:
 
@@ -191,8 +199,10 @@ Pricing basis:
   listed at `$1/MTok` input and `$5/MTok` output. Re-check provider pricing
   before quoting future cost estimates because prices can change.
 - OpenAI pricing checked on `2026-04-23`: `gpt-4o-mini` standard API is listed
-  at `$0.15/MTok` input and `$0.60/MTok` output. Re-check provider pricing
-  before quoting future cost estimates because prices can change.
+  at `$0.15/MTok` input and `$0.60/MTok` output; `gpt-5.4-mini` is listed at
+  `$0.75/MTok` input and `$4.50/MTok` output; `o4-mini` is listed at
+  `$1.10/MTok` input and `$4.40/MTok` output. Re-check provider pricing before
+  quoting future cost estimates because prices can change.
 - DeepSeek pricing checked on `2026-04-23`: `deepseek-chat` is listed at
   `$0.27/MTok` input for cache misses and `$1.10/MTok` output. Cache-hit input
   pricing is lower, but the benchmark cost helper uses cache-miss pricing for
@@ -233,11 +243,24 @@ Measured outcome:
 - OpenAI `gpt-4o-mini`, clinical PDF at `c=4`, `r=10`: passed `10/10`, mean
   `11.478s`, min `8.966s`, max `17.092s`, total tokens `164,404`, input tokens
   `144,060`, output tokens `20,344`. Estimated token cost with prices checked
-  on `2026-04-22`: `$0.033815`.
+  on `2026-04-23`: `$0.033815`.
 - OpenAI `gpt-4o-mini`, three representative PDFs at `c=4`, `r=1`: passed
   `3/3`, mean `10.878s`, min `10.353s`, max `11.563s`, total tokens `50,488`,
   input tokens `44,469`, output tokens `6,019`. Estimated token cost with
   prices checked on `2026-04-23`: `$0.010281`.
+- OpenAI `gpt-5.4-mini`, clinical PDF at `c=4`, `r=10`: passed `10/10`, mean
+  `6.419s`, min `5.250s`, max `11.297s`, total tokens `154,490`, input tokens
+  `143,940`, output tokens `10,550`. Estimated token cost with prices checked
+  on `2026-04-23`: `$0.155430`.
+- OpenAI `gpt-5.4-mini`, three representative PDFs at `c=4`, `r=1`: passed
+  `3/3`, mean `6.466s`, min `5.843s`, max `7.426s`, total tokens `48,350`,
+  input tokens `44,433`, output tokens `3,917`. Estimated token cost with
+  prices checked on `2026-04-23`: `$0.050952`.
+- OpenAI `o4-mini`, clinical PDF at `c=4`, `r=3`: passed `3/3`, mean
+  `36.022s`, min `31.038s`, max `43.851s`, total tokens `78,969`, input tokens
+  `43,182`, output tokens `35,787`. Estimated token cost with prices checked
+  on `2026-04-23`: `$0.204963`. This was enough to rule it out for the current
+  workload without spending more budget on the three-PDF run.
 - DeepSeek `deepseek-chat`, clinical PDF at `c=4`, `r=3`: passed `3/3`, mean
   `21.726s`, min `21.198s`, max `21.995s`, total tokens `48,636`, input tokens
   `43,098`, output tokens `5,538`. Estimated token cost with prices checked on
@@ -260,6 +283,13 @@ Comparison against `.57` local default:
   Claude on these real-PDF issue-review runs, with lower estimated token spend.
   The local default remains the product default because it preserves offline
   operation and avoids per-call cloud spend.
+- OpenAI `gpt-5.4-mini` at `c=4` was the fastest measured cloud judge on this
+  workload. It was about `1.79x` faster than `gpt-4o-mini` on the clinical
+  repeat and about `1.68x` faster on the three-PDF run, while costing about
+  `4.6x` to `5.0x` more at standard API list prices checked on `2026-04-23`.
+- OpenAI `o4-mini` at `c=4` was not competitive for this workload. Even on the
+  shorter clinical triage run it was much slower and much more expensive than
+  both `gpt-4o-mini` and `gpt-5.4-mini`.
 - DeepSeek `deepseek-chat` at `c=4` was reliable on the measured real-PDF path,
   but slower than both OpenAI `gpt-4o-mini` and Claude on these runs while
   still incurring cloud spend. Its estimated cost remained low, but it does not
@@ -271,6 +301,11 @@ Current recommendation:
   hardware is available.
 - Use OpenAI `gpt-4o-mini` at `c=4` as the measured low-cost cloud fallback for
   this real-PDF issue-review path when local hardware is unavailable.
+- Use OpenAI `gpt-5.4-mini` at `c=4` as the measured fast-premium OpenAI
+  fallback when latency matters more than standard API list price. For accounts
+  with OpenAI's eligible daily free-token program, actual billed cost may be
+  lower than the standard-price estimates above, but the benchmark keeps list
+  pricing for provider-neutral comparison.
 - Keep Claude `claude-haiku-4-5-20251001` at `c=4` as a measured cloud fallback
   when Claude is operationally preferred, provided the 429 backoff path is
   available. Use `c=2` if an Anthropic account still cannot sustain the `c=4`
@@ -278,6 +313,8 @@ Current recommendation:
 - Use DeepSeek `deepseek-chat` at `c=4` only when DeepSeek is preferred
   operationally; the measured path was reliable, but slower than the current
   OpenAI fallback on this workload.
+- Do not spend more benchmark budget on `o4-mini` for this issue-review judge
+  path unless the prompt contract changes materially.
 - Keep using provider billing data as the final cost source. The benchmark's
   split token accounting is suitable for per-run estimates and model
   comparison, but provider invoices may include rounding, caching, or unrelated

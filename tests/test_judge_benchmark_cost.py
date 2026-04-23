@@ -82,6 +82,40 @@ def test_estimates_deepseek_cost_from_builtin_price(tmp_path: Path) -> None:
     assert float(report.total_cost_usd) == 0.082
 
 
+def test_estimates_gpt_5_4_mini_cost_from_builtin_price(tmp_path: Path) -> None:
+    path = tmp_path / "benchmark.json"
+    _write_benchmark(
+        path,
+        {
+            "judge_provider": "openai",
+            "judge_model": "gpt-5.4-mini",
+            "attempts": [{"input_tokens": 100000, "output_tokens": 50000}],
+        },
+    )
+
+    report = estimate_benchmark_cost(path)
+
+    assert report.priced_at == OPENAI_PRICE_CHECKED_DATE
+    assert float(report.total_cost_usd) == 0.3
+
+
+def test_estimates_o4_mini_cost_from_builtin_price(tmp_path: Path) -> None:
+    path = tmp_path / "benchmark.json"
+    _write_benchmark(
+        path,
+        {
+            "judge_provider": "openai",
+            "judge_model": "o4-mini",
+            "attempts": [{"input_tokens": 100000, "output_tokens": 50000}],
+        },
+    )
+
+    report = estimate_benchmark_cost(path)
+
+    assert report.priced_at == OPENAI_PRICE_CHECKED_DATE
+    assert float(report.total_cost_usd) == 0.33
+
+
 def test_estimates_codex_mini_cost_from_builtin_price(tmp_path: Path) -> None:
     path = tmp_path / "benchmark.json"
     _write_benchmark(
