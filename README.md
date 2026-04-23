@@ -68,6 +68,9 @@ The package-owned judge model benchmark and current local/cloud fallback
 recommendations live at
 [`docs/specs/local-llm-benchmark.md`](docs/specs/local-llm-benchmark.md).
 
+The open-source release readiness checklist lives at
+[`docs/open-source-readiness.md`](docs/open-source-readiness.md).
+
 If you work on ingestion, enterprise search, knowledge-base pipelines,
 compliance archives, or AI/RAG systems, this package is worth understanding
 because it encodes a hard-earned lesson:
