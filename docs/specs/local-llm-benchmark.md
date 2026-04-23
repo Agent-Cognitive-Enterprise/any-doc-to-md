@@ -124,9 +124,26 @@ Measured `find_judge` stability checks, all with `--repeats 3`,
 - OpenAI `gpt-4o-mini`: checklist `3/3`, answer mean `2.81s`, max `3.14s`,
   mean tokens `1656`; freeform `3/3`, answer mean `8.44s`, max `10.14s`, mean
   tokens `878`.
+- OpenAI mini sweep on `2026-04-23`, all with the same `--repeats 3`,
+  `--timeout-s 120`, and `--judge-timeout-s 240` gate:
+  - `gpt-4.1-mini`: checklist `3/3`, answer mean `2.62s`, max `2.77s`, mean
+    tokens `1672`; freeform failed on repeat `1/3` with `5/8` gold issues and
+    `3` false positives.
+  - `gpt-5-mini`: checklist `3/3`, answer mean `15.85s`, max `17.19s`, mean
+    tokens `2821`; freeform failed on repeat `1/3` with `5/8` gold issues and
+    `3` false positives.
+  - `gpt-5.4-mini`: checklist `3/3`, answer mean `1.44s`, max `1.46s`, mean
+    tokens `1658`; freeform `3/3`, answer mean `3.95s`, max `4.16s`, mean
+    tokens `1019`.
+  - `o3-mini`: checklist `3/3`, answer mean `11.75s`, max `13.30s`, mean
+    tokens `3284`; freeform failed on repeat `1/3` with `4/8` gold issues and
+    `3` false positives.
+  - `o4-mini`: checklist `3/3`, answer mean `8.33s`, max `10.68s`, mean
+    tokens `2633`; freeform `3/3`, answer mean `10.25s`, max `10.29s`, mean
+    tokens `1809`.
 - OpenAI `gpt-5.1-codex-mini`, using the automatic OpenAI Responses fallback:
-  checklist `3/3`, answer mean `11.00s`, max `13.55s`, mean tokens `2877`;
-  freeform failed on repeat `1/3` by matching `5/8` gold issues with `3` false
+  checklist `3/3`, answer mean `6.08s`, max `6.17s`, mean tokens `2406`;
+  freeform failed on repeat `1/3` by matching `4/8` gold issues with `3` false
   positives, above the cap of `2`.
 - OpenAI `gpt-5.1-codex`, using the automatic OpenAI Responses fallback:
   checklist `3/3`, answer mean `7.09s`, max `7.35s`, mean tokens `2303`;
@@ -148,16 +165,19 @@ Current cloud fallback order:
 - Use OpenAI `gpt-4o-mini` as the current measured cloud fallback for the full
   real-PDF issue-review path; it passed both the probe and the real-PDF gate at
   low measured cost.
+- Keep `gpt-5.4-mini` and `o4-mini` as promising OpenAI probe passers, but do
+  not promote them ahead of `gpt-4o-mini` until they clear the same real-PDF
+  issue-review benchmark.
 - Keep Claude `claude-haiku-4-5-20251001` as a viable cloud fallback when
   Anthropic is preferred operationally; it remained reliable at `c=4` after the
   provider-aware 429 backoff path was added.
 - Use DeepSeek `deepseek-chat` when DeepSeek is preferred operationally; it
   passed both the probe and the real-PDF gate, but it was materially slower on
   both the freeform phase and the real-PDF issue-review runs.
-- Do not promote `gpt-5.1-codex-mini` or `gpt-5.1-codex` as current judge
-  defaults for the PDF audit workload. Both reached the OpenAI Responses API
-  correctly, but both failed the hidden freeform gate because they produced too
-  many false positives on the current prompt contract.
+- Do not promote `gpt-4.1-mini`, `gpt-5-mini`, `o3-mini`, `gpt-5.1-codex-mini`,
+  or `gpt-5.1-codex` as current judge defaults for the PDF audit workload.
+  They all failed the hidden freeform gate because they produced too many false
+  positives on the current prompt contract.
 
 ## Cloud Real-PDF Issue-Review Snapshot, 2026-04-23
 

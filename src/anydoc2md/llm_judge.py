@@ -103,12 +103,28 @@ def _call_openai_compatible(
     if settings.api_key:
         headers["Authorization"] = f"Bearer {settings.api_key}"
 
-    resp = requests.post(
-        f"{settings.url.rstrip('/')}/chat/completions",
-        json=payload,
+    resp = _post_openai_chat_completions(
+        payload=payload,
         headers=headers,
-        timeout=settings.timeout_s,
+        settings=settings,
     )
+    if _should_retry_chat_completions_with_max_completion_tokens(resp=resp, payload=payload):
+        retry_payload = dict(payload)
+        retry_payload["max_completion_tokens"] = retry_payload.pop("max_tokens")
+        resp = _post_openai_chat_completions(
+            payload=retry_payload,
+            headers=headers,
+            settings=settings,
+        )
+        payload = retry_payload
+    if _should_retry_chat_completions_without_temperature(resp=resp, payload=payload):
+        retry_payload = dict(payload)
+        retry_payload.pop("temperature", None)
+        resp = _post_openai_chat_completions(
+            payload=retry_payload,
+            headers=headers,
+            settings=settings,
+        )
     if _should_use_openai_responses_api(resp=resp, settings=settings):
         return _call_openai_responses(system, user, settings)
     resp.raise_for_status()
@@ -128,6 +144,20 @@ def _call_openai_compatible(
         tokens_used=tokens,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+    )
+
+
+def _post_openai_chat_completions(
+    *,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    settings: JudgeSettings,
+) -> requests.Response:
+    return requests.post(
+        f"{settings.url.rstrip('/')}/chat/completions",
+        json=payload,
+        headers=headers,
+        timeout=settings.timeout_s,
     )
 
 
@@ -307,6 +337,52 @@ def _should_retry_openai_responses_without_temperature(
         return False
     message = str(error.get("message", "")).lower()
     return "unsupported parameter" in message and "temperature" in message
+
+
+def _should_retry_chat_completions_with_max_completion_tokens(
+    *,
+    resp: requests.Response,
+    payload: dict[str, Any],
+) -> bool:
+    if resp.status_code != 400 or "max_tokens" not in payload:
+        return False
+    try:
+        data = resp.json()
+    except ValueError:
+        return False
+    error = data.get("error", {})
+    if not isinstance(error, dict):
+        return False
+    message = str(error.get("message", "")).lower()
+    return (
+        "unsupported parameter" in message
+        and "max_tokens" in message
+        and "max_completion_tokens" in message
+    )
+
+
+def _should_retry_chat_completions_without_temperature(
+    *,
+    resp: requests.Response,
+    payload: dict[str, Any],
+) -> bool:
+    if resp.status_code != 400 or "temperature" not in payload:
+        return False
+    try:
+        data = resp.json()
+    except ValueError:
+        return False
+    error = data.get("error", {})
+    if not isinstance(error, dict):
+        return False
+    message = str(error.get("message", "")).lower()
+    if "temperature" not in message:
+        return False
+    return (
+        "unsupported parameter" in message
+        or "unsupported value" in message
+        or "only the default (1) value is supported" in message
+    )
 
 
 def _int_usage_value(value: Any) -> int:

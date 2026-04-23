@@ -309,3 +309,99 @@ def test_openai_not_chat_model_falls_back_to_responses_api() -> None:
     assert tokens == 96
     assert result.input_tokens == 40
     assert result.output_tokens == 56
+
+
+def test_openai_chat_model_retries_with_max_completion_tokens() -> None:
+    settings = JudgeSettings(
+        url=DEFAULT_OPENAI_JUDGE_URL,
+        model="gpt-5-mini",
+        provider=JUDGE_PROVIDER_OPENAI,
+        api_key="sk-openai-test",
+    )
+    chat_400 = _error_response(
+        400,
+        {
+            "error": {
+                "message": (
+                    "Unsupported parameter: 'max_tokens' is not supported with "
+                    "this model. Use 'max_completion_tokens' instead."
+                )
+            }
+        },
+    )
+    chat_ok = _response(
+        {
+            "choices": [{"message": {"content": '{"ok": true}'}}],
+            "usage": {"prompt_tokens": 13, "completion_tokens": 8, "total_tokens": 21},
+        }
+    )
+
+    with patch("anydoc2md.llm_judge.requests") as mock_requests:
+        mock_requests.post.side_effect = [chat_400, chat_ok]
+        result = _call_lm_studio("sys", "user", settings)
+        text, tokens = result
+
+    first_payload = mock_requests.post.call_args_list[0].kwargs["json"]
+    second_payload = mock_requests.post.call_args_list[1].kwargs["json"]
+    assert first_payload["max_tokens"] == settings.max_tokens
+    assert "max_tokens" not in second_payload
+    assert second_payload["max_completion_tokens"] == settings.max_tokens
+    assert text == '{"ok": true}'
+    assert tokens == 21
+    assert result.input_tokens == 13
+    assert result.output_tokens == 8
+
+
+def test_openai_chat_model_retries_without_temperature_after_max_completion_tokens() -> None:
+    settings = JudgeSettings(
+        url=DEFAULT_OPENAI_JUDGE_URL,
+        model="gpt-5-mini",
+        provider=JUDGE_PROVIDER_OPENAI,
+        api_key="sk-openai-test",
+    )
+    chat_max_tokens_400 = _error_response(
+        400,
+        {
+            "error": {
+                "message": (
+                    "Unsupported parameter: 'max_tokens' is not supported with "
+                    "this model. Use 'max_completion_tokens' instead."
+                )
+            }
+        },
+    )
+    chat_temperature_400 = _error_response(
+        400,
+        {
+            "error": {
+                "message": (
+                    "Unsupported value: 'temperature' does not support 0.1 with "
+                    "this model. Only the default (1) value is supported."
+                )
+            }
+        },
+    )
+    chat_ok = _response(
+        {
+            "choices": [{"message": {"content": '{"ok": true}'}}],
+            "usage": {"prompt_tokens": 21, "completion_tokens": 5, "total_tokens": 26},
+        }
+    )
+
+    with patch("anydoc2md.llm_judge.requests") as mock_requests:
+        mock_requests.post.side_effect = [chat_max_tokens_400, chat_temperature_400, chat_ok]
+        result = _call_lm_studio("sys", "user", settings)
+        text, tokens = result
+
+    first_payload = mock_requests.post.call_args_list[0].kwargs["json"]
+    second_payload = mock_requests.post.call_args_list[1].kwargs["json"]
+    third_payload = mock_requests.post.call_args_list[2].kwargs["json"]
+    assert first_payload["max_tokens"] == settings.max_tokens
+    assert second_payload["max_completion_tokens"] == settings.max_tokens
+    assert second_payload["temperature"] == settings.temperature
+    assert third_payload["max_completion_tokens"] == settings.max_tokens
+    assert "temperature" not in third_payload
+    assert text == '{"ok": true}'
+    assert tokens == 26
+    assert result.input_tokens == 21
+    assert result.output_tokens == 5
