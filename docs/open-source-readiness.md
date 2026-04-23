@@ -25,8 +25,8 @@ release unless explicitly extracted later.
 - [x] Release `packages/any-doc-to-md` first, not the whole PRAI monorepo.
 - [x] Keep ADTM usable as a library with host-provided CLIs.
 - [x] Keep `inhouse` as the only default adapter.
-- [ ] Verify fresh editable install from a clean checkout.
-- [ ] Verify fresh wheel install from a local build artifact.
+- [x] Verify fresh editable install from a clean checkout.
+- [x] Verify fresh wheel install from a local build artifact.
 - [ ] Add or confirm package entry points if a standalone ADTM CLI becomes part
   of the release.
 - [ ] Decide whether the public repo is a split repo or a filtered export from
@@ -61,8 +61,8 @@ release unless explicitly extracted later.
 - [x] README documents the current default adapter policy.
 - [x] README includes a dated adapter comparison table.
 - [x] Dedicated benchmark snapshot records date, hardware, cost, and caveats.
-- [ ] Add a public installation section for a clean external user.
-- [ ] Add a public quickstart using only package-owned test/sample inputs.
+- [x] Add a public installation section for a clean external user.
+- [x] Add a public quickstart using only package-owned test/sample inputs.
 - [ ] Add a public adapter guide with required tools, optional extras, and known
   limitations.
 - [ ] Add an LLM judge setup guide with local and cloud-provider cost warnings.
@@ -73,22 +73,22 @@ release unless explicitly extracted later.
 ### Tests And CI
 
 - [x] Package has a broad pytest suite.
-- [ ] Define the public default CI command.
+- [x] Define the public default CI command.
 - [ ] Split fast unit tests from slow or integration adapter tests.
-- [ ] Ensure default CI has no network dependency.
-- [ ] Ensure default CI does not spend cloud API credits.
+- [x] Ensure default CI has no network dependency.
+- [x] Ensure default CI does not spend cloud API credits.
 - [ ] Add optional CI jobs or documented local commands for external adapters.
-- [ ] Add a fresh-install smoke test.
-- [ ] Add a small fixture conversion smoke test that does not rely on PRAI
+- [x] Add a fresh-install smoke test.
+- [x] Add a small fixture conversion smoke test that does not rely on PRAI
   private corpus paths.
 
 ### Security And Contribution Process
 
-- [ ] Add `SECURITY.md`.
-- [ ] Add `CONTRIBUTING.md`.
+- [x] Add `SECURITY.md`.
+- [x] Add `CONTRIBUTING.md`.
 - [ ] Add a public issue template for conversion-quality bugs.
 - [ ] Add a public issue template for adapter installation failures.
-- [ ] Add a PR checklist covering tests, docs, benchmarks, dependency changes,
+- [x] Add a PR checklist covering tests, docs, benchmarks, dependency changes,
   and cost disclosures.
 - [ ] Decide whether to add `CODE_OF_CONDUCT.md`.
 - [ ] Document how users can share failing documents safely without leaking
@@ -96,9 +96,10 @@ release unless explicitly extracted later.
 
 ### Release Engineering
 
-- [ ] Decide versioning policy after `0.1.0`.
-- [ ] Add `CHANGELOG.md`.
-- [ ] Add build verification for sdist and wheel.
+- [x] Decide versioning policy after `0.1.0`.
+- [x] Add `CHANGELOG.md`.
+- [x] Add build verification for wheel install.
+- [ ] Add build verification for sdist install.
 - [ ] Decide PyPI publishing flow and package owner credentials.
 - [ ] Decide signed tag or release artifact policy.
 - [ ] Confirm package metadata, classifiers, readme rendering, and license
@@ -135,8 +136,9 @@ These must be complete before publishing outside the monorepo:
 
 ## Recommended First Implementation Slice
 
-1. Add `SECURITY.md`, `CONTRIBUTING.md`, and `CHANGELOG.md`.
-2. Add a clean public quickstart fixture and conversion smoke command.
-3. Define the default CI command and optional integration-test commands.
-4. Build and install the package from sdist/wheel in a clean temporary venv.
+1. Build and install the package from sdist/wheel in a clean temporary venv.
+2. Add public issue templates for conversion bugs and adapter installation
+   failures.
+3. Add dependency-license notes for required and optional dependencies.
+4. Add optional integration-test commands for external adapters.
 5. Run a final secret/artifact audit before export.

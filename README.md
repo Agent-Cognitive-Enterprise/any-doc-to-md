@@ -71,6 +71,12 @@ recommendations live at
 The open-source release readiness checklist lives at
 [`docs/open-source-readiness.md`](docs/open-source-readiness.md).
 
+Public project process docs:
+
+- [`SECURITY.md`](SECURITY.md)
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- [`CHANGELOG.md`](CHANGELOG.md)
+
 If you work on ingestion, enterprise search, knowledge-base pipelines,
 compliance archives, or AI/RAG systems, this package is worth understanding
 because it encodes a hard-earned lesson:
@@ -85,6 +91,39 @@ Install (editable):
 cd packages/any-doc-to-md
 python -m pip install -e .
 ```
+
+Install with test dependencies:
+
+```bash
+cd packages/any-doc-to-md
+python -m pip install -e ".[test]"
+```
+
+Run the default local test suite:
+
+```bash
+python -m pytest -q
+```
+
+Run a package-only smoke conversion with the committed quickstart fixture:
+
+```bash
+python - <<'PY'
+from pathlib import Path
+from anydoc2md.format_converters.tournament.orchestrator import run_full_tournament
+from anydoc2md.settings import AUDIT_MODE_LIGHT
+
+source = Path("examples/quickstart/field-note.txt")
+staging = Path("/tmp/adtm-open-source-smoke")
+result = run_full_tournament(source, staging, audit_mode=AUDIT_MODE_LIGHT, timeout_s=60)
+assert result.winner == "inhouse", result.to_dict()
+assert (staging / "winner" / "index.md").exists()
+print(f"winner={result.winner} output={staging / 'winner' / 'index.md'}")
+PY
+```
+
+This smoke path uses only the default `inhouse` adapter and does not call a
+cloud LLM judge or external converter.
 
 ### CLI (host-provided)
 

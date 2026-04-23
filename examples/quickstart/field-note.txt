@@ -1,0 +1,21 @@
+Field water treatment note
+
+Location: Hill station supply point
+Date: 2026-04-23
+
+Observations:
+
+- Intake screen was partially blocked by leaves.
+- Chlorine residual measured 0.4 mg/L after 30 minutes.
+- Turbidity was visually low after settling.
+
+Actions:
+
+1. Cleared intake screen.
+2. Rechecked residual at the tap stand.
+3. Logged follow-up inspection for tomorrow morning.
+
+Recommendation:
+
+Continue routine monitoring and keep spare chlorine test strips with the field
+kit.
