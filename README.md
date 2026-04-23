@@ -113,6 +113,24 @@ cd backend
 PYTHONPATH=. python scripts/convert_tournament_test_sources.py
 ```
 
+To aggregate a completed tournament staging root into a dated converter
+speed/quality matrix:
+
+```bash
+cd packages/any-doc-to-md
+PYTHONPATH=src python -m anydoc2md.converter_benchmark_matrix \
+  /tmp/adtm-side-by-side-corpus-20260423 \
+  --sources-dir ../../tmp/tournament-test/sources \
+  --measured-at 2026-04-23 \
+  --hardware "local workstation, light audit mode" \
+  --output-json /tmp/adtm-side-by-side-corpus-20260423/matrix.json \
+  --output-md /tmp/adtm-side-by-side-corpus-20260423/matrix.md
+```
+
+The matrix reports wall time, pages per second, score-derived quality tiers,
+win rate, and a conservative `default_set_signal` so slow adapters that never
+win can be considered for the optional adapter pool instead of the default set.
+
 To probe a local judge endpoint and find the smallest/fastest model that can
 reliably surface audit issues, use the committed probe assets that ship with
 the package. `find_judge` now runs in two phases:
