@@ -29,6 +29,9 @@ SCANNED_WORDS_PER_PAGE_MAX: int = 60
 IMAGE_HEAVY_IMAGES_PER_PAGE_MIN: float = 1.0
 # Table-heavy: total tables across all pages above this
 TABLE_HEAVY_MIN: int = 2
+# Table detection is only a routing heuristic. Keep it bounded because
+# PyMuPDF's find_tables() can be expensive on large PDFs.
+PDF_TABLE_SCAN_MAX_PAGES: int = 25
 # Multi-column: pages with two or more distinct x-column zones ÷ total pages
 MULTI_COLUMN_PAGE_FRACTION_MIN: float = 0.25
 # Column gap: fraction of page width that must separate left and right text clusters
@@ -113,6 +116,33 @@ def _is_multi_column_page(page, page_width: float) -> bool:
     return len(left) >= 2 and len(right) >= 2
 
 
+def _suppress_pymupdf_layout_recommendation(fitz_module) -> None:
+    """
+    Suppress PyMuPDF's optional pymupdf-layout recommendation.
+
+    The optional layout package has licensing and performance tradeoffs that
+    should not be implied by a noisy heuristic table scan.
+    """
+    suppress = getattr(fitz_module, "no_recommend_layout", None)
+    if callable(suppress):
+        suppress()
+
+
+def _pdf_table_scan_indexes(page_count: int) -> set[int]:
+    if page_count <= 0:
+        return set()
+    if page_count <= PDF_TABLE_SCAN_MAX_PAGES:
+        return set(range(page_count))
+    if PDF_TABLE_SCAN_MAX_PAGES == 1:
+        return {0}
+
+    last_index = page_count - 1
+    return {
+        round(idx * last_index / (PDF_TABLE_SCAN_MAX_PAGES - 1))
+        for idx in range(PDF_TABLE_SCAN_MAX_PAGES)
+    }
+
+
 def _classify_pdf(path: Path) -> DocumentTraits:
     try:
         import fitz
@@ -132,8 +162,11 @@ def _classify_pdf(path: Path) -> DocumentTraits:
     table_count = 0
     full_text_parts: list[str] = []
     multi_col_pages = 0
+    table_scan_indexes = _pdf_table_scan_indexes(page_count)
+    if table_scan_indexes:
+        _suppress_pymupdf_layout_recommendation(fitz)
 
-    for page in doc:
+    for page_index, page in enumerate(doc):
         # Images (deduplicated by hash)
         for ref in page.get_images(full=True):
             try:
@@ -149,11 +182,12 @@ def _classify_pdf(path: Path) -> DocumentTraits:
         full_text_parts.append(text)
 
         # Tables
-        try:
-            tabs = page.find_tables()
-            table_count += len(tabs.tables)
-        except Exception:
-            pass
+        if table_count < TABLE_HEAVY_MIN and page_index in table_scan_indexes:
+            try:
+                tabs = page.find_tables()
+                table_count += len(tabs.tables)
+            except Exception:
+                pass
 
         # Multi-column
         if _is_multi_column_page(page, page.rect.width):

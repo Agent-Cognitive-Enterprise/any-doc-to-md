@@ -8,12 +8,16 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from anydoc2md.format_converters.classification.classify_document import (
     DocumentTraits,
+    PDF_TABLE_SCAN_MAX_PAGES,
     classify,
+    _classify_pdf,
     _unknown_traits,
 )
 
@@ -54,6 +58,44 @@ class TestDispatcher:
     def test_missing_file_does_not_raise(self, tmp_path: Path) -> None:
         t = classify(tmp_path / "missing.pdf")
         assert t is not None
+
+
+class TestPdfTableScanPolicy:
+    def test_large_pdf_table_scan_is_capped_and_suppresses_layout_recommendation(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        page_count = PDF_TABLE_SCAN_MAX_PAGES + 10
+        pages = [_FakePdfPage() for _ in range(page_count)]
+        fake_doc = _FakePdfDoc(pages)
+        fake_fitz = SimpleNamespace(
+            open=MagicMock(return_value=fake_doc),
+            no_recommend_layout=MagicMock(),
+        )
+
+        with patch.dict("sys.modules", {"fitz": fake_fitz}):
+            traits = _classify_pdf(tmp_path / "large.pdf")
+
+        assert traits.page_count == page_count
+        assert fake_fitz.no_recommend_layout.call_count == 1
+        assert sum(page.find_tables_call_count for page in pages) == PDF_TABLE_SCAN_MAX_PAGES
+        assert pages[0].find_tables_call_count == 1
+        assert pages[-1].find_tables_call_count == 1
+
+    def test_table_scan_stops_after_table_heavy_threshold(self, tmp_path: Path) -> None:
+        pages = [_FakePdfPage(table_count=2)] + [_FakePdfPage() for _ in range(5)]
+        fake_doc = _FakePdfDoc(pages)
+        fake_fitz = SimpleNamespace(
+            open=MagicMock(return_value=fake_doc),
+            no_recommend_layout=MagicMock(),
+        )
+
+        with patch.dict("sys.modules", {"fitz": fake_fitz}):
+            traits = _classify_pdf(tmp_path / "table-heavy.pdf")
+
+        assert traits.table_count == 2
+        assert traits.is_table_heavy is True
+        assert sum(page.find_tables_call_count for page in pages) == 1
 
 
 class TestSyntheticTextAndHtml:
@@ -190,3 +232,40 @@ def _write_docx_with_table(path: Path) -> None:
     table.cell(1, 0).text = "A"
     table.cell(1, 1).text = "1"
     doc.save(path)
+
+
+class _FakePdfPage:
+    def __init__(self, *, table_count: int = 0) -> None:
+        self._table_count = table_count
+        self.find_tables_call_count = 0
+        self.rect = SimpleNamespace(width=612)
+
+    def get_images(self, *, full: bool) -> list:
+        return []
+
+    def get_text(self, kind: str, **kwargs) -> str | list:
+        if kind == "blocks":
+            return []
+        return "hello world sample document text"
+
+    def find_tables(self):
+        self.find_tables_call_count += 1
+        return SimpleNamespace(tables=[object()] * self._table_count)
+
+
+class _FakePdfDoc:
+    def __init__(self, pages: list[_FakePdfPage]) -> None:
+        self._pages = pages
+        self.closed = False
+
+    def __len__(self) -> int:
+        return len(self._pages)
+
+    def __iter__(self):
+        return iter(self._pages)
+
+    def extract_image(self, xref: int) -> dict:
+        return {"image": b""}
+
+    def close(self) -> None:
+        self.closed = True

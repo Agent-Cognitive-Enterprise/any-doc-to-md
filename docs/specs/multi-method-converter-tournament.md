@@ -194,6 +194,10 @@ Routing hints are soft, not hard rules:
 - Unknown: run full pool
 
 If classification is uncertain, run the full pool. Classification is cheap; bad conversion is expensive.
+PDF table detection is bounded because PyMuPDF `find_tables()` is a routing
+heuristic, not a full conversion stage; the classifier also suppresses PyMuPDF's
+optional `pymupdf-layout` recommendation so that users are not pushed into a
+restrictive dependency just to silence a warning.
 
 ---
 
