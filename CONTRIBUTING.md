@@ -93,6 +93,8 @@ Run them explicitly when changing adapter code or dependency documentation.
 
 Use the maintained local commands in
 [`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md).
+Use [`docs/adapter-guide.md`](docs/adapter-guide.md) for adapter selection,
+image behavior, install boundaries, and known limitations.
 Review dependency and license boundaries in
 [`docs/dependency-license-notes.md`](docs/dependency-license-notes.md) before
 changing adapter dependencies.

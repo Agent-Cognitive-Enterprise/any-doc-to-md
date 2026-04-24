@@ -76,6 +76,7 @@ Public project process docs:
 - [`SECURITY.md`](SECURITY.md)
 - [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
+- [`docs/adapter-guide.md`](docs/adapter-guide.md)
 - [`docs/dependency-license-notes.md`](docs/dependency-license-notes.md)
 - [`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md)
 
@@ -631,6 +632,8 @@ A dated adapter comparison snapshot is maintained in
 It records the 2026-04-23 side-by-side corpus matrix, hardware context, cost
 context, and reproduction commands.
 
+Public adapter selection, install boundaries, image behavior, and when-to-use
+guidance live in [`docs/adapter-guide.md`](docs/adapter-guide.md).
 Optional adapter install boundaries and local smoke commands are documented in
 [`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md).
 Dependency and license notes, including the required PyMuPDF AGPL/commercial
