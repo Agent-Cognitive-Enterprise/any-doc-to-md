@@ -66,7 +66,7 @@ release unless explicitly extracted later.
 - [x] Add a public quickstart using only package-owned test/sample inputs.
 - [x] Add a public adapter guide with required tools, optional extras, and known
   limitations.
-- [ ] Add an LLM judge setup guide with local and cloud-provider cost warnings.
+- [x] Add an LLM judge setup guide with local and cloud-provider cost warnings.
 - [ ] Add troubleshooting notes for PyMuPDF, optional adapters, and missing
   images.
 - [ ] Add a release-support matrix for Python versions and operating systems.
@@ -116,7 +116,7 @@ release unless explicitly extracted later.
 - [ ] Add a public benchmark reproduction guide that does not depend on private
   PRAI paths.
 - [ ] Add a small public benchmark corpus or fixture set.
-- [ ] Define how cloud-judge benchmark costs are reported, including date and
+- [x] Define how cloud-judge benchmark costs are reported, including date and
   provider/model names.
 - [ ] Define when benchmark numbers are stale enough to refresh.
 
@@ -138,10 +138,10 @@ These must be complete before publishing outside the monorepo:
 
 ## Recommended First Implementation Slice
 
-1. Add an LLM judge setup guide with local and cloud-provider cost warnings.
-2. Add troubleshooting notes for PyMuPDF, optional adapters, and missing
+1. Add troubleshooting notes for PyMuPDF, optional adapters, and missing
    images.
-3. Add a release-support matrix for Python versions and operating systems.
-4. Add a public benchmark reproduction guide that does not depend on private
+2. Add a release-support matrix for Python versions and operating systems.
+3. Add a public benchmark reproduction guide that does not depend on private
    PRAI paths.
+4. Define when benchmark numbers are stale enough to refresh.
 5. Run a final secret/artifact audit before export.

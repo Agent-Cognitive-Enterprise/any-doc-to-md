@@ -126,6 +126,8 @@ Before opening a PR, confirm:
   virtualenvs, caches, or downloaded archives were added
 - benchmark numbers include date, hardware, corpus, mode, and cost context
 - cloud/API costs are disclosed with date and provider/model names
+- LLM judge setup or benchmark changes follow
+  [`docs/llm-judge-setup.md`](docs/llm-judge-setup.md)
 - dependency changes include license and install-footprint notes
 
 ## Reporting Conversion Bugs

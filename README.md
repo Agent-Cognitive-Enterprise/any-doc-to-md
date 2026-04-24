@@ -77,6 +77,7 @@ Public project process docs:
 - [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
 - [`docs/adapter-guide.md`](docs/adapter-guide.md)
+- [`docs/llm-judge-setup.md`](docs/llm-judge-setup.md)
 - [`docs/dependency-license-notes.md`](docs/dependency-license-notes.md)
 - [`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md)
 
@@ -719,6 +720,9 @@ PRAI's KB-pack pipeline CLI also supports:
 ## Judge Configuration
 
 The current LLM judge configuration is exposed via `anydoc2md.settings`.
+Public setup, local/cloud fallback roles, concurrency guidance, and dated cost
+warnings are documented in
+[`docs/llm-judge-setup.md`](docs/llm-judge-setup.md).
 
 Required environment variables:
 
