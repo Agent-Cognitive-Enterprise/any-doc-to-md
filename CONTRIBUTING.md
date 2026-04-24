@@ -89,6 +89,9 @@ are present in installed metadata, and smoke-tests an install from the built
 sdist. Keep the generated temp directories and `/tmp/adtm-open-source-sdist-smoke`
 out of git.
 
+Publishing policy, TestPyPI flow, PyPI owner requirements, and emergency token
+fallback rules are documented in [`docs/publishing.md`](docs/publishing.md).
+
 ## Optional Adapter Testing
 
 Optional adapters are first-class but not part of the default test contract.

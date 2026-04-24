@@ -80,6 +80,7 @@ Public project process docs:
 - [`docs/llm-judge-setup.md`](docs/llm-judge-setup.md)
 - [`docs/benchmark-reproduction.md`](docs/benchmark-reproduction.md)
 - [`docs/troubleshooting.md`](docs/troubleshooting.md)
+- [`docs/publishing.md`](docs/publishing.md)
 - [`docs/release-support-matrix.md`](docs/release-support-matrix.md)
 - [`docs/dependency-license-notes.md`](docs/dependency-license-notes.md)
 - [`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md)

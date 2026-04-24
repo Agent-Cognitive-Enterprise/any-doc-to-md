@@ -101,7 +101,9 @@ release unless explicitly extracted later.
 - [x] Add `CHANGELOG.md`.
 - [x] Add build verification for wheel install.
 - [x] Add build verification for sdist install.
-- [ ] Decide PyPI publishing flow and package owner credentials.
+- [x] Decide PyPI publishing flow and credential policy.
+- [ ] Assign concrete PyPI owner and backup owner account handles before the
+  first upload.
 - [ ] Decide signed tag or release artifact policy.
 - [x] Confirm package metadata, classifiers, readme rendering, and license
   metadata before publish.
@@ -159,7 +161,8 @@ Audit date: `2026-04-24`
 
 1. Add a small public benchmark corpus or fixture set if the existing
    quickstart/probe fixtures are not enough for release-facing examples.
-2. Decide PyPI publishing flow and package owner credentials.
+2. Assign concrete PyPI owner and backup owner account handles before the
+   first upload.
 3. Create a first public release checklist issue or milestone.
 4. Decide whether to add `CODE_OF_CONDUCT.md`.
 5. Decide signed tag or release artifact policy.
