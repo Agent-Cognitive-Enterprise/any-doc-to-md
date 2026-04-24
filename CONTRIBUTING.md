@@ -47,10 +47,55 @@ PY
 The smoke uses only the committed quickstart fixture and the default `inhouse`
 adapter. It must not call an LLM judge or external converter.
 
+## Release Verification
+
+Use this after package metadata, versioning, or release-doc changes.
+
+```bash
+tmpdir="$(mktemp -d)"
+python -m pip install --upgrade build twine
+python -m build --sdist --wheel --outdir "$tmpdir/dist"
+python -m twine check "$tmpdir"/dist/*
+python -m venv "$tmpdir/sdist-venv"
+"$tmpdir/sdist-venv/bin/python" -m pip install "$tmpdir"/dist/*.tar.gz
+"$tmpdir/sdist-venv/bin/python" - <<'PY'
+from importlib.metadata import metadata
+from pathlib import Path
+
+from anydoc2md.format_converters.tournament.orchestrator import run_full_tournament
+from anydoc2md.settings import AUDIT_MODE_LIGHT
+
+source = Path("examples/quickstart/field-note.txt")
+staging = Path("/tmp/adtm-open-source-sdist-smoke")
+result = run_full_tournament(source, staging, audit_mode=AUDIT_MODE_LIGHT, timeout_s=60)
+
+meta = metadata("any-doc-to-md")
+classifiers = meta.get_all("Classifier") or []
+assert meta["License-Expression"] == "Apache-2.0"
+assert "Programming Language :: Python :: 3.11" in classifiers
+assert result.winner == "inhouse", result.to_dict()
+assert (staging / "winner" / "index.md").exists()
+print(f"license_expression={meta['License-Expression']}")
+print(f"classifiers={classifiers}")
+print(f"winner={result.winner} output={staging / 'winner' / 'index.md'}")
+PY
+```
+
+This verifies README rendering via `twine check`, confirms package classifiers
+are present in installed metadata, and smoke-tests an install from the built
+sdist. Keep the generated temp directories and `/tmp/adtm-open-source-sdist-smoke`
+out of git.
+
 ## Optional Adapter Testing
 
 Optional adapters are first-class but not part of the default test contract.
 Run them explicitly when changing adapter code or dependency documentation.
+
+Use the maintained local commands in
+[`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md).
+Review dependency and license boundaries in
+[`docs/dependency-license-notes.md`](docs/dependency-license-notes.md) before
+changing adapter dependencies.
 
 Expected boundaries:
 

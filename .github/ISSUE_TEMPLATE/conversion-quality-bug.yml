@@ -1,0 +1,92 @@
+name: Conversion quality bug
+description: Report Markdown that lost, reordered, or misrepresented source content.
+title: "[conversion quality]: "
+labels:
+  - conversion-quality
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not upload sensitive documents publicly. If possible, attach a minimal synthetic file that preserves the failing structure without private content.
+  - type: input
+    id: source_format
+    attributes:
+      label: Source format
+      description: PDF, DOCX, HTML, TXT, image-only PDF, scanned PDF, etc.
+      placeholder: PDF
+    validations:
+      required: true
+  - type: input
+    id: source_size
+    attributes:
+      label: Source size
+      description: Include page count, file size, and any notable structure.
+      placeholder: 42 pages, 8 MB, tables and figures
+    validations:
+      required: true
+  - type: input
+    id: adapters
+    attributes:
+      label: Adapter set
+      description: Which adapter or explicit adapter list did you run?
+      placeholder: inhouse, or inhouse,docling,markitdown
+    validations:
+      required: true
+  - type: dropdown
+    id: audit_mode
+    attributes:
+      label: Audit mode
+      options:
+        - light
+        - auto with local judge
+        - auto with cloud judge
+        - unknown
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or code path
+      description: Paste the command, script, or host integration path used to run ADTM.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Markdown behavior
+      description: Describe what should have been preserved from the source.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Markdown behavior
+      description: Include a short output excerpt or QA failure. Redact private content.
+    validations:
+      required: true
+  - type: checkboxes
+    id: content_types
+    attributes:
+      label: Content involved
+      options:
+        - label: Images or figures
+        - label: Tables
+        - label: OCR or scanned pages
+        - label: Equations or inline math
+        - label: Multi-column layout
+        - label: Lists or numbering
+        - label: Headers, footers, or page artifacts
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Relevant ADTM artifacts
+      description: Paste non-sensitive excerpts from adapter_result.json, qa_report.json, or remediation_plan.json.
+      render: json
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Sharing safety
+      options:
+        - label: I have removed or redacted secrets, credentials, private data, and sensitive documents from this public report.
+          required: true

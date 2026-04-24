@@ -1,0 +1,86 @@
+name: Adapter installation failure
+description: Report an optional adapter that cannot be installed or invoked.
+title: "[adapter install]: "
+labels:
+  - adapter
+  - installation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Optional adapters are first-class but not part of the default install. Please include the exact adapter and install path so maintainers can reproduce the environment boundary.
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: Adapter
+      options:
+        - inhouse
+        - markitdown
+        - docling
+        - unstructured
+        - pandoc
+        - marker
+        - other
+    validations:
+      required: true
+  - type: input
+    id: operating_system
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04, macOS 15, Windows 11
+    validations:
+      required: true
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      placeholder: Python 3.11.9
+    validations:
+      required: true
+  - type: textarea
+    id: install_command
+    attributes:
+      label: Install command
+      description: Include pip, uv, apt, brew, conda, or other commands used.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: version_commands
+    attributes:
+      label: Version checks
+      description: Paste relevant version command output, for example pandoc --version or marker_single --help.
+      render: shell
+  - type: textarea
+    id: adtm_command
+    attributes:
+      label: ADTM command or integration code
+      description: Paste the ADTM command, test snippet, or host integration path that failed.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: error_log
+    attributes:
+      label: Error log
+      description: Paste the relevant traceback, subprocess stderr, or adapter_result.json. Redact private paths if needed.
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: inhouse_works
+    attributes:
+      label: Does the default inhouse adapter work on the same file?
+      options:
+        - yes
+        - no
+        - not tested
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Sharing safety
+      options:
+        - label: I have removed or redacted secrets, credentials, private data, and sensitive documents from this public report.
+          required: true

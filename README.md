@@ -76,6 +76,8 @@ Public project process docs:
 - [`SECURITY.md`](SECURITY.md)
 - [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
+- [`docs/dependency-license-notes.md`](docs/dependency-license-notes.md)
+- [`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md)
 
 If you work on ingestion, enterprise search, knowledge-base pipelines,
 compliance archives, or AI/RAG systems, this package is worth understanding
@@ -628,6 +630,12 @@ A dated adapter comparison snapshot is maintained in
 [`docs/benchmarks/adapter-corpus-2026-04-23.md`](docs/benchmarks/adapter-corpus-2026-04-23.md).
 It records the 2026-04-23 side-by-side corpus matrix, hardware context, cost
 context, and reproduction commands.
+
+Optional adapter install boundaries and local smoke commands are documented in
+[`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md).
+Dependency and license notes, including the required PyMuPDF AGPL/commercial
+release-audit item, are documented in
+[`docs/dependency-license-notes.md`](docs/dependency-license-notes.md).
 
 2026-04-23 corpus snapshot, measured on an Intel Core i5-8400 with 6 CPU cores
 and 15 GiB RAM in `light` audit mode:

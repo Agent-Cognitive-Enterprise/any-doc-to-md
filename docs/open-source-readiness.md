@@ -37,11 +37,12 @@ release unless explicitly extracted later.
 - [x] Use Apache-2.0 as the public license.
 - [x] Keep `LICENSE` at the package root.
 - [x] Align `pyproject.toml` package metadata with Apache-2.0.
-- [ ] Add dependency-license notes for required runtime dependencies.
-- [ ] Document optional adapter license boundaries:
+- [x] Add dependency-license notes for required runtime dependencies.
+- [x] Document optional adapter license boundaries:
   `markitdown`, `docling`, `unstructured`, `pandoc`, and `marker`.
-- [ ] Keep `pymupdf-layout` out of default dependencies unless users explicitly
-  accept its Polyform Noncommercial or Artifex Commercial license.
+- [x] Keep `pymupdf-layout` and PyMuPDF4LLM-style layout stacks out of default
+  dependencies unless users explicitly accept their current upstream license,
+  model, and dependency terms.
 - [ ] Add `NOTICE` only if the final dependency/license audit requires it.
 
 ### Secret, Artifact, And Data Hygiene
@@ -77,7 +78,7 @@ release unless explicitly extracted later.
 - [ ] Split fast unit tests from slow or integration adapter tests.
 - [x] Ensure default CI has no network dependency.
 - [x] Ensure default CI does not spend cloud API credits.
-- [ ] Add optional CI jobs or documented local commands for external adapters.
+- [x] Add optional CI jobs or documented local commands for external adapters.
 - [x] Add a fresh-install smoke test.
 - [x] Add a small fixture conversion smoke test that does not rely on PRAI
   private corpus paths.
@@ -86,12 +87,12 @@ release unless explicitly extracted later.
 
 - [x] Add `SECURITY.md`.
 - [x] Add `CONTRIBUTING.md`.
-- [ ] Add a public issue template for conversion-quality bugs.
-- [ ] Add a public issue template for adapter installation failures.
+- [x] Add a public issue template for conversion-quality bugs.
+- [x] Add a public issue template for adapter installation failures.
 - [x] Add a PR checklist covering tests, docs, benchmarks, dependency changes,
   and cost disclosures.
 - [ ] Decide whether to add `CODE_OF_CONDUCT.md`.
-- [ ] Document how users can share failing documents safely without leaking
+- [x] Document how users can share failing documents safely without leaking
   sensitive content.
 
 ### Release Engineering
@@ -99,10 +100,10 @@ release unless explicitly extracted later.
 - [x] Decide versioning policy after `0.1.0`.
 - [x] Add `CHANGELOG.md`.
 - [x] Add build verification for wheel install.
-- [ ] Add build verification for sdist install.
+- [x] Add build verification for sdist install.
 - [ ] Decide PyPI publishing flow and package owner credentials.
 - [ ] Decide signed tag or release artifact policy.
-- [ ] Confirm package metadata, classifiers, readme rendering, and license
+- [x] Confirm package metadata, classifiers, readme rendering, and license
   metadata before publish.
 - [ ] Create a first public release checklist issue or milestone.
 
@@ -128,7 +129,8 @@ These must be complete before publishing outside the monorepo:
 3. Clean sdist/wheel build and install.
 4. Public quickstart that does not require PRAI-private paths.
 5. Default test command documented and passing.
-6. License/dependency audit completed.
+6. License/dependency audit completed, including a decision on PyMuPDF's
+   AGPL/commercial required-runtime dependency.
 7. `SECURITY.md` and `CONTRIBUTING.md` added.
 8. Benchmark docs checked for date, hardware, cost, and corpus caveats.
 9. Generated artifacts and benchmark dumps confirmed ignored or absent.
@@ -136,9 +138,10 @@ These must be complete before publishing outside the monorepo:
 
 ## Recommended First Implementation Slice
 
-1. Build and install the package from sdist/wheel in a clean temporary venv.
-2. Add public issue templates for conversion bugs and adapter installation
-   failures.
-3. Add dependency-license notes for required and optional dependencies.
-4. Add optional integration-test commands for external adapters.
+1. Add a public adapter guide with required tools, optional extras, and known
+   limitations.
+2. Add an LLM judge setup guide with local and cloud-provider cost warnings.
+3. Add troubleshooting notes for PyMuPDF, optional adapters, and missing
+   images.
+4. Add a release-support matrix for Python versions and operating systems.
 5. Run a final secret/artifact audit before export.
