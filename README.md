@@ -79,6 +79,7 @@ Public project process docs:
 - [`docs/adapter-guide.md`](docs/adapter-guide.md)
 - [`docs/llm-judge-setup.md`](docs/llm-judge-setup.md)
 - [`docs/troubleshooting.md`](docs/troubleshooting.md)
+- [`docs/release-support-matrix.md`](docs/release-support-matrix.md)
 - [`docs/dependency-license-notes.md`](docs/dependency-license-notes.md)
 - [`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md)
 

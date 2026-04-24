@@ -50,6 +50,8 @@ adapter. It must not call an LLM judge or external converter.
 ## Release Verification
 
 Use this after package metadata, versioning, or release-doc changes.
+Supported Python and operating-system claims are tracked in
+[`docs/release-support-matrix.md`](docs/release-support-matrix.md).
 
 ```bash
 tmpdir="$(mktemp -d)"
