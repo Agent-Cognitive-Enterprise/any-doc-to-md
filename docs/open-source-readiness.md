@@ -47,14 +47,14 @@ release unless explicitly extracted later.
 
 ### Secret, Artifact, And Data Hygiene
 
-- [ ] Run a secret scan before export or publish.
-- [ ] Confirm no `.env`, API keys, local tokens, private keys, credentials, or
+- [x] Run a secret scan before export or publish.
+- [x] Confirm no `.env`, API keys, local tokens, private keys, credentials, or
   service endpoints are included.
-- [ ] Confirm no local model weights, ONNX exports, downloaded archives, venvs,
+- [x] Confirm no local model weights, ONNX exports, downloaded archives, venvs,
   caches, or generated benchmark outputs are included.
-- [ ] Confirm raw `/tmp` benchmark artifacts stay out of git.
-- [ ] Confirm benchmark docs use curated summaries, not raw local dumps.
-- [ ] Replace or remove machine-specific absolute paths from public docs.
+- [x] Confirm raw `/tmp` benchmark artifacts stay out of git.
+- [x] Confirm benchmark docs use curated summaries, not raw local dumps.
+- [x] Replace or remove machine-specific absolute paths from public docs.
 
 ### Public Documentation
 
@@ -136,11 +136,30 @@ These must be complete before publishing outside the monorepo:
 9. Generated artifacts and benchmark dumps confirmed ignored or absent.
 10. Release notes and version tag prepared.
 
+## Latest Export Audit
+
+Audit date: `2026-04-24`
+
+- Tracked package files: `118` before adding `MANIFEST.in`.
+- Secret-like string scan found only documented environment variable names,
+  placeholder values such as `...`, and test fake keys such as `sk-test`.
+- No tracked `.env`, private keys, certificates, local databases, ONNX exports,
+  model weights, downloaded archives, wheels, or tarballs were found.
+- Tracked binary fixtures are limited to small package-owned probe assets:
+  three PDFs and one 1x1 PNG under `src/anydoc2md/probe_assets/`.
+- Private PRAI backend commands and corpus paths were removed from public
+  reproduction instructions. The 2026-04-23 private-corpus benchmark remains a
+  curated historical summary and now points to the public reproduction guide.
+- Build outputs, egg-info, and `__pycache__` directories are ignored/generated
+  local state and are not tracked.
+- `MANIFEST.in` keeps public docs, examples, contribution docs, security docs,
+  and issue templates in the source distribution.
+
 ## Recommended First Implementation Slice
 
 1. Add a small public benchmark corpus or fixture set if the existing
    quickstart/probe fixtures are not enough for release-facing examples.
-2. Run a final secret/artifact audit before export.
-3. Decide PyPI publishing flow and package owner credentials.
-4. Create a first public release checklist issue or milestone.
-5. Decide whether to add `CODE_OF_CONDUCT.md`.
+2. Decide PyPI publishing flow and package owner credentials.
+3. Create a first public release checklist issue or milestone.
+4. Decide whether to add `CODE_OF_CONDUCT.md`.
+5. Decide signed tag or release artifact policy.

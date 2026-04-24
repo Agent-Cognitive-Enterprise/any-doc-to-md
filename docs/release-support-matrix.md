@@ -58,6 +58,7 @@ Run the release artifact check:
 
 ```bash
 tmpdir="$(mktemp -d)"
+rm -rf build dist src/*.egg-info
 python -m pip install --upgrade build twine
 python -m build --sdist --wheel --outdir "$tmpdir/dist"
 python -m twine check "$tmpdir"/dist/*

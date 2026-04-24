@@ -55,6 +55,7 @@ Supported Python and operating-system claims are tracked in
 
 ```bash
 tmpdir="$(mktemp -d)"
+rm -rf build dist src/*.egg-info
 python -m pip install --upgrade build twine
 python -m build --sdist --wheel --outdir "$tmpdir/dist"
 python -m twine check "$tmpdir"/dist/*

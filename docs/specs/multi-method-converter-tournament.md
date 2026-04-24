@@ -337,9 +337,9 @@ audit mode changes.
 
 Run context:
 
-- Corpus: `tmp/tournament-test/sources`, 14 representative files.
+- Corpus: private PRAI tournament corpus, 14 representative files.
 - Hardware: Intel Core i5-8400, 6 CPU cores, 15GiB RAM.
-- Runtime: `backend/.venv`, `audit-mode=light`, adapter `max_workers=4`.
+- Runtime: PRAI host environment, `audit-mode=light`, adapter `max_workers=4`.
 - Artifact root: `/tmp/adtm-side-by-side-corpus-20260423`.
 - Cloud/API cost: `$0`; this was a local-only light-mode converter run.
 - Quality metric: programmatic ADTM score only. Lower is better; this is a

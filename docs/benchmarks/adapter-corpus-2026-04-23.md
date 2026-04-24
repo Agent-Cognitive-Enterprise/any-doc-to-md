@@ -7,8 +7,8 @@ Use it as directional evidence, not as a universal performance claim.
 
 - Date: `2026-04-23`
 - Hardware: Intel Core i5-8400, 6 CPU cores, 15 GiB RAM
-- Runtime: PRAI `backend/.venv`
-- Corpus (PRAI repo): `tmp/tournament-test/sources`
+- Runtime: PRAI host environment
+- Corpus: private PRAI tournament corpus
 - Corpus size: `14` documents, `1505` known PDF pages
 - Audit mode: `light`
 - Adapter concurrency: `max_workers=4`
@@ -99,36 +99,13 @@ Default smoke result:
 
 ## Reproduce
 
-If using the PRAI integration, run the full side-by-side adapter corpus benchmark:
+This snapshot used a PRAI-private corpus and host integration script that are
+not part of the public package release. The committed public reproduction path
+uses package-owned fixtures and is documented in
+[`docs/benchmark-reproduction.md`](../benchmark-reproduction.md).
 
-```bash
-PYTHONPATH=backend:packages/any-doc-to-md/src \
-backend/.venv/bin/python backend/scripts/convert_tournament_test_sources.py \
-  --audit-mode light \
-  --adapters all \
-  --staging-root /tmp/adtm-side-by-side-corpus-YYYYMMDD \
-  --timeout-s 1800
-```
-
-Generate a matrix:
-
-```bash
-PYTHONPATH=packages/any-doc-to-md/src \
-backend/.venv/bin/python -m anydoc2md.converter_benchmark_matrix \
-  /tmp/adtm-side-by-side-corpus-YYYYMMDD \
-  --sources-dir tmp/tournament-test/sources \
-  --measured-at YYYY-MM-DD \
-  --hardware "describe CPU/RAM/runtime/audit mode/concurrency" \
-  --output-json /tmp/adtm-side-by-side-corpus-YYYYMMDD/matrix.json \
-  --output-md /tmp/adtm-side-by-side-corpus-YYYYMMDD/matrix.md
-```
-
-Run the current default-only smoke:
-
-```bash
-PYTHONPATH=backend:packages/any-doc-to-md/src \
-backend/.venv/bin/python backend/scripts/convert_tournament_test_sources.py \
-  --audit-mode light \
-  --staging-root /tmp/adtm-default-inhouse-YYYYMMDD \
-  --timeout-s 600
-```
+Maintainers with access to a private host corpus can reproduce an equivalent
+snapshot by writing tournament staging roots with `qa_report.json` files and
+then running `python -m anydoc2md.converter_benchmark_matrix` against that
+staging root. Public reports should publish curated summaries only, not raw
+private corpus artifacts.

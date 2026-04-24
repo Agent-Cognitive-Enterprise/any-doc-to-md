@@ -132,7 +132,7 @@ PY
 This smoke path uses only the default `inhouse` adapter and does not call a
 cloud LLM judge or external converter.
 
-### CLI (host-provided)
+### CLI And Benchmarks
 
 `anydoc2md` is a library. Host applications usually provide the user-facing CLI
 and call into the shared tournament/runtime surfaces.
@@ -142,47 +142,11 @@ In other words:
 - package responsibility: convert, score, audit, normalize, persist findings
 - host responsibility: environment loading, CLI UX, orchestration, exit behavior
 
-In PRAI (this monorepo), you can run the KB-pack pipeline CLI in tournament mode:
-
-```bash
-cd backend
-export ANYDOC2MD_JUDGE_PROVIDER="lm_studio"
-export ANYDOC2MD_JUDGE_URL="http://127.0.0.1:1234/v1"
-export ANYDOC2MD_JUDGE_MODEL="qwen/qwen3.6-35b-a3b"
-export ANYDOC2MD_JUDGE_TIMEOUT_S="360"
-
-PYTHONPATH=. python -m source_ingestion.kb_pack_pipeline.cli --tournament --audit-mode auto \
-  --adtm-dir ../.any-doc-to-md --write-scaffolds path/to/doc.pdf
-```
-
-To batch-convert the `tmp/tournament-test/sources` corpus:
-
-```bash
-cd backend
-PYTHONPATH=. python scripts/convert_tournament_test_sources.py
-```
-
-To aggregate a completed tournament staging root into a dated converter
-speed/quality matrix:
-
-```bash
-cd packages/any-doc-to-md
-PYTHONPATH=src python -m anydoc2md.converter_benchmark_matrix \
-  /tmp/adtm-side-by-side-corpus-20260423 \
-  --sources-dir ../../tmp/tournament-test/sources \
-  --measured-at 2026-04-23 \
-  --hardware "local workstation, light audit mode" \
-  --output-json /tmp/adtm-side-by-side-corpus-20260423/matrix.json \
-  --output-md /tmp/adtm-side-by-side-corpus-20260423/matrix.md
-```
-
+To generate a dated converter speed/quality matrix from public fixtures, see
+[`docs/benchmark-reproduction.md`](docs/benchmark-reproduction.md).
 The matrix reports wall time, pages per second, score-derived quality tiers,
 win rate, and a conservative `default_set_signal` so slow adapters that never
 win can be considered for the optional adapter pool instead of the default set.
-
-For a public reproduction workflow that uses only committed package fixtures
-and no PRAI-private corpus paths, see
-[`docs/benchmark-reproduction.md`](docs/benchmark-reproduction.md).
 
 To probe a local judge endpoint and find the smallest/fastest model that can
 reliably surface audit issues, use the committed probe assets that ship with
