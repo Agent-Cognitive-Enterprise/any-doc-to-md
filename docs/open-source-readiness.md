@@ -67,7 +67,7 @@ release unless explicitly extracted later.
 - [x] Add a public adapter guide with required tools, optional extras, and known
   limitations.
 - [x] Add an LLM judge setup guide with local and cloud-provider cost warnings.
-- [ ] Add troubleshooting notes for PyMuPDF, optional adapters, and missing
+- [x] Add troubleshooting notes for PyMuPDF, optional adapters, and missing
   images.
 - [ ] Add a release-support matrix for Python versions and operating systems.
 
@@ -138,10 +138,9 @@ These must be complete before publishing outside the monorepo:
 
 ## Recommended First Implementation Slice
 
-1. Add troubleshooting notes for PyMuPDF, optional adapters, and missing
-   images.
-2. Add a release-support matrix for Python versions and operating systems.
-3. Add a public benchmark reproduction guide that does not depend on private
+1. Add a release-support matrix for Python versions and operating systems.
+2. Add a public benchmark reproduction guide that does not depend on private
    PRAI paths.
-4. Define when benchmark numbers are stale enough to refresh.
-5. Run a final secret/artifact audit before export.
+3. Define when benchmark numbers are stale enough to refresh.
+4. Run a final secret/artifact audit before export.
+5. Decide PyPI publishing flow and package owner credentials.
