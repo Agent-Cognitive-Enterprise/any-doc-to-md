@@ -113,12 +113,12 @@ release unless explicitly extracted later.
 - [x] Include date, hardware, corpus, mode, and cost context in benchmark docs.
 - [x] State that local runs can still cost time/electricity even when API cost
   is `$0`.
-- [ ] Add a public benchmark reproduction guide that does not depend on private
+- [x] Add a public benchmark reproduction guide that does not depend on private
   PRAI paths.
 - [ ] Add a small public benchmark corpus or fixture set.
 - [x] Define how cloud-judge benchmark costs are reported, including date and
   provider/model names.
-- [ ] Define when benchmark numbers are stale enough to refresh.
+- [x] Define when benchmark numbers are stale enough to refresh.
 
 ## Initial Public Release Blockers
 
@@ -138,9 +138,9 @@ These must be complete before publishing outside the monorepo:
 
 ## Recommended First Implementation Slice
 
-1. Add a public benchmark reproduction guide that does not depend on private
-   PRAI paths.
-2. Define when benchmark numbers are stale enough to refresh.
-3. Run a final secret/artifact audit before export.
-4. Decide PyPI publishing flow and package owner credentials.
-5. Create a first public release checklist issue or milestone.
+1. Add a small public benchmark corpus or fixture set if the existing
+   quickstart/probe fixtures are not enough for release-facing examples.
+2. Run a final secret/artifact audit before export.
+3. Decide PyPI publishing flow and package owner credentials.
+4. Create a first public release checklist issue or milestone.
+5. Decide whether to add `CODE_OF_CONDUCT.md`.

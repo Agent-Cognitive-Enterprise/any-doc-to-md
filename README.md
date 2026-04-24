@@ -78,6 +78,7 @@ Public project process docs:
 - [`CHANGELOG.md`](CHANGELOG.md)
 - [`docs/adapter-guide.md`](docs/adapter-guide.md)
 - [`docs/llm-judge-setup.md`](docs/llm-judge-setup.md)
+- [`docs/benchmark-reproduction.md`](docs/benchmark-reproduction.md)
 - [`docs/troubleshooting.md`](docs/troubleshooting.md)
 - [`docs/release-support-matrix.md`](docs/release-support-matrix.md)
 - [`docs/dependency-license-notes.md`](docs/dependency-license-notes.md)
@@ -178,6 +179,10 @@ PYTHONPATH=src python -m anydoc2md.converter_benchmark_matrix \
 The matrix reports wall time, pages per second, score-derived quality tiers,
 win rate, and a conservative `default_set_signal` so slow adapters that never
 win can be considered for the optional adapter pool instead of the default set.
+
+For a public reproduction workflow that uses only committed package fixtures
+and no PRAI-private corpus paths, see
+[`docs/benchmark-reproduction.md`](docs/benchmark-reproduction.md).
 
 To probe a local judge endpoint and find the smallest/fastest model that can
 reliably surface audit issues, use the committed probe assets that ship with

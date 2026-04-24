@@ -127,6 +127,8 @@ Before opening a PR, confirm:
 - no secrets, private corpora, generated benchmark dumps, model weights,
   virtualenvs, caches, or downloaded archives were added
 - benchmark numbers include date, hardware, corpus, mode, and cost context
+- public benchmark reproduction changes follow
+  [`docs/benchmark-reproduction.md`](docs/benchmark-reproduction.md)
 - cloud/API costs are disclosed with date and provider/model names
 - LLM judge setup or benchmark changes follow
   [`docs/llm-judge-setup.md`](docs/llm-judge-setup.md)
