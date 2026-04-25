@@ -316,8 +316,8 @@ python -m anydoc2md.converter_benchmark_matrix <staging-root> \
 
 The matrix groups observations by page-count bucket and adapter. It records
 raw conversion success, hard-gate pass rate, win rate, total and median wall
-time, pages per second, score-derived quality tier, and local-only cloud cost
-for light-mode converter runs. It also emits a conservative
+time, pages per second, score- and gate-pass-derived quality tier, and
+local-only cloud cost for light-mode converter runs. It also emits a conservative
 `default_set_signal`:
 
 - `keep_default_candidate`: the adapter won at least one observed tournament.
@@ -341,19 +341,20 @@ Run context:
 - Runtime: PRAI host environment, `audit-mode=light`, adapter `max_workers=4`.
 - Artifact root: `/tmp/adtm-side-by-side-corpus-20260423`.
 - Cloud/API cost: `$0`; this was a local-only light-mode converter run.
-- Quality metric: programmatic ADTM score only. Lower is better; this is a
-  useful structural/fidelity proxy, not a final human semantic judgment.
+- Quality metric: programmatic ADTM score plus hard-gate pass rate. Lower score
+  is better, but broad gate ineligibility caps the quality tier; this is a useful
+  structural/fidelity proxy, not a final human semantic judgment.
 
 Adapter totals:
 
-| Adapter | Attempts | Wins | Total time | Pages/sec | Gate pass rate | Mean score | Default-set signal |
-|---|---:|---:|---:|---:|---:|---:|---|
-| `inhouse` | 14 | 10 | `35.689s` | `42.170` | `1.000` | `2.214` | `keep_default_candidate` |
-| `docling` | 14 | 4 | `1615.241s` | `0.932` | `0.286` | `0.000` | `keep_default_candidate` |
-| `markitdown` | 14 | 0 | `358.270s` | `4.201` | `0.857` | `21.000` | `move_to_optional_candidate` |
-| `unstructured` | 14 | 0 | `244.220s` | `6.162` | `0.857` | `20.417` | `move_to_optional_candidate` |
-| `pandoc` | 14 | 0 | `2.925s` | `514.530` | `0.071` | `0.000` | `watch_no_wins` |
-| `marker` | 14 | 0 | n/a | n/a | `0.000` | n/a | `not_available_or_unsupported` |
+| Adapter | Attempts | Wins | Total time | Pages/sec | Gate pass rate | Mean score | Quality tier | Default-set signal |
+|---|---:|---:|---:|---:|---:|---:|---|---|
+| `inhouse` | 14 | 10 | `35.689s` | `42.170` | `1.000` | `2.214` | `high` | `keep_default_candidate` |
+| `docling` | 14 | 4 | `1615.241s` | `0.932` | `0.286` | `0.000` | `poor` | `keep_default_candidate` |
+| `markitdown` | 14 | 0 | `358.270s` | `4.201` | `0.857` | `21.000` | `medium` | `move_to_optional_candidate` |
+| `unstructured` | 14 | 0 | `244.220s` | `6.162` | `0.857` | `20.417` | `medium` | `move_to_optional_candidate` |
+| `pandoc` | 14 | 0 | `2.925s` | `514.530` | `0.071` | `0.000` | `poor` | `watch_no_wins` |
+| `marker` | 14 | 0 | n/a | n/a | `0.000` | n/a | `failed` | `not_available_or_unsupported` |
 
 Observed winner distribution:
 

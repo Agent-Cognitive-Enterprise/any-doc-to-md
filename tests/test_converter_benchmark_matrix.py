@@ -23,12 +23,16 @@ def test_page_bucket_matches_user_facing_size_breaks() -> None:
     assert page_bucket(0) == "unknown pages"
 
 
-def test_quality_tier_uses_lower_score_as_better() -> None:
+def test_quality_tier_uses_lower_score_and_gate_pass_rate_as_better() -> None:
     assert quality_tier(None) == "failed"
     assert quality_tier(0) == "high"
     assert quality_tier(25) == "medium"
     assert quality_tier(75) == "low"
     assert quality_tier(125) == "poor"
+    assert quality_tier(0, gate_pass_rate=0.94) == "medium"
+    assert quality_tier(0, gate_pass_rate=0.79) == "low"
+    assert quality_tier(0, gate_pass_rate=0.49) == "poor"
+    assert quality_tier(None, gate_pass_rate=1.0) == "failed"
 
 
 def test_default_set_signal_marks_slow_no_win_adapters_optional() -> None:
@@ -130,7 +134,9 @@ def test_build_matrix_aggregates_reports_by_bucket_and_adapter(tmp_path: Path) -
     assert large_unstructured["total_pages"] == 75
     assert large_unstructured["mean_time_s"] == 4.0
     assert large_unstructured["pages_per_second"] == 18.75
-    assert _row(matrix["adapter_summary"], adapter="inhouse")["gate_pass_rate"] == 0.5
+    inhouse_total = _row(matrix["adapter_summary"], adapter="inhouse")
+    assert inhouse_total["gate_pass_rate"] == 0.5
+    assert inhouse_total["quality_tier"] == "low"
 
 
 def test_build_matrix_reads_no_winner_report_at_document_root(tmp_path: Path) -> None:

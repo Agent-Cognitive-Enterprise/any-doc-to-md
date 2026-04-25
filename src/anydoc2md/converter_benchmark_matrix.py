@@ -20,6 +20,9 @@ PAGE_BUCKETS = (
 OPTIONAL_MIN_MEDIAN_TIME_S = 30.0
 OPTIONAL_MIN_TOTAL_TIME_S = 120.0
 OPTIONAL_MAX_PAGES_PER_SECOND = 1.0
+HIGH_MIN_GATE_PASS_RATE = 0.95
+MEDIUM_MIN_GATE_PASS_RATE = 0.80
+LOW_MIN_GATE_PASS_RATE = 0.50
 
 
 @dataclass(frozen=True)
@@ -215,6 +218,9 @@ def _summaries(
         raw_successes = sum(1 for item in items if item.raw_success)
         gate_passes = sum(1 for item in items if item.gate_passed)
         wins = sum(1 for item in items if item.won)
+        raw_success_rate = _rate(raw_successes, len(items))
+        gate_pass_rate = _rate(gate_passes, len(items))
+        mean_score = mean(scores) if scores else None
         row.update(
             {
                 "attempts": len(items),
@@ -223,14 +229,14 @@ def _summaries(
                 "raw_successes": raw_successes,
                 "gate_passes": gate_passes,
                 "wins": wins,
-                "raw_success_rate": _rate(raw_successes, len(items)),
-                "gate_pass_rate": _rate(gate_passes, len(items)),
+                "raw_success_rate": raw_success_rate,
+                "gate_pass_rate": gate_pass_rate,
                 "win_rate": _rate(wins, len(items)),
                 "mean_time_s": _seconds(mean(timings)) if timings else None,
                 "median_time_s": median_time_s,
                 "pages_per_second": pages_per_second,
-                "mean_score": round(mean(scores), 3) if scores else None,
-                "quality_tier": quality_tier(mean(scores) if scores else None),
+                "mean_score": round(mean_score, 3) if mean_score is not None else None,
+                "quality_tier": quality_tier(mean_score, gate_pass_rate=gate_pass_rate),
                 "default_set_signal": default_set_signal(
                     raw_successes=raw_successes,
                     wins=wins,
@@ -245,12 +251,26 @@ def _summaries(
     return sorted(rows, key=_summary_sort_key)
 
 
-def quality_tier(mean_score: float | None) -> str:
-    if mean_score is None:
+def quality_tier(mean_score: float | None, *, gate_pass_rate: float = 1.0) -> str:
+    """
+    Return a user-facing quality tier from score and hard-gate eligibility.
+
+    Lower scores are better, but a good score over only a tiny eligible subset
+    should not be reported as high quality for the whole observed corpus.
+    """
+    if mean_score is None or gate_pass_rate <= 0:
         return "failed"
+    if gate_pass_rate < LOW_MIN_GATE_PASS_RATE:
+        return "poor"
     if mean_score <= 10:
-        return "high"
+        if gate_pass_rate >= HIGH_MIN_GATE_PASS_RATE:
+            return "high"
+        if gate_pass_rate >= MEDIUM_MIN_GATE_PASS_RATE:
+            return "medium"
+        return "low"
     if mean_score <= 50:
+        if gate_pass_rate < MEDIUM_MIN_GATE_PASS_RATE:
+            return "low"
         return "medium"
     if mean_score <= 100:
         return "low"

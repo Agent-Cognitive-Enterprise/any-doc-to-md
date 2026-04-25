@@ -84,6 +84,7 @@ Expected stable properties:
 - `documents` is `2`
 - `cloud_cost_usd` is `$0` for the light-mode converter run
 - adapter rows contain only `inhouse` unless explicit adapters are requested
+- `quality_tier` combines programmatic score with hard-gate pass rate
 - exact seconds and pages/sec vary by hardware, OS, Python, and dependencies
 
 Do not commit `/tmp/adtm-public-benchmark-repro` or other generated benchmark

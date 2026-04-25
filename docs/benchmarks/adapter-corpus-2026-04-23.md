@@ -24,8 +24,9 @@ Cloud provider pricing can change; local runs still consume machine time.
 better. A score of `0` means the programmatic checks did not find issues in that
 bucket/run; it does not prove perfect Markdown.
 
-The `quality_tier` is derived from that programmatic score and hard-gate status.
-It should be read alongside wins, gate pass rate, and adapter speed.
+The `quality_tier` is derived from that programmatic score and hard-gate pass
+rate. A low score over only a tiny eligible subset is capped below `high` so
+rare successes do not hide broad corpus ineligibility.
 
 ## Side-By-Side Adapter Totals
 
@@ -35,10 +36,10 @@ Generated artifact (local only, not committed):
 | Adapter | Attempts | Gate passes | Wins | Total pages | Adapter time | Pages/sec | Mean score | Quality tier | Signal |
 |---|---:|---:|---:|---:|---:|---:|---:|---|---|
 | `inhouse` | 14 | 14 | 10 | 1505 | 35.689s | 42.170 | 2.214 | high | Keep as default |
-| `docling` | 14 | 4 | 4 | 1505 | 1615.241s | 0.932 | 0.000 | high | First-class optional |
+| `docling` | 14 | 4 | 4 | 1505 | 1615.241s | 0.932 | 0.000 | poor | First-class optional |
 | `markitdown` | 14 | 12 | 0 | 1505 | 358.270s | 4.201 | 21.000 | medium | Optional |
 | `unstructured` | 14 | 12 | 0 | 1505 | 244.220s | 6.162 | 20.417 | medium | Optional |
-| `pandoc` | 14 | 1 | 0 | 1505 | 2.925s | 514.530 | 0.000 | high | Optional, limited eligibility |
+| `pandoc` | 14 | 1 | 0 | 1505 | 2.925s | 514.530 | 0.000 | poor | Optional, limited eligibility |
 | `marker` | 14 | 0 | 0 | 1505 | n/a | n/a | n/a | failed | Not available in this environment |
 
 Interpretation:
