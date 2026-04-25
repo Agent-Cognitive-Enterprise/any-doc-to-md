@@ -263,6 +263,39 @@ class TestOrchestratorFlow:
             near_tie_threshold=NEAR_TIE_THRESHOLD,
         )
 
+    def test_explicit_empty_adapter_list_is_preserved(self, tmp_path: Path) -> None:
+        source_path = tmp_path / "doc.pdf"
+        staging_root = tmp_path / "staging"
+        source_path.write_bytes(b"%PDF-1.4")
+        selection = _selection()
+
+        with patch(f"{MOCK_BASE}.default_adapter_names") as default_mock, \
+             patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament", return_value=[]) as tournament_mock, \
+             patch(f"{MOCK_BASE}.select_candidate", return_value=selection) as selector_mock:
+            result = run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=[],
+                audit_mode=AUDIT_MODE_LIGHT,
+                promote=False,
+            )
+
+        assert result.winner is None
+        default_mock.assert_not_called()
+        tournament_mock.assert_called_once_with(
+            source_path,
+            staging_root,
+            [],
+            timeout_s=600,
+        )
+        selector_mock.assert_called_once_with(
+            source_path,
+            staging_root,
+            [],
+            near_tie_threshold=NEAR_TIE_THRESHOLD,
+        )
+
     def test_audit_loop_winner_becomes_final_winner(self, tmp_path: Path) -> None:
         selection = _selection("docling", "docling", "inhouse")
         audit_result = _audit_result(winner="inhouse", verdict=_verdict("inhouse"))

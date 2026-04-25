@@ -25,6 +25,7 @@ from anydoc2md.format_converters.base import (
     INDEX_FILENAME,
     ConversionResult,
     load_overrides,
+    resolve_source_reference,
 )
 
 
@@ -421,7 +422,7 @@ def convert(
     running_header_min_pages: int = int(cfg.get("running_header_min_pages", 3))
 
     resolved_title = title or source_path.stem.replace("_", " ")
-    resolved_url = source_url or f"file://{source_path.resolve()}"
+    resolved_url = resolve_source_reference(source_path, source_url)
 
     images_dir = staging_dir / "images"
     text_blocks, image_blocks = _extract(

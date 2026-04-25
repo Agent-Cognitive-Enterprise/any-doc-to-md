@@ -55,3 +55,13 @@ def load_overrides(staging_dir: Path, extra: dict[str, Any] | None = None) -> di
     if extra:
         overrides.update(extra)
     return overrides
+
+
+def resolve_source_reference(source_path: Path, explicit_source_url: str = "") -> str:
+    """
+    Return source metadata safe to write into generated Markdown.
+
+    Explicit source URLs are preserved because the caller chose to publish them.
+    The implicit fallback is only the filename, not an absolute local file:// URI.
+    """
+    return explicit_source_url or source_path.name

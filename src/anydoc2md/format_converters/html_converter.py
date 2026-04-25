@@ -30,6 +30,7 @@ from anydoc2md.format_converters.base import (
     INDEX_FILENAME,
     ConversionResult,
     load_overrides,
+    resolve_source_reference,
 )
 
 SUPPORTED_EXTENSIONS = {".html", ".htm"}
@@ -71,7 +72,7 @@ def convert(
         title_tag = soup.find("title")
         resolved_title = title_tag.get_text(strip=True) if title_tag else source_path.stem
 
-    resolved_url = source_url or f"file://{source_path.resolve()}"
+    resolved_url = resolve_source_reference(source_path, source_url)
 
     # Remove boilerplate tags
     for tag in soup(["script", "style", "nav", "footer", "head"]):

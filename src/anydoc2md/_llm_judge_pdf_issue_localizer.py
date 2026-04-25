@@ -13,7 +13,7 @@ _TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9./-]{3,}")
 _DATE_LINE_RE = re.compile(r"^\d{1,2}\s+[A-Z]{3}\s+\d{4}$")
 _PAGE_OF_RE = re.compile(r"^page\s+\d+\s+of\s+\d+$", re.IGNORECASE)
 _PURE_NUMBER_RE = re.compile(r"^\d+$")
-_SOURCE_PATH_LINE_RE = re.compile(r"^\*\*Source:\*\*\s+file:", re.IGNORECASE)
+_SOURCE_LINE_RE = re.compile(r"^\*\*Source:\*\*", re.IGNORECASE)
 _STOPWORDS = {
     "about", "after", "also", "been", "being", "between", "chapter", "could",
     "does", "each", "from", "have", "into", "just", "more", "must", "page",
@@ -182,7 +182,7 @@ def _normalized_page_lines(text: str) -> list[str]:
             continue
         if _PAGE_OF_RE.match(line):
             continue
-        if _SOURCE_PATH_LINE_RE.match(line):
+        if _SOURCE_LINE_RE.match(line):
             continue
         lines.append(line)
     return lines

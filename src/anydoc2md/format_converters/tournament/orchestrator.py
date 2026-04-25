@@ -144,7 +144,7 @@ def run_full_tournament(
     Returns:
         TournamentResult.  Never raises — failures are captured in result fields.
     """
-    adapter_names = adapters or default_adapter_names()
+    adapter_names = default_adapter_names() if adapters is None else list(adapters)
     normalized_audit_mode = normalize_audit_mode(audit_mode)
     staging_root.mkdir(parents=True, exist_ok=True)
 

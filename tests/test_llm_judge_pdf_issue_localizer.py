@@ -6,6 +6,7 @@ import fitz
 
 from anydoc2md._llm_judge_pdf_issue_localizer import (
     _MAX_EXCERPT_TOTAL_CHARS,
+    _normalized_page_lines,
     detect_pdf_suspected_issues,
 )
 
@@ -33,6 +34,15 @@ def test_detect_pdf_suspected_issues_returns_empty_for_matching_documents(tmp_pa
     issues = detect_pdf_suspected_issues(source, candidate)
 
     assert issues == []
+
+
+def test_normalized_page_lines_ignores_source_metadata_without_file_scheme() -> None:
+    lines = _normalized_page_lines(
+        "**Source:** report.pdf\n"
+        "Alpha introduction and legal foundations page one.\n"
+    )
+
+    assert lines == ["Alpha introduction and legal foundations page one."]
 
 
 def test_detect_pdf_suspected_issues_localizes_mismatched_page(tmp_path: Path) -> None:

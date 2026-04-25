@@ -29,8 +29,8 @@ class QAExtensionSpec:
 
 
 def load_qa_extension(staging_dir: Path) -> QAExtensionSpec:
-    """Load an optional QA extension module from the staging dir or its parent."""
-    extension_path = _resolve_extension_path(staging_dir, QA_EXTENSION_FILENAME)
+    """Load an optional QA extension module from the trusted document root."""
+    extension_path = _resolve_trusted_hook_path(staging_dir, QA_EXTENSION_FILENAME)
     if extension_path is None:
         return QAExtensionSpec()
 
@@ -61,8 +61,8 @@ def apply_inhouse_extension(
     staging_dir: Path,
     converter_name: str,
 ) -> None:
-    """Run an optional in-house extension hook from the staging dir or its parent."""
-    extension_path = _resolve_extension_path(staging_dir, INHOUSE_EXTENSION_FILENAME)
+    """Run an optional in-house extension hook from the trusted document root."""
+    extension_path = _resolve_trusted_hook_path(staging_dir, INHOUSE_EXTENSION_FILENAME)
     if extension_path is None:
         return
 
@@ -77,10 +77,17 @@ def apply_inhouse_extension(
 
 def resolve_override_path(staging_dir: Path, filename: str) -> Path | None:
     """Resolve a staged override file from the adapter dir or document root."""
-    return _resolve_extension_path(staging_dir, filename)
+    return _resolve_staged_file_path(staging_dir, filename)
 
 
-def _resolve_extension_path(staging_dir: Path, filename: str) -> Path | None:
+def _resolve_trusted_hook_path(staging_dir: Path, filename: str) -> Path | None:
+    path = staging_dir.parent / filename
+    if path.exists():
+        return path
+    return None
+
+
+def _resolve_staged_file_path(staging_dir: Path, filename: str) -> Path | None:
     candidates = [staging_dir / filename, staging_dir.parent / filename]
     for path in candidates:
         if path.exists():

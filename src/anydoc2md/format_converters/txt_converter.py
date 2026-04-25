@@ -13,6 +13,7 @@ from anydoc2md.format_converters.base import (
     INDEX_FILENAME,
     ConversionResult,
     load_overrides,
+    resolve_source_reference,
 )
 
 SUPPORTED_EXTENSIONS = {".txt", ".text"}
@@ -34,7 +35,7 @@ def convert(
     load_overrides(staging_dir, overrides)  # honour override file even if unused yet
 
     resolved_title = title or source_path.stem.replace("_", " ")
-    resolved_url = source_url or f"file://{source_path.resolve()}"
+    resolved_url = resolve_source_reference(source_path, source_url)
 
     raw = source_path.read_text(encoding="utf-8", errors="replace")
 

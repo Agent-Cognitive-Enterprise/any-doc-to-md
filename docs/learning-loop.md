@@ -230,6 +230,12 @@ def check_vendor_caption_contract(md_text):
 Keep these hooks small, deterministic, and boring. Clever fixes are hard to
 trust.
 
+Treat these hooks as trusted code. A host project should stage reviewed
+`qa_extension.py` and `inhouse_extension.py` files at the document root, not
+inside an adapter output directory. ADTM ignores executable hook files found in
+adapter staging directories so a converter output cannot smuggle code into the
+QA or in-house post-processing path.
+
 ```python
 from pathlib import Path
 

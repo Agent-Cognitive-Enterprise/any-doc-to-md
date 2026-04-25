@@ -653,6 +653,12 @@ Supported patterns today:
 - `inhouse-extensions/<doc-key>.py` for project-local in-house post-processing
   hooks that can patch the converted staging output for that document
 
+Executable hooks are trusted code. ADTM loads staged `qa_extension.py` and
+`inhouse_extension.py` only from the document root, which is the parent of each
+adapter staging directory. It does not execute hook files found inside adapter
+output directories. YAML overrides remain data-only and may be staged beside an
+adapter output or at the document root.
+
 Deterministic scaffold authoring is also available through
 `anydoc2md.remediation_authoring.author_project_local_scaffolds(...)`. It
 turns a persisted remediation plan into reviewable `qa-extensions/*.py` and

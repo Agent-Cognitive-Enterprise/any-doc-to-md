@@ -476,6 +476,7 @@ When the package is installed read-only:
 - do not patch package source
 - store project-local extensions, overrides, and findings under `.any-doc-to-md/`
 - rely on staged document-root files such as `document.override.yaml`, `qa_extension.py`, and `inhouse_extension.py`
+- never execute hook files discovered inside adapter output directories; executable hooks are trusted project code, not converter output
 - prefer additive extensions over full replacements
 
 #### Maintainer writable mode

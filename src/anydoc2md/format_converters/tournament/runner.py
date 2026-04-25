@@ -64,7 +64,10 @@ def run_tournament(
         List of AdapterResult, one per adapter, in completion order.
         Failed adapters produce error AdapterResults (status != "ok") — never raise.
     """
-    names = adapters or default_adapter_names()
+    names = default_adapter_names() if adapters is None else list(adapters)
+    if not names:
+        return []
+    worker_count = max(1, min(max_workers, len(names)))
     results: list[AdapterResult] = []
 
     def _run_one(name: str) -> AdapterResult:
@@ -77,7 +80,7 @@ def run_tournament(
             # Backward compatibility for adapters that haven't been updated yet.
             return module.run(source_path, staging_dir)
 
-    with ThreadPoolExecutor(max_workers=min(max_workers, len(names))) as pool:
+    with ThreadPoolExecutor(max_workers=worker_count) as pool:
         futures = {pool.submit(_run_one, name): name for name in names}
         for future in as_completed(futures):
             try:

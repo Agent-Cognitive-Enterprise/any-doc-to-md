@@ -14,7 +14,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from anydoc2md.format_converters.base import ConversionResult, load_overrides
+from anydoc2md.format_converters.base import (
+    ConversionResult,
+    load_overrides,
+    resolve_source_reference,
+)
 from anydoc2md.format_converters import pdf_converter
 
 SUPPORTED_EXTENSIONS = {".docx", ".doc", ".odt", ".rtf"}
@@ -54,7 +58,7 @@ def convert(
             pdf_path,
             staging_dir,
             title=title or source_path.stem.replace("_", " "),
-            source_url=source_url or f"file://{source_path.resolve()}",
+            source_url=resolve_source_reference(source_path, source_url),
             overrides=cfg,
         )
 
