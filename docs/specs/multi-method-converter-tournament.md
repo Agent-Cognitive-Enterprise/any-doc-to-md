@@ -140,8 +140,7 @@ Default selection behavior currently uses `inhouse` only. This is an evidence
 based runtime default from the 2026-04-23 matrix, not a demotion of the other
 adapters. If a host project or user passes an explicit adapter list, the
 tournament runs exactly that list instead. Benchmark workflows should pass an
-explicit full list from `available_adapter_names()`; PRAI's corpus script also
-accepts `--adapters all` for this purpose.
+explicit full list from `available_adapter_names()`.
 
 ### Planned adapters
 
@@ -366,12 +365,13 @@ Observed winner distribution:
 Default-pool implication:
 
 - Keep `inhouse` in the default set.
-- Keep `docling` in the default set for now because it wins some documents, but
-  route or cap it carefully for large PDFs. On the 101-1000 page bucket it had
+- Keep `docling` as a first-class optional adapter because it wins some
+  documents, but do not put it in the effective default set until routing or
+  caps make its large-PDF cost acceptable. On the 101-1000 page bucket it had
   `0/3` wins, `0.333` raw success rate, median `600.549s`, and `0.986`
   pages/sec.
-- Move `markitdown` and `unstructured` toward optional/default-off candidates
-  for this corpus unless a broader benchmark shows wins. Both consumed material
+- Keep `markitdown` and `unstructured` first-class optional/default-off for
+  this corpus unless a broader benchmark shows wins. Both consumed material
   time and had `0/14` wins.
 - Keep `pandoc` as a cheap structured-format fallback candidate rather than a
   broad default conversion engine.

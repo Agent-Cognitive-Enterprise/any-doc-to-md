@@ -136,6 +136,8 @@ Before opening a PR, confirm:
 - cloud/API costs are disclosed with date and provider/model names
 - LLM judge setup or benchmark changes follow
   [`docs/llm-judge-setup.md`](docs/llm-judge-setup.md)
+- learning-loop or remediation changes follow
+  [`docs/learning-loop.md`](docs/learning-loop.md)
 - troubleshooting guidance was updated when setup or failure modes changed
 - dependency changes include license and install-footprint notes
 

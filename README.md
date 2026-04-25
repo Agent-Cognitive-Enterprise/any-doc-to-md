@@ -78,6 +78,7 @@ Public project process docs:
 - [`CHANGELOG.md`](CHANGELOG.md)
 - [`docs/adapter-guide.md`](docs/adapter-guide.md)
 - [`docs/llm-judge-setup.md`](docs/llm-judge-setup.md)
+- [`docs/learning-loop.md`](docs/learning-loop.md)
 - [`docs/benchmark-reproduction.md`](docs/benchmark-reproduction.md)
 - [`docs/troubleshooting.md`](docs/troubleshooting.md)
 - [`docs/publishing.md`](docs/publishing.md)
@@ -530,7 +531,7 @@ Adapter selection policy:
 - default behavior: run `inhouse` only
 - explicit adapter list: run exactly the adapters requested by the host project or user
 - benchmark/all-adapter runs: pass an explicit all-adapter list from
-  `available_adapter_names()` or use the parent PRAI script's `--adapters all`
+  `available_adapter_names()`
 - adapter failures such as missing CLIs are treated as candidate-level failures, not fatal tournament errors
 
 External tools used:
@@ -612,6 +613,8 @@ Optional adapter install boundaries and local smoke commands are documented in
 Dependency and license notes, including the required PyMuPDF AGPL/commercial
 release-audit item, are documented in
 [`docs/dependency-license-notes.md`](docs/dependency-license-notes.md).
+How ADTM turns conversion failures into evidence, tests, and reviewable fixes
+is documented in [`docs/learning-loop.md`](docs/learning-loop.md).
 
 2026-04-23 corpus snapshot, measured on an Intel Core i5-8400 with 6 CPU cores
 and 15 GiB RAM in `light` audit mode:

@@ -67,6 +67,8 @@ release unless explicitly extracted later.
 - [x] Add a public adapter guide with required tools, optional extras, and known
   limitations.
 - [x] Add an LLM judge setup guide with local and cloud-provider cost warnings.
+- [x] Add a public learning-loop guide that explains detection, gate/check
+  extension, remediation scaffolds, and review boundaries with examples.
 - [x] Add troubleshooting notes for PyMuPDF, optional adapters, and missing
   images.
 - [x] Add a release-support matrix for Python versions and operating systems.
