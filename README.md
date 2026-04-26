@@ -75,6 +75,7 @@ Public project process docs:
 
 - [`SECURITY.md`](SECURITY.md)
 - [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
 - [`docs/adapter-guide.md`](docs/adapter-guide.md)
 - [`docs/llm-judge-setup.md`](docs/llm-judge-setup.md)
@@ -82,6 +83,7 @@ Public project process docs:
 - [`docs/benchmark-reproduction.md`](docs/benchmark-reproduction.md)
 - [`docs/troubleshooting.md`](docs/troubleshooting.md)
 - [`docs/publishing.md`](docs/publishing.md)
+- [`docs/releases/0.1.0-release-checklist.md`](docs/releases/0.1.0-release-checklist.md)
 - [`docs/release-support-matrix.md`](docs/release-support-matrix.md)
 - [`docs/dependency-license-notes.md`](docs/dependency-license-notes.md)
 - [`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md)

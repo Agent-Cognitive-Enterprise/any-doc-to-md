@@ -93,7 +93,7 @@ release unless explicitly extracted later.
 - [x] Add a public issue template for adapter installation failures.
 - [x] Add a PR checklist covering tests, docs, benchmarks, dependency changes,
   and cost disclosures.
-- [ ] Decide whether to add `CODE_OF_CONDUCT.md`.
+- [x] Add `CODE_OF_CONDUCT.md`.
 - [x] Document how users can share failing documents safely without leaking
   sensitive content.
 
@@ -109,7 +109,8 @@ release unless explicitly extracted later.
 - [ ] Decide signed tag or release artifact policy.
 - [x] Confirm package metadata, classifiers, readme rendering, and license
   metadata before publish.
-- [ ] Create a first public release checklist issue or milestone.
+- [x] Create a first public release checklist artifact in-repo so it can be
+  mirrored into a GitHub issue or milestone at repo split/publish time.
 
 ### Benchmark And Cost Policy
 
@@ -165,6 +166,6 @@ Audit date: `2026-04-24`
    quickstart/probe fixtures are not enough for release-facing examples.
 2. Assign concrete PyPI owner and backup owner account handles before the
    first upload.
-3. Create a first public release checklist issue or milestone.
-4. Decide whether to add `CODE_OF_CONDUCT.md`.
-5. Decide signed tag or release artifact policy.
+3. Decide signed tag or release artifact policy.
+4. Mirror the repo-owned `0.1.0` release checklist into the eventual public
+   GitHub issue or milestone when the split/export repository is created.
