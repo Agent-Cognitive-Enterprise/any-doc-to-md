@@ -120,7 +120,7 @@ release unless explicitly extracted later.
   is `$0`.
 - [x] Add a public benchmark reproduction guide that does not depend on private
   PRAI paths.
-- [ ] Add a small public benchmark corpus or fixture set.
+- [x] Add a small public benchmark corpus or fixture set.
 - [x] Define how cloud-judge benchmark costs are reported, including date and
   provider/model names.
 - [x] Define when benchmark numbers are stale enough to refresh.
@@ -162,9 +162,7 @@ Audit date: `2026-04-24`
 
 ## Recommended First Implementation Slice
 
-1. Add a small public benchmark corpus or fixture set if the existing
-   quickstart/probe fixtures are not enough for release-facing examples.
-2. Assign concrete PyPI owner and backup owner account handles before the
+1. Assign concrete PyPI owner and backup owner account handles before the
    first upload.
-3. Mirror the repo-owned `0.1.0` release checklist into the eventual public
+2. Mirror the repo-owned `0.1.0` release checklist into the eventual public
    GitHub issue or milestone when the split/export repository is created.

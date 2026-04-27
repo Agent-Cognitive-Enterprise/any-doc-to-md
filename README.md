@@ -151,7 +151,8 @@ To generate a dated converter speed/quality matrix from public fixtures, see
 The matrix reports wall time, pages per second, score- and gate-pass-derived
 quality tiers, win rate, and a conservative `default_set_signal` so slow
 adapters that never win can be considered for the optional adapter pool instead
-of the default set.
+of the default set. The current package-owned public-fixture snapshot is
+[`docs/benchmarks/public-fixture-corpus-2026-04-27.md`](docs/benchmarks/public-fixture-corpus-2026-04-27.md).
 
 Dependency and license notes, including the required `PyMuPDF`
 AGPL/commercial-release disclosure for the default PDF path, live in

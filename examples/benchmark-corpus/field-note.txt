@@ -1,0 +1,21 @@
+Reservoir inspection note
+
+Location: North ridge storage tank
+Date: 2026-04-24
+
+Summary:
+
+- Access ladder bolts were secure.
+- Overflow channel was clear.
+- Surface debris was limited to a few leaves near the inlet.
+
+Measurements:
+
+1. Residual chlorine: 0.5 mg/L
+2. Water temperature: 14 C
+3. Visible turbidity: low
+
+Follow-up:
+
+Schedule valve exercise next week and confirm spare gasket stock before the
+monthly maintenance round.

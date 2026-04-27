@@ -12,6 +12,12 @@ small fixtures prove that tournament artifacts can be generated and aggregated
 into a speed/quality matrix. The larger dated adapter snapshots in
 [`docs/benchmarks/`](benchmarks/) are the directional comparison evidence.
 
+The current public fixture set is:
+
+- `examples/benchmark-corpus/field-note.txt`
+- `examples/benchmark-corpus/ops-brief.txt`
+- `src/anydoc2md/probe_assets/probe_source_reference.pdf`
+
 ## Prerequisites
 
 From the package root:
@@ -43,7 +49,8 @@ from anydoc2md.format_converters.tournament.orchestrator import run_full_tournam
 from anydoc2md.settings import AUDIT_MODE_LIGHT
 
 sources = [
-    Path("examples/quickstart/field-note.txt"),
+    Path("examples/benchmark-corpus/field-note.txt"),
+    Path("examples/benchmark-corpus/ops-brief.txt"),
     Path("src/anydoc2md/probe_assets/probe_source_reference.pdf"),
 ]
 staging_root = Path("/tmp/adtm-public-benchmark-repro")
@@ -81,11 +88,16 @@ sed -n '1,160p' /tmp/adtm-public-benchmark-repro/matrix.md
 
 Expected stable properties:
 
-- `documents` is `2`
+- `documents` is `3`
 - `cloud_cost_usd` is `$0` for the light-mode converter run
 - adapter rows contain only `inhouse` unless explicit adapters are requested
 - `quality_tier` combines programmatic score with hard-gate pass rate
+- the current public text fixtures land in `unknown pages`, while the committed
+  probe PDF lands in `2-10 pages`
 - exact seconds and pages/sec vary by hardware, OS, Python, and dependencies
+
+The latest dated public-fixture example snapshot lives at
+[`docs/benchmarks/public-fixture-corpus-2026-04-27.md`](benchmarks/public-fixture-corpus-2026-04-27.md).
 
 Do not commit `/tmp/adtm-public-benchmark-repro` or other generated benchmark
 staging roots.

@@ -1,0 +1,26 @@
+Operations brief
+
+Date: 2026-04-24
+Site: East pump station
+
+Status:
+
+The morning inspection found stable pump output and no visible leaks at the
+discharge manifold.
+
+Actions completed:
+
+1. Flushed the sampling tap.
+2. Recorded inlet and outlet pressure readings.
+3. Confirmed generator fuel level above the alert threshold.
+
+Readings:
+
+- Inlet pressure: 2.8 bar
+- Outlet pressure: 4.1 bar
+- Fuel level: 72%
+
+Next step:
+
+Repeat the pressure check after the afternoon demand peak and compare the
+readings against last week's maintenance log.
