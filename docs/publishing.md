@@ -64,6 +64,9 @@ For PyPI production:
 For TestPyPI, repeat the same pattern with a `testpypi` environment before the
 first production release.
 
+For the exact dry-run sequence, use
+[`docs/releases/testpypi-execution-checklist.md`](releases/testpypi-execution-checklist.md).
+
 Reference docs:
 
 - PyPI Trusted Publishers:
@@ -188,6 +191,10 @@ PY
 
 Use `--extra-index-url` because TestPyPI usually does not mirror every runtime
 dependency.
+
+For the full go/no-go sequence, including preconditions, tag push, expected
+workflow behavior, and stop conditions, follow
+[`docs/releases/testpypi-execution-checklist.md`](releases/testpypi-execution-checklist.md).
 
 ## Emergency Token Fallback
 

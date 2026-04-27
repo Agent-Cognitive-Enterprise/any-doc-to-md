@@ -85,6 +85,7 @@ Public project process docs:
 - [`docs/publishing.md`](docs/publishing.md)
 - [`docs/releases/0.1.0-release-checklist.md`](docs/releases/0.1.0-release-checklist.md)
 - [`docs/releases/maintainer-runbook-template.md`](docs/releases/maintainer-runbook-template.md)
+- [`docs/releases/testpypi-execution-checklist.md`](docs/releases/testpypi-execution-checklist.md)
 - [`docs/release-support-matrix.md`](docs/release-support-matrix.md)
 - [`docs/dependency-license-notes.md`](docs/dependency-license-notes.md)
 - [`docs/adapter-integration-tests.md`](docs/adapter-integration-tests.md)
