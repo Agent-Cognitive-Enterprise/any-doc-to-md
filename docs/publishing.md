@@ -38,6 +38,11 @@ Record the concrete owner handles in the private release checklist or the
 public repository's maintainer runbook. Do not put personal recovery codes,
 passwords, API tokens, or private email-only recovery details in this repo.
 
+This repository ships a safe public template at
+[`docs/releases/maintainer-runbook-template.md`](releases/maintainer-runbook-template.md).
+Use it as structure only. The filled-in version belongs in a private maintainer
+system, not in git.
+
 ## Trusted Publishing Setup
 
 Use PyPI Trusted Publishing because it avoids storing a long-lived upload token
