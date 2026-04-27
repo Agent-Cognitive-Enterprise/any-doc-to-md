@@ -153,6 +153,10 @@ quality tiers, win rate, and a conservative `default_set_signal` so slow
 adapters that never win can be considered for the optional adapter pool instead
 of the default set.
 
+Dependency and license notes, including the required `PyMuPDF`
+AGPL/commercial-release disclosure for the default PDF path, live in
+[`docs/dependency-license-notes.md`](docs/dependency-license-notes.md).
+
 To probe a local judge endpoint and find the smallest/fastest model that can
 reliably surface audit issues, use the committed probe assets that ship with
 the package. `find_judge` now runs in two phases:

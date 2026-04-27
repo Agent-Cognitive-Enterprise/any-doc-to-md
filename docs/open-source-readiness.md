@@ -106,7 +106,7 @@ release unless explicitly extracted later.
 - [x] Decide PyPI publishing flow and credential policy.
 - [ ] Assign concrete PyPI owner and backup owner account handles before the
   first upload.
-- [ ] Decide signed tag or release artifact policy.
+- [x] Decide signed tag or release artifact policy.
 - [x] Confirm package metadata, classifiers, readme rendering, and license
   metadata before publish.
 - [x] Create a first public release checklist artifact in-repo so it can be
@@ -166,6 +166,5 @@ Audit date: `2026-04-24`
    quickstart/probe fixtures are not enough for release-facing examples.
 2. Assign concrete PyPI owner and backup owner account handles before the
    first upload.
-3. Decide signed tag or release artifact policy.
-4. Mirror the repo-owned `0.1.0` release checklist into the eventual public
+3. Mirror the repo-owned `0.1.0` release checklist into the eventual public
    GitHub issue or milestone when the split/export repository is created.

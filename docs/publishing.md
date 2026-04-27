@@ -16,6 +16,10 @@ tokens, and the minimum release sequence.
 - Test environment name: `testpypi`
 - Release workflow filename: `.github/workflows/release.yml`
 - Long-lived PyPI API tokens: emergency/manual fallback only
+- Release tag policy: protected annotated tags matching `v*`
+- Cryptographic signing policy for `0.1.x`: not required for the first public
+  release; authenticity is enforced through protected tags, reviewed GitHub
+  releases, and PyPI Trusted Publishing OIDC
 - Required human control: protected GitHub environment with manual approval for
   production PyPI uploads
 
@@ -117,6 +121,29 @@ jobs:
 If the public repo uses a monorepo layout, set the build job working directory
 to `packages/any-doc-to-md` or split ADTM into its own repository before
 enabling production publishing.
+
+## Tag And Release Artifact Policy
+
+For the initial `0.1.x` public line:
+
+- create annotated git tags only, using the form `vMAJOR.MINOR.PATCH`
+- protect `v*` tags so only maintainers can create them
+- cut GitHub release notes from `CHANGELOG.md`
+- publish only artifacts built by CI from the tagged commit
+- do not upload maintainer-built local wheels or sdists to PyPI
+- do not require GPG or Sigstore signing for `0.1.x`
+
+Rationale:
+
+- PyPI Trusted Publishing already binds the upload to the GitHub Actions OIDC
+  identity for the tagged workflow run
+- protected tags and required environment approval are simpler to operate than
+  ad hoc maintainer signing for the first release
+- this keeps the first public release process auditable without inventing a
+  brittle signature workflow before the package has even shipped once
+
+Revisit artifact signing after the first public release if maintainers want
+Sigstore-based provenance or signed tags as an additional control.
 
 ## Release Sequence
 

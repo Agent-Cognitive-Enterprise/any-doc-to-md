@@ -38,6 +38,35 @@ Primary references:
 - Beautiful Soup PyPI metadata: <https://pypi.org/project/beautifulsoup4/>
 - Requests PyPI metadata: <https://pypi.org/project/requests/>
 
+## PyMuPDF Release Posture For 0.1.0
+
+This is the only dependency posture that matters enough to block the first
+public release.
+
+Current package reality:
+
+- the default `inhouse` adapter handles PDFs
+- PDF audit helpers also depend on `PyMuPDF`
+- removing `PyMuPDF` from the base package before `0.1.0` would materially
+  change the advertised default capability set
+
+Recommended `0.1.0` posture:
+
+- keep `PyMuPDF` in the base package for `0.1.0`
+- keep explicit disclosure in public docs that PDF support depends on
+  `PyMuPDF` and therefore inherits its AGPL/commercial licensing choice
+- do not claim that the full runtime stack is Apache-only just because ADTM's
+  own code is Apache-2.0
+
+Release gate:
+
+- a maintainer with authority to publish must explicitly accept this posture
+  before the first public upload
+
+If that posture is not acceptable, the release must stop and the package must
+be refactored before publish so PDF support moves behind an explicit extra or
+separate distribution boundary.
+
 ## Optional Adapter Boundaries
 
 These adapters are implemented and supported as first-class optional adapters,
@@ -87,8 +116,8 @@ Primary references:
 
 - Run a license scanner against the locked release environment.
 - Review direct and transitive dependencies for the exact versions to publish.
-- Decide whether PyMuPDF's AGPL/commercial dependency is acceptable for the base
-  package or whether PDF support must become an extra.
+- Explicitly accept the `0.1.0` PyMuPDF base-package posture above, or block
+  release and refactor PDF support behind an explicit extra/distribution split.
 - Add `NOTICE` only if the final audit requires it.
 - Keep every optional adapter documented with install, test, license, and cost
   notes.
