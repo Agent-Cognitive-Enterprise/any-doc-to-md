@@ -72,7 +72,7 @@ def test_html_converter_blocks_localhost_network_images(tmp_path: Path) -> None:
 
     mock_urlopen.assert_not_called()
     assert result.image_count == 0
-    assert any("disallowed" in w.lower() for w in result.warnings)
+    assert any("disabled" in w.lower() or "disallowed" in w.lower() for w in result.warnings)
     md = (staging / "index.md").read_text(encoding="utf-8")
     assert "<img" not in md
 

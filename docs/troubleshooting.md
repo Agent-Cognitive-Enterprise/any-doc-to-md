@@ -102,6 +102,44 @@ slow:
 - Prefer `inhouse` only for routine runs and reserve `docling`, `unstructured`,
   `markitdown`, `pandoc`, and `marker` for explicit diagnostics or benchmarks.
 
+## LibreOffice Missing for DOCX
+
+ADTM's `inhouse` adapter converts DOC/DOCX/ODT/RTF by shelling out to
+LibreOffice headless, then processing the resulting PDF. LibreOffice is not
+installed by the ADTM package itself.
+
+Symptom:
+
+```text
+RuntimeError: LibreOffice conversion failed (exit 1):
+```
+
+or:
+
+```text
+FileNotFoundError: [Errno 2] No such file or directory: 'libreoffice'
+```
+
+Checks:
+
+```bash
+which libreoffice
+libreoffice --version
+```
+
+Fixes:
+
+- Install LibreOffice with your OS package manager:
+
+  ```bash
+  # Debian/Ubuntu
+  sudo apt-get install libreoffice-core libreoffice-writer
+  ```
+
+- Confirm `libreoffice` is on `PATH` for the running process after installation.
+- PDF, HTML, and TXT conversion does not need LibreOffice; only DOC/DOCX/ODT/RTF
+  routes through it.
+
 ## Optional Adapter Problems
 
 Optional adapter failures should appear as adapter-level errors. They should

@@ -8,7 +8,7 @@ Overrides:
     base_url    str     override for resolving relative image URLs
     min_text_len int    10   discard text nodes shorter than this
     max_image_bytes int  8388608 max bytes to read for any one image
-    allow_network_images bool True allow http(s) image downloads
+    allow_network_images bool False allow http(s) image downloads (disabled by default)
     allow_private_network_images bool False allow localhost/private-network image URLs
     allow_file_outside_html_dir bool False allow file:// images outside the HTML dir
 """
@@ -59,7 +59,7 @@ def convert(
     default_base_url = source_url or (source_path.parent.as_uri() + "/")
     base_url: str = str(cfg.get("base_url", default_base_url))
     max_image_bytes: int = int(cfg.get("max_image_bytes", 8 * 1024 * 1024))
-    allow_network_images: bool = bool(cfg.get("allow_network_images", True))
+    allow_network_images: bool = bool(cfg.get("allow_network_images", False))
     allow_private_network_images: bool = bool(cfg.get("allow_private_network_images", False))
     allow_file_outside_html_dir: bool = bool(cfg.get("allow_file_outside_html_dir", False))
 

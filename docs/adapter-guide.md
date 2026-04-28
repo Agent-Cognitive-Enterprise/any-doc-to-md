@@ -17,7 +17,9 @@ documents where another converter has a better opinion than the default path.
 ## Selection Policy
 
 Use the default `inhouse` adapter when you need a fast, local, predictable
-conversion path with no external converter binaries.
+conversion path. PDF, HTML, and TXT paths use only package runtime dependencies.
+DOC/DOCX/ODT/RTF conversion requires LibreOffice because ADTM converts those
+formats through LibreOffice → PDF → PDF extraction.
 
 Use an explicit adapter list when you want tournament comparison, adapter
 diagnostics, or a format-specific external tool. Missing optional tools produce
@@ -31,7 +33,7 @@ eligible external adapters, so it remains the only default adapter.
 
 | Adapter | Install boundary | Typical input support | Image behavior | 2026-04-23 benchmark signal | License boundary |
 |---|---|---|---|---|---|
-| `inhouse` | Base ADTM package | PDF, DOCX, HTML, TXT | Package-native staging; annotates image dimensions when images are present | Default: 14/14 gate passes in default smoke, 10/14 wins in side-by-side run, 42.170 pages/sec | ADTM code is Apache-2.0; required PyMuPDF dependency needs final AGPL/commercial release review |
+| `inhouse` | Base ADTM package for PDF/HTML/TXT; LibreOffice required for DOC/DOCX/ODT/RTF | PDF, DOCX, HTML, TXT | Package-native staging; annotates image dimensions when images are present | Default: 14/14 gate passes in default smoke, 10/14 wins in side-by-side run, 42.170 pages/sec | ADTM code is Apache-2.0; required PyMuPDF dependency needs final AGPL/commercial release review |
 | `markitdown` | `pip install markitdown` | PDF, DOCX, PPTX, XLSX, HTML, TXT, EPUB, ZIP | Usually text-first; ADTM creates `images/`, but extracted image files are often absent | Optional: 12/14 gate passes, 0 wins, 4.201 pages/sec | Microsoft MarkItDown code is MIT; optional upstream OCR/cloud/LLM features can add separate terms and costs |
 | `docling` | `pip install docling` | PDF, DOCX, PPTX, XLSX, HTML, Markdown, AsciiDoc, TXT | Exports referenced images; ADTM rewrites them into `images/` | First-class optional: 4/14 wins, but slow overall at 0.932 pages/sec | Docling code is MIT; model usage can carry separate model terms |
 | `unstructured` | `pip install "unstructured[all-docs]"` plus system deps as needed | PDF, DOCX, PPTX, XLSX, HTML, TXT, Markdown, RTF, EPUB, XML, JSON, CSV, TSV | Current ADTM adapter is text-first and does not extract image files | Optional: 12/14 gate passes, 0 wins, 6.162 pages/sec | Unstructured code is Apache-2.0; broad extras have a large transitive/system dependency footprint |
@@ -72,6 +74,15 @@ differently.
 
 `inhouse` wraps ADTM's own converter modules directly. It is the default because
 it is fast, local, predictable, and integrated with ADTM's staging conventions.
+
+PDF, HTML, and TXT paths use only package runtime dependencies. DOC/DOCX/ODT/RTF
+conversion shells out to LibreOffice, converting to PDF first. Install
+LibreOffice if you need those formats:
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install libreoffice-core libreoffice-writer
+```
 
 Use it for normal conversions and for CI smoke tests. It is not a proof that
 external adapters are unnecessary; it is the best current default based on the
