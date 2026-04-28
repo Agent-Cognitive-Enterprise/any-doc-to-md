@@ -581,7 +581,7 @@ External tools used:
 
 | Adapter | External package / tool | Interface used | Typical input support |
 |---|---|---|---|
-| `inhouse` | none beyond Python libraries used internally | direct Python call | PDF, DOCX, HTML, TXT |
+| `inhouse` | Python runtime dependencies for PDF/HTML/TXT; LibreOffice required for DOC/DOCX/ODT/RTF | direct Python modules; LibreOffice subprocess for DOC-family formats | PDF, DOCX, DOC, ODT, RTF, HTML, TXT |
 | `markitdown` | `markitdown` CLI | subprocess | PDF, DOCX, PPTX, XLSX, HTML, TXT, EPUB, ZIP |
 | `docling` | `docling` CLI | subprocess | PDF, DOCX, PPTX, XLSX, HTML, Markdown, AsciiDoc, TXT |
 | `unstructured` | `unstructured` Python package | subprocess-backed Python module | PDF, DOCX, PPTX, XLSX, HTML, TXT, Markdown, RTF, EPUB, XML, JSON, CSV, TSV |
@@ -603,7 +603,7 @@ dependency footprint.
 | Execution model | direct Python modules | external CLI via subprocess | external CLI via subprocess | subprocess-backed Python module | external CLI via subprocess | external CLI via subprocess |
 | Normal output shape | already aimed at package staging layout | flat Markdown output, adapter writes `index.md` | `<stem>.md` + artifacts dir, adapter normalizes to `index.md` + `images/` | ordered elements rendered back into `index.md` | adapter writes `index.md` | marker output normalized into `index.md` + `images/` |
 | Image handling | package-native staging + image-dimension annotation when images are present | typically no extracted image files; `images/` often empty | exports referenced image files and adapter rewrites them into `images/` | does not currently extract image files; `images/` stays empty | does not extract images; creates `images/` but leaves it empty | extracts images for PDFs and rewrites paths into `images/` |
-| Dependency surface | only the package + Python libs | requires installed `markitdown` CLI | requires installed `docling` CLI | requires `unstructured[all-docs]` plus upstream system deps for some formats | requires installed `pandoc` CLI | requires installed `marker_single` CLI |
+| Dependency surface | package runtime dependencies for PDF/HTML/TXT; LibreOffice required for DOC-family formats | requires installed `markitdown` CLI | requires installed `docling` CLI | requires `unstructured[all-docs]` plus upstream system deps for some formats | requires installed `pandoc` CLI | requires installed `marker_single` CLI |
 | Failure mode | Python exception becomes structured adapter error | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing package | subprocess exit code / timeout / missing CLI | subprocess exit code / timeout / missing CLI |
 | Main strength | tight integration and predictable staging semantics | broad input support and simple CLI contract | strong document-structure and image-export behavior | broad partitioning coverage and table/OCR-oriented ecosystem | deterministic normalizer for text-centric formats | strong layout retention for PDFs |
 
@@ -629,7 +629,9 @@ types you want to process.
 
 It differs from the external adapters in two important ways:
 
-1. It does not shell out to an external converter binary.
+1. PDF, HTML, and TXT are handled by package-owned Python converter modules.
+   DOC/DOCX/ODT/RTF currently shell out to LibreOffice headless, then reuse
+   the PDF path.
 2. It uses the package's own conversion logic directly, so layout decisions,
    normalization behavior, and staging semantics stay under package control.
 
