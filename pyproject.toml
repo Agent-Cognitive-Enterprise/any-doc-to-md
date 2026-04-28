@@ -29,6 +29,11 @@ dependencies = [
   "requests",
 ]
 
+[project.scripts]
+anydoc2md = "anydoc2md.cli:main"
+anydoc2md-find-judge = "anydoc2md.find_judge:main"
+anydoc2md-benchmark-matrix = "anydoc2md.converter_benchmark_matrix:main"
+
 [project.optional-dependencies]
 test = [
   "pytest",

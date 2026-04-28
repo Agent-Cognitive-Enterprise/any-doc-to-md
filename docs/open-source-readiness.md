@@ -9,10 +9,12 @@ source project.
 - Public license: Apache-2.0
 - Package name: `any-doc-to-md`
 - Python package import: `anydoc2md`
-- Initial public posture: library-first package with host-provided CLIs
+- Initial public posture: repo-first CLI and library, installable from a clone
 - Default converter set: `inhouse` only
 - Optional adapters: `markitdown`, `docling`, `unstructured`, `pandoc`, `marker`
 - Benchmark policy: dated, hardware-scoped, cost-aware snapshots only
+- PyPI publishing: optional later distribution path, not required to make the
+  repository open source
 
 PRAI integration scripts, private corpora, local benchmark dumps, API keys,
 and generated runtime artifacts are not part of the initial ADTM open-source
@@ -27,8 +29,7 @@ release unless explicitly extracted later.
 - [x] Keep `inhouse` as the only default adapter.
 - [x] Verify fresh editable install from a clean checkout.
 - [x] Verify fresh wheel install from a local build artifact.
-- [ ] Add or confirm package entry points if a standalone ADTM CLI becomes part
-  of the release.
+- [x] Add package entry points for the repo-friendly ADTM CLI and helper tools.
 - [ ] Decide whether the public repo is a split repo or a filtered export from
   the monorepo.
 
@@ -103,9 +104,8 @@ release unless explicitly extracted later.
 - [x] Add `CHANGELOG.md`.
 - [x] Add build verification for wheel install.
 - [x] Add build verification for sdist install.
-- [x] Decide PyPI publishing flow and credential policy.
-- [ ] Assign concrete PyPI owner and backup owner account handles before the
-  first upload.
+- [x] Keep PyPI publishing flow and credential policy documented for a future
+  package upload.
 - [x] Decide signed tag or release artifact policy.
 - [x] Confirm package metadata, classifiers, readme rendering, and license
   metadata before publish.
@@ -139,7 +139,11 @@ These must be complete before publishing outside the monorepo:
 7. `SECURITY.md` and `CONTRIBUTING.md` added.
 8. Benchmark docs checked for date, hardware, cost, and corpus caveats.
 9. Generated artifacts and benchmark dumps confirmed ignored or absent.
-10. Release notes and version tag prepared.
+10. CLI quickstart verified from a clean clone or editable install.
+11. Release notes and version tag prepared.
+
+PyPI owner handles, TestPyPI, and Trusted Publishing are blockers only for a
+package upload. They are not blockers for opening the repository.
 
 ## Latest Export Audit
 
@@ -162,7 +166,7 @@ Audit date: `2026-04-24`
 
 ## Recommended First Implementation Slice
 
-1. Assign concrete PyPI owner and backup owner account handles before the
-   first upload.
+1. Decide whether the public repo is a split repo or a filtered export from the
+   monorepo.
 2. Mirror the repo-owned `0.1.0` release checklist into the eventual public
    GitHub issue or milestone when the split/export repository is created.

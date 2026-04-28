@@ -118,7 +118,20 @@ Run the default local test suite:
 python -m pytest -q
 ```
 
-Run a package-only smoke conversion with the committed quickstart fixture:
+Run a CLI conversion with the committed quickstart fixture:
+
+```bash
+python -m anydoc2md convert \
+  examples/quickstart/field-note.txt \
+  --output-dir /tmp/adtm-quickstart
+sed -n '1,80p' /tmp/adtm-quickstart/index.md
+```
+
+The same command is available as `anydoc2md convert ...` after an editable
+install. This default path uses only the `inhouse` adapter and does not call a
+cloud LLM judge or external converter.
+
+Run the same package-only smoke conversion from Python:
 
 ```bash
 python - <<'PY'
@@ -140,13 +153,28 @@ cloud LLM judge or external converter.
 
 ### CLI And Benchmarks
 
-`anydoc2md` is a library. Host applications usually provide the user-facing CLI
-and call into the shared tournament/runtime surfaces.
+`anydoc2md` ships a small user-facing CLI for cloned-repo and editable-install
+workflows:
 
-In other words:
+```bash
+python -m anydoc2md adapters
+python -m anydoc2md convert examples/quickstart/field-note.txt -o /tmp/adtm-out
+anydoc2md adapters
+anydoc2md convert examples/quickstart/field-note.txt -o /tmp/adtm-out
+```
 
-- package responsibility: convert, score, audit, normalize, persist findings
-- host responsibility: environment loading, CLI UX, orchestration, exit behavior
+The CLI writes:
+
+- `index.md`
+- `images/` when the winning adapter extracts images
+- `anydoc2md-result.json`
+- `.any-doc-to-md/staging/` under the output directory unless `--staging-dir`
+  is supplied
+
+The package also exposes console scripts for helper workflows:
+
+- `anydoc2md-find-judge`
+- `anydoc2md-benchmark-matrix`
 
 To generate a dated converter speed/quality matrix from public fixtures, see
 [`docs/benchmark-reproduction.md`](docs/benchmark-reproduction.md).
