@@ -440,9 +440,10 @@ before retrying.
   check and fix bodies before they have any effect.
 - The re-run loop retries with the next ranked candidate, not with an
   agent-generated fix applied to the same candidate.
-- The agent-invocation bridge is not yet automatic: `run_learning_loop` must be
-  called explicitly by a host project or coding agent. ADTM does not yet detect
-  that it is running inside a coding-agent session and self-invoke the loop.
+- The agent-invocation bridge is intentionally explicit: `anydoc2md convert`
+  writes findings and scaffold stubs, then stops. A coding agent reads
+  `docs/agent-conversion-guide.md` and drives the retry loop via CLI calls.
+  ADTM does not self-invoke agent sessions.
 
 The safety boundary — no autonomous code mutation without review — is
 deliberate and must be preserved as implementation catches up to the design.

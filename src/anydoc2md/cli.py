@@ -13,6 +13,7 @@ from anydoc2md.format_converters.tournament.runner import (
     available_adapter_names,
     default_adapter_names,
 )
+from anydoc2md.remediation_authoring import author_project_local_scaffolds
 from anydoc2md.settings import AUDIT_MODE_LIGHT, VALID_AUDIT_MODES
 
 
@@ -46,13 +47,27 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--output-dir",
         type=Path,
         required=True,
-        help="Output directory for index.md, images/, and anydoc2md-result.json.",
+        help=(
+            "Output directory for this conversion. One directory per source document"
+            " — re-running to the same path overwrites the previous result."
+        ),
     )
     convert.add_argument(
         "--staging-dir",
         type=Path,
         default=None,
         help="Optional tournament staging directory. Defaults under output dir.",
+    )
+    convert.add_argument(
+        "--project-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Project root for shared ADTM state (.any-doc-to-md/ directory)."
+            " Defaults to the current working directory."
+            " Use this when converting multiple documents in one project so all"
+            " findings and scaffolds are written to one location."
+        ),
     )
     convert.add_argument(
         "--adapter",
@@ -107,8 +122,11 @@ def _convert(args: argparse.Namespace) -> int:
         print("Error: --timeout-s must be > 0.", file=sys.stderr)
         return 2
 
+    project_dir = args.project_dir or Path.cwd()
+    anydoc2md_dir = project_dir / ".any-doc-to-md"
     adapters = _adapter_selection(args)
     staging_dir = args.staging_dir or (output_dir / ".any-doc-to-md" / "staging")
+    _stage_project_scaffolds(anydoc2md_dir, source, staging_dir)
     result = run_full_tournament(
         source,
         staging_dir,
@@ -117,6 +135,7 @@ def _convert(args: argparse.Namespace) -> int:
         timeout_s=args.timeout_s,
     )
     _write_result_json(output_dir, result.to_dict())
+    _save_findings(anydoc2md_dir, source, result)
 
     if result.winner_staging_dir is None:
         _print_result(args, result.to_dict())
@@ -127,6 +146,10 @@ def _convert(args: argparse.Namespace) -> int:
     _print_result(args, result.to_dict())
     if not args.json:
         print(f"winner={result.winner} output={output_dir / 'index.md'}")
+        if result.remediation_plan is not None:
+            print(f"findings: {anydoc2md_dir / 'llm-findings' / source.name}.json")
+            print(f"scaffolds: {anydoc2md_dir / 'qa-extensions'} and inhouse-extensions/")
+            print("next steps: see docs/agent-conversion-guide.md")
     return 0
 
 
@@ -171,6 +194,48 @@ def _publish_winner(winner_dir: Path, output_dir: Path) -> None:
         shutil.rmtree(images_dst)
     if images_src.is_dir():
         shutil.copytree(images_src, images_dst)
+
+
+def _stage_project_scaffolds(
+    anydoc2md_dir: Path, source: Path, staging_dir: Path
+) -> None:
+    """Copy project-level scaffolds for this source into the staging root."""
+    doc_key = source.name
+    qa_src = anydoc2md_dir / "qa-extensions" / f"{doc_key}.py"
+    inhouse_src = anydoc2md_dir / "inhouse-extensions" / f"{doc_key}.py"
+    if qa_src.exists() or inhouse_src.exists():
+        staging_dir.mkdir(parents=True, exist_ok=True)
+    if qa_src.exists():
+        shutil.copy2(qa_src, staging_dir / "qa_extension.py")
+    if inhouse_src.exists():
+        shutil.copy2(inhouse_src, staging_dir / "inhouse_extension.py")
+
+
+def _save_findings(anydoc2md_dir: Path, source: Path, result) -> None:
+    """Persist judge findings and generate scaffold stubs when issues are found."""
+    if result.judge_verdict is None and result.remediation_plan is None:
+        return
+    doc_key = source.name
+    if result.judge_verdict is not None:
+        findings_dir = anydoc2md_dir / "llm-findings"
+        findings_dir.mkdir(parents=True, exist_ok=True)
+        findings = {
+            "doc_key": doc_key,
+            "source_path": str(source),
+            "judge_verdict": result.judge_verdict.to_dict(),
+            "remediation_plan": (
+                result.remediation_plan.to_dict() if result.remediation_plan else None
+            ),
+        }
+        (findings_dir / f"{doc_key}.json").write_text(
+            json.dumps(findings, indent=2, ensure_ascii=True), encoding="utf-8"
+        )
+    if result.remediation_plan is not None:
+        author_project_local_scaffolds(
+            report_data={"remediation_plan": result.remediation_plan.to_dict()},
+            anydoc2md_dir=anydoc2md_dir,
+            doc_key=doc_key,
+        )
 
 
 def _print_result(args: argparse.Namespace, payload: dict) -> None:

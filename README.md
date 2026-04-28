@@ -81,6 +81,7 @@ Public project process docs:
 - [`docs/adapter-guide.md`](docs/adapter-guide.md)
 - [`docs/llm-judge-setup.md`](docs/llm-judge-setup.md)
 - [`docs/learning-loop.md`](docs/learning-loop.md)
+- [`docs/agent-conversion-guide.md`](docs/agent-conversion-guide.md)
 - [`docs/benchmark-reproduction.md`](docs/benchmark-reproduction.md)
 - [`docs/troubleshooting.md`](docs/troubleshooting.md)
 - [`docs/publishing.md`](docs/publishing.md)
@@ -135,6 +136,11 @@ python -m anydoc2md convert \
 sed -n '1,80p' /tmp/adtm-quickstart/index.md
 ```
 
+The output directory receives `index.md`, an `images/` subdirectory (populated
+when the source contains extractable images), and `anydoc2md-result.json`.
+Each output directory holds exactly one conversion result — use a separate
+directory per source document, as re-running to the same path overwrites the
+previous result.
 The same command is available as `anydoc2md convert ...` after an editable
 install. This default path uses only the `inhouse` adapter and does not call a
 cloud LLM judge or external converter.
