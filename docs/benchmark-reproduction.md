@@ -3,7 +3,7 @@
 Review date: `2026-04-24`
 
 This guide shows how to reproduce the public benchmark workflow with only
-package-owned fixtures. It intentionally avoids PRAI-private corpus paths,
+package-owned fixtures. It intentionally avoids private downstream corpus paths,
 cloud LLM judges, API keys, optional converter installs, and raw local
 benchmark dumps.
 
@@ -20,10 +20,9 @@ The current public fixture set is:
 
 ## Prerequisites
 
-From the package root:
+From the repository root:
 
 ```bash
-cd packages/any-doc-to-md
 python -m pip install -e ".[test]"
 ```
 

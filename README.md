@@ -101,14 +101,12 @@ because it encodes a hard-earned lesson:
 Install (editable):
 
 ```bash
-cd packages/any-doc-to-md
 python -m pip install -e .
 ```
 
 Install with test dependencies:
 
 ```bash
-cd packages/any-doc-to-md
 python -m pip install -e ".[test]"
 ```
 
@@ -205,7 +203,6 @@ the package. `find_judge` now runs in two phases:
 By default each selected model must pass both phases 10 times:
 
 ```bash
-cd packages/any-doc-to-md
 python -m anydoc2md.find_judge \
   --judge-url http://127.0.0.1:1234/v1 \
   --repeats 10 \
@@ -303,10 +300,9 @@ records success count, wall time, input/output token usage, and observed peak
 in-flight calls. For cloud providers, 429 responses are retried with
 provider-aware backoff that honors `retry-after` when the provider returns it.
 
-Example against three already-staged PRAI large-PDF winners:
+Example against three already-staged large-PDF winners:
 
 ```bash
-cd packages/any-doc-to-md
 PYTHONPATH=src python -m anydoc2md.judge_pdf_concurrency_benchmark \
   --judge-url http://127.0.0.1:1234/v1 \
   --judge-model qwen/qwen3-4b-2507 \
@@ -728,10 +724,8 @@ The tournament orchestrator supports two audit modes:
   back to score-only light mode
 - `light`: skip the LLM audit and accept the score-selected candidate directly
 
-Host CLIs can expose that as a user-facing switch. PRAI's KB-pack pipeline CLI
-now exposes it as `--audit-mode auto|light`.
-
-PRAI's KB-pack pipeline CLI also supports:
+Applications can expose that as a user-facing switch. Project integrations can
+also support:
 
 - `--adtm-dir DIR` to persist findings and project-local hooks under a
   chosen `.any-doc-to-md` directory
@@ -808,7 +802,6 @@ verdict = judge_candidate_against_source(
 The package is a normal `src/` layout project:
 
 ```bash
-cd packages/any-doc-to-md
 python -m pip install -e .
 ```
 
@@ -817,6 +810,5 @@ Host applications can either install the package normally or put `src/` on `PYTH
 Run the package test suite directly:
 
 ```bash
-cd packages/any-doc-to-md
 PYTHONPATH=src pytest -q tests
 ```

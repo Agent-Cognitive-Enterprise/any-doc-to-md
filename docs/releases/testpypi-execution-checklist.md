@@ -18,7 +18,7 @@ fix that failure before continuing.
 
 ## Local Verification Before Tagging
 
-From `packages/any-doc-to-md`:
+From the repository root:
 
 ```bash
 PYTHONPATH=src python -m pytest -q

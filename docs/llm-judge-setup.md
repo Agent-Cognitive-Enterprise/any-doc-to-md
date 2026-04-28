@@ -78,7 +78,6 @@ export ANYDOC2MD_JUDGE_PDF_CONCURRENCY="4"
 List models exposed by the endpoint:
 
 ```bash
-cd packages/any-doc-to-md
 PYTHONPATH=src python -m anydoc2md.find_judge \
   --judge-url "$ANYDOC2MD_JUDGE_URL" \
   --list-models-only

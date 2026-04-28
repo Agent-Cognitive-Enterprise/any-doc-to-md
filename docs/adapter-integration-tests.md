@@ -8,7 +8,6 @@ license terms outside ADTM's Apache-2.0 package code.
 The default package test remains:
 
 ```bash
-cd packages/any-doc-to-md
 python -m pip install -e ".[test]"
 python -m pytest -q
 ```

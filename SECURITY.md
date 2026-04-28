@@ -51,8 +51,8 @@ In scope for ADTM:
 
 Out of scope for the initial ADTM package release:
 
-- PRAI host application authentication and deployment
-- private PRAI corpora and local benchmark dumps
+- integrating application authentication and deployment
+- private downstream corpora and local benchmark dumps
 - third-party converter internals
 - local model weights, downloaded archives, and external services
 

@@ -2,7 +2,7 @@
 
 Measurement date: `2026-04-27`
 
-- Package scope: `packages/any-doc-to-md`
+- Repository: `any-doc-to-md`
 - Corpus: package-owned public fixture set
 - Corpus members:
   - `examples/benchmark-corpus/field-note.txt`
@@ -18,7 +18,7 @@ Measurement date: `2026-04-27`
 
 This snapshot is a public benchmark smoke, not a broad winner-selection corpus.
 It proves that the benchmark pipeline, tournament artifacts, and matrix
-aggregation run from a clean package checkout without private PRAI inputs.
+aggregation run from a clean checkout without private inputs.
 
 ## Matrix
 

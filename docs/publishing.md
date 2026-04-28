@@ -126,9 +126,8 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
 ```
 
-If the public repo uses a monorepo layout, set the build job working directory
-to `packages/any-doc-to-md` or split ADTM into its own repository before
-enabling production publishing.
+This repository is already the ADTM project root, so the workflow can build
+from the checkout root.
 
 ## Tag And Release Artifact Policy
 

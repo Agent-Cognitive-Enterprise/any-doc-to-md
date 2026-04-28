@@ -2,14 +2,14 @@
 
 **Status:** Draft — partially implemented, not yet signed off  
 **Scope:** `anydoc2md` shared package, document -> Markdown conversion layer  
-**Module location:** `packages/any-doc-to-md/src/anydoc2md/`
+**Module location:** `src/anydoc2md/`
 
 ## Source of truth
 
 This document is the canonical ADTM specification.
 
 - Package behavior should be documented here first.
-- Parent projects such as PRAI should reference this spec rather than maintain a separate copy.
+- Integrating projects should reference this spec rather than maintain a separate copy.
 - If this spec and current code differ, treat the current code as the implemented baseline and this document as the intended next-state design.
 
 ## Current implementation snapshot
@@ -454,7 +454,7 @@ When a coding agent is available, it sits above ADTM rather than inside it.
 
 Expected flow:
 
-1. a parent workflow such as PRAI KB pack builder selects source documents
+1. an integrating workflow selects source documents
 2. the coding agent runs ADTM CLI to convert them
 3. ADTM emits findings and writes detailed issue descriptions under `.any-doc-to-md/`
 4. the coding agent reads those findings
@@ -550,7 +550,7 @@ For maintainer-mode coding-agent changes, require:
 
 - a focused regression test for the exact defect
 - rerun of affected package tests
-- rerun of the full `packages/any-doc-to-md` suite
+- rerun of the full `any-doc-to-md` suite
 - rerun of ADTM on the original offending document
 
 For parent-workflow integration changes, also rerun the relevant backend integration or end-to-end coverage.

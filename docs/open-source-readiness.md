@@ -5,7 +5,7 @@ source project.
 
 ## Release Decision
 
-- Release boundary: `packages/any-doc-to-md`
+- Release boundary: this `any-doc-to-md` repository
 - Public license: Apache-2.0
 - Package name: `any-doc-to-md`
 - Python package import: `anydoc2md`
@@ -16,22 +16,21 @@ source project.
 - PyPI publishing: optional later distribution path, not required to make the
   repository open source
 
-PRAI integration scripts, private corpora, local benchmark dumps, API keys,
-and generated runtime artifacts are not part of the initial ADTM open-source
-release unless explicitly extracted later.
+Private downstream integration scripts, private corpora, local benchmark dumps,
+API keys, and generated runtime artifacts are not part of the initial ADTM
+open-source release unless explicitly extracted later.
 
 ## Release Gates
 
 ### Scope And Packaging
 
-- [x] Release `packages/any-doc-to-md` first, not the whole PRAI monorepo.
-- [x] Keep ADTM usable as a library with host-provided CLIs.
+- [x] Release this standalone `any-doc-to-md` repository.
+- [x] Keep ADTM usable as a CLI and library.
 - [x] Keep `inhouse` as the only default adapter.
 - [x] Verify fresh editable install from a clean checkout.
 - [x] Verify fresh wheel install from a local build artifact.
 - [x] Add package entry points for the repo-friendly ADTM CLI and helper tools.
-- [ ] Decide whether the public repo is a split repo or a filtered export from
-  the monorepo.
+- [x] Confirm the public repo already exists and this checkout points at it.
 
 ### License And Dependency Hygiene
 
@@ -83,7 +82,7 @@ release unless explicitly extracted later.
 - [x] Ensure default CI does not spend cloud API credits.
 - [x] Add optional CI jobs or documented local commands for external adapters.
 - [x] Add a fresh-install smoke test.
-- [x] Add a small fixture conversion smoke test that does not rely on PRAI
+- [x] Add a small fixture conversion smoke test that does not rely on
   private corpus paths.
 
 ### Security And Contribution Process
@@ -119,7 +118,7 @@ release unless explicitly extracted later.
 - [x] State that local runs can still cost time/electricity even when API cost
   is `$0`.
 - [x] Add a public benchmark reproduction guide that does not depend on private
-  PRAI paths.
+  downstream paths.
 - [x] Add a small public benchmark corpus or fixture set.
 - [x] Define how cloud-judge benchmark costs are reported, including date and
   provider/model names.
@@ -127,12 +126,12 @@ release unless explicitly extracted later.
 
 ## Initial Public Release Blockers
 
-These must be complete before publishing outside the monorepo:
+These must be complete before making the repository public:
 
 1. Clean secret scan.
 2. Clean fresh install from a checkout.
 3. Clean sdist/wheel build and install.
-4. Public quickstart that does not require PRAI-private paths.
+4. Public quickstart that does not require private downstream paths.
 5. Default test command documented and passing.
 6. License/dependency audit completed, including a decision on PyMuPDF's
    AGPL/commercial required-runtime dependency.
@@ -156,7 +155,7 @@ Audit date: `2026-04-24`
   model weights, downloaded archives, wheels, or tarballs were found.
 - Tracked binary fixtures are limited to small package-owned probe assets:
   three PDFs and one 1x1 PNG under `src/anydoc2md/probe_assets/`.
-- Private PRAI backend commands and corpus paths were removed from public
+- Private downstream commands and corpus paths were removed from public
   reproduction instructions. The 2026-04-23 private-corpus benchmark remains a
   curated historical summary and now points to the public reproduction guide.
 - Build outputs, egg-info, and `__pycache__` directories are ignored/generated
@@ -166,7 +165,7 @@ Audit date: `2026-04-24`
 
 ## Recommended First Implementation Slice
 
-1. Decide whether the public repo is a split repo or a filtered export from the
-   monorepo.
-2. Mirror the repo-owned `0.1.0` release checklist into the eventual public
-   GitHub issue or milestone when the split/export repository is created.
+1. Run the final public-surface audit immediately before flipping repository
+   visibility.
+2. Mirror the repo-owned `0.1.0` checklist into a public GitHub issue or
+   milestone when maintainers are ready to track release operations publicly.
