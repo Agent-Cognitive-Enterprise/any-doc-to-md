@@ -372,17 +372,77 @@ The next document benefits from the last document.
 
 That is the difference between a converter and a conversion system.
 
-## Current Limits
+## Intended Agent-In-Loop Design
 
-Be precise about what exists today:
+This section records the original intended design so implementation stays
+anchored to it.
+
+The full learning loop is only active when a coding agent is running the
+conversion. Standalone ADTM (no agent present) stops after step 3 and persists
+findings for later review.
+
+```text
+1. Convert source file to Markdown via the inhouse adapter.
+2. Run hard gates and QA checks to score conversion quality.
+3. If quality is below threshold and a judge is configured:
+     → ask the LLM judge what is wrong
+     → save the judgement to .any-doc-to-md/llm-findings/
+4. If a coding agent is present:
+     a) Expand gates: add or update a qa-extension that catches this issue
+        class deterministically in future runs.
+     b) Expand the inhouse converter: add or update an inhouse-extension
+        (or override) that fixes the issue for this document or document family.
+5. Re-run steps 1–4, up to 3 attempts total.
+   If the same or more issues persist after 3 attempts:
+     → stop retrying
+     → escalate to a human with the full evidence trail
+```
+
+Key properties of this design:
+
+- **Gate expansion (4a) is as important as the fix (4b).** A new gate makes the
+  failure detectable on every future run. Without it, the fix is a guess that
+  cannot be verified to hold.
+- **The agent acts within the current run,** not as an offline follow-up step.
+  Findings drive immediate implementation and re-test within the same session.
+- **3-retry cap is a hard limit.** Some documents cannot be fixed
+  programmatically. The cap prevents infinite loops and forces human review when
+  automation cannot resolve the issue.
+- **Human escalation is not failure.** It is the correct outcome when the
+  problem exceeds what deterministic or agent-driven fixes can address.
+- **Standalone ADTM is unaffected.** Without an agent, the loop produces
+  findings and stub scaffolds and stops. The design does not require agent
+  presence — it benefits from it.
+
+## What Is Built vs What Is Planned
+
+| Step | Status | Notes |
+|---|---|---|
+| 1. Convert → Markdown | ✅ implemented | tournament orchestrator, inhouse adapter |
+| 2. Hard gates + QA score | ✅ implemented | `output_qa/hard_gates.py`, `output_qa/checks.py` |
+| 3. LLM judge → save findings | ✅ implemented | `llm-findings/`, `remediation_plan.json` |
+| 4a. Expand gate (working check) | 🔶 stub only | scaffold file generated but body is empty |
+| 4b. Expand converter (working fix) | 🔶 stub only | scaffold file generated but body is empty |
+| 5. Re-run up to 3× with fix applied | 🔶 partial | tournament retries with next candidate, not with agent-generated fix re-applied |
+| 5. Escalate to human after 3 failures | ❌ not implemented | no escalation path exists yet |
+
+The gap between the current state and the intended design is not in the
+structure — the scaffold files, findings persistence, and hook loading are all
+present. The gap is that scaffolds are empty stubs rather than working
+implementations, and the re-run loop does not yet apply agent-generated fixes
+before retrying.
+
+## Current Limits
 
 - ADTM already has hard gates, QA checks, LLM audit, remediation plans,
   project-local QA hooks, project-local in-house hooks, and scaffold authoring.
-- ADTM does not yet have package-runtime coding-agent execution.
-- ADTM does not yet automatically turn judge findings into finished checks or
-  finished converter patches.
-- The richer per-check violation schema in the tournament spec is still planned.
-- Human or coding-agent review remains part of the loop.
+- Scaffold files are generated as stubs. A coding agent must implement the
+  check and fix bodies before they have any effect.
+- The re-run loop retries with the next ranked candidate, not with an
+  agent-generated fix applied to the same candidate.
+- There is no 3-retry cap with human escalation yet.
+- There is no agent-invocation bridge: ADTM does not yet detect that it is
+  running inside a coding-agent session and trigger agent action automatically.
 
-This is not a weakness. It is the safety boundary that keeps learning
-auditable.
+The safety boundary — no autonomous code mutation without review — is
+deliberate and must be preserved as implementation catches up to the design.
