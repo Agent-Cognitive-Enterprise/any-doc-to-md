@@ -4,8 +4,9 @@
 
 More precisely: it is a converter that stands on the shoulders of the best
 existing conversion tools, runs them as competing candidates, asks an LLM to
-help choose and validate the strongest output, and records what it learns so
-future conversions can become better and faster.
+help validate the strongest output, and persists findings and reviewable
+scaffolds so a human or coding agent can make future conversions better and
+faster.
 
 It is not anti-converter. It is pro-converter, plural.
 
