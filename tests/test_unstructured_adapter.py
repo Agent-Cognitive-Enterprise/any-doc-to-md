@@ -87,11 +87,11 @@ def test_partition_elements_routes_pdf_to_fast_strategy() -> None:
         seen.update(kwargs)
         return []
 
-    with patch(
-        "unstructured.partition.pdf.partition_pdf",
-        side_effect=_fake_partition_pdf,
-    ):
-        result = _unstructured_backend._partition_elements(Path("doc.pdf"))
+    result = _unstructured_backend._partition_elements_with_callables(
+        Path("doc.pdf"),
+        partition_pdf=_fake_partition_pdf,
+        partition=lambda **_: [],
+    )
 
     assert result == []
     assert seen["filename"] == "doc.pdf"
@@ -107,11 +107,11 @@ def test_partition_elements_routes_non_pdf_to_auto_partition() -> None:
         seen.update(kwargs)
         return []
 
-    with patch(
-        "unstructured.partition.auto.partition",
-        side_effect=_fake_partition,
-    ):
-        result = _unstructured_backend._partition_elements(Path("doc.docx"))
+    result = _unstructured_backend._partition_elements_with_callables(
+        Path("doc.docx"),
+        partition_pdf=lambda **_: [],
+        partition=_fake_partition,
+    )
 
     assert result == []
     assert seen["filename"] == "doc.docx"

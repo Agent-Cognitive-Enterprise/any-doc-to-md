@@ -71,5 +71,26 @@ def _partition_elements(input_path: Path) -> list[Any]:
     )
 
 
+def _partition_elements_with_callables(
+    input_path: Path,
+    *,
+    partition_pdf: Any,
+    partition: Any,
+) -> list[Any]:
+    """Partition using injected callables for tests that avoid optional imports."""
+    suffix = input_path.suffix.lower()
+    if suffix == ".pdf":
+        return partition_pdf(
+            filename=str(input_path),
+            include_page_breaks=True,
+            strategy="fast",
+            infer_table_structure=False,
+        )
+    return partition(
+        filename=str(input_path),
+        include_page_breaks=True,
+    )
+
+
 if __name__ == "__main__":
     raise SystemExit(main())
