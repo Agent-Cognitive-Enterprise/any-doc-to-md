@@ -1,5 +1,47 @@
 __pycache__/
 *.py[cod]
+
+# Build and package outputs
 build/
 dist/
 *.egg-info/
+
+# Test, type-checker, and coverage outputs
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Local environments and machine state
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+.python-version
+.DS_Store
+.idea/
+.vscode/
+
+# ADTM runtime outputs and local benchmark state
+.any-doc-to-md/
+adtm-*/
+*-staging/
+benchmark-*/
+
+# Downloaded archives, local corpora, and model artifacts
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.onnx
+*.gguf
+*.safetensors
+*.pt
+*.pth
+local-corpus/
+private-corpus/

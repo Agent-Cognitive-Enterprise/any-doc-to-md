@@ -20,10 +20,15 @@ Report suspected security issues privately. Do not open a public issue for:
   subprocess output
 - dependency confusion, supply-chain, or package publishing issues
 
-For the initial public release, use the repository owner's private security
-advisory workflow if available. If the project is mirrored or exported before
-GitHub Security Advisories are enabled, contact the maintainers through the
-private channel listed on the public repository.
+For the initial public release, use GitHub private vulnerability reporting on
+the public repository:
+
+<https://github.com/Agent-Cognitive-Enterprise/any-doc-to-md/security/advisories/new>
+
+Maintainers must enable GitHub private vulnerability reporting before flipping
+the repository public. If that workflow is unavailable, do not publish a
+security issue publicly; contact the repository owner through the private
+maintainer channel listed on the GitHub organization profile.
 
 Include:
 

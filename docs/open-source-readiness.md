@@ -55,6 +55,8 @@ open-source release unless explicitly extracted later.
 - [x] Confirm raw `/tmp` benchmark artifacts stay out of git.
 - [x] Confirm benchmark docs use curated summaries, not raw local dumps.
 - [x] Replace or remove machine-specific absolute paths from public docs.
+- [x] Expand `.gitignore` for local env files, caches, generated ADTM state,
+  benchmark outputs, archives, local corpora, and model artifacts.
 
 ### Public Documentation
 
@@ -77,6 +79,7 @@ open-source release unless explicitly extracted later.
 
 - [x] Package has a broad pytest suite.
 - [x] Define the public default CI command.
+- [x] Add public CI for tests, CLI smoke, build, and `twine check`.
 - [ ] Split fast unit tests from slow or integration adapter tests.
 - [x] Ensure default CI has no network dependency.
 - [x] Ensure default CI does not spend cloud API credits.
@@ -88,6 +91,8 @@ open-source release unless explicitly extracted later.
 ### Security And Contribution Process
 
 - [x] Add `SECURITY.md`.
+- [x] Add concrete GitHub private vulnerability reporting path to
+  `SECURITY.md`; maintainers must enable it before flipping visibility.
 - [x] Add `CONTRIBUTING.md`.
 - [x] Add a public issue template for conversion-quality bugs.
 - [x] Add a public issue template for adapter installation failures.
@@ -105,6 +110,7 @@ open-source release unless explicitly extracted later.
 - [x] Add build verification for sdist install.
 - [x] Keep PyPI publishing flow and credential policy documented for a future
   package upload.
+- [x] Include `LICENSE` explicitly in `MANIFEST.in`.
 - [x] Decide signed tag or release artifact policy.
 - [x] Confirm package metadata, classifiers, readme rendering, and license
   metadata before publish.
@@ -144,24 +150,30 @@ These must be complete before making the repository public:
 PyPI owner handles, TestPyPI, and Trusted Publishing are blockers only for a
 package upload. They are not blockers for opening the repository.
 
-## Latest Export Audit
+## Latest Public-Surface Audit
 
-Audit date: `2026-04-24`
+Audit date: `2026-04-28`
 
-- Tracked package files: `118` before adding `MANIFEST.in`.
-- Secret-like string scan found only documented environment variable names,
-  placeholder values such as `...`, and test fake keys such as `sk-test`.
+- Full test suite passed: `PYTHONPATH=src python -m pytest -q` ->
+  `397 passed`.
+- CLI smoke passed with `python -m anydoc2md convert` against
+  `examples/quickstart/field-note.txt`.
+- Build verification passed: sdist and wheel built cleanly, `twine check`
+  passed, wheel installed into a fresh virtualenv, and the installed
+  `anydoc2md adapters` console script ran.
+- GitHub workflow and Dependabot YAML parsed successfully.
+- Secret-like string scan found only documented placeholder environment
+  variable examples such as `OPENAI_API_KEY="..."` and fake test keys such as
+  `sk-test`; no real credentials were found.
 - No tracked `.env`, private keys, certificates, local databases, ONNX exports,
-  model weights, downloaded archives, wheels, or tarballs were found.
-- Tracked binary fixtures are limited to small package-owned probe assets:
-  three PDFs and one 1x1 PNG under `src/anydoc2md/probe_assets/`.
-- Private downstream commands and corpus paths were removed from public
-  reproduction instructions. The 2026-04-23 private-corpus benchmark remains a
-  curated historical summary and now points to the public reproduction guide.
-- Build outputs, egg-info, and `__pycache__` directories are ignored/generated
-  local state and are not tracked.
-- `MANIFEST.in` keeps public docs, examples, contribution docs, security docs,
-  and issue templates in the source distribution.
+  model weights, downloaded archives, wheels, tarballs, or private corpora were
+  found.
+- Generated `build/`, `src/any_doc_to_md.egg-info/`, and `__pycache__/`
+  directories are ignored local state.
+- Source distribution includes `LICENSE`, `SECURITY.md`,
+  `.github/workflows/ci.yml`, and `.github/dependabot.yml`.
+- Historical private-corpus benchmark references remain only in dated benchmark
+  context and are not required for public reproduction.
 
 ## Recommended First Implementation Slice
 
