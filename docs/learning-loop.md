@@ -423,8 +423,8 @@ Key properties of this design:
 | 3. LLM judge → save findings | ✅ implemented | `llm-findings/`, `remediation_plan.json` |
 | 4a. Expand gate (working check) | 🔶 stub only | scaffold file generated but body is empty |
 | 4b. Expand converter (working fix) | 🔶 stub only | scaffold file generated but body is empty |
-| 5. Re-run up to 3× with fix applied | 🔶 partial | tournament retries with next candidate, not with agent-generated fix re-applied |
-| 5. Escalate to human after 3 failures | ❌ not implemented | no escalation path exists yet |
+| 5. Re-run up to 3× with fix applied | ✅ implemented | `learning_loop.run_learning_loop` retries with staged scaffolds applied |
+| 5. Escalate to human after 3 failures | ✅ implemented | escalation record written to `.any-doc-to-md/escalations/{doc_key}.json` |
 
 The gap between the current state and the intended design is not in the
 structure — the scaffold files, findings persistence, and hook loading are all
@@ -440,9 +440,9 @@ before retrying.
   check and fix bodies before they have any effect.
 - The re-run loop retries with the next ranked candidate, not with an
   agent-generated fix applied to the same candidate.
-- There is no 3-retry cap with human escalation yet.
-- There is no agent-invocation bridge: ADTM does not yet detect that it is
-  running inside a coding-agent session and trigger agent action automatically.
+- The agent-invocation bridge is not yet automatic: `run_learning_loop` must be
+  called explicitly by a host project or coding agent. ADTM does not yet detect
+  that it is running inside a coding-agent session and self-invoke the loop.
 
 The safety boundary — no autonomous code mutation without review — is
 deliberate and must be preserved as implementation catches up to the design.
