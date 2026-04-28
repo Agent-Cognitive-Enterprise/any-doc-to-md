@@ -26,8 +26,8 @@ Interpretation:
 
 | Environment | Status | Evidence | Notes |
 |---|---|---|---|
-| Linux x86_64, Ubuntu kernel `6.8.0-110-generic`, Python `3.13.13` | Verified development environment | Full package test suite passed: `377 passed, 2 warnings` on 2026-04-24; sdist/wheel build and `twine check` passed | Current workspace environment. Warnings were existing Torch/CUDA warnings from optional `unstructured` tests. |
-| Python 3.11 on Linux | Release target, needs CI verification | Metadata declares Python 3.11 classifier and `requires-python >=3.11` | Add CI coverage before publishing. |
+| Linux x86_64, Ubuntu kernel `6.8.0-110-generic`, Python `3.13.13` | Verified development environment | Full package test suite passed: `397 passed` on 2026-04-28; sdist/wheel build and `twine check` passed | Current workspace environment. |
+| Python 3.11 on Linux | Release target; CI runs on Python 3.11 | `.github/workflows/ci.yml` installs and tests on Python 3.11; local full-suite verification pending on a 3.11 environment | CI covers the default `pytest -q`, CLI smoke, and `twine check` on Python 3.11. |
 | Python 3.12 on Linux | Intended compatible, unverified | No current committed verification record | Add CI coverage before adding classifier. |
 | Python 3.13 on Linux | Development verified, not yet advertised in classifiers | Current workspace test/build verification | Add classifier only after deciding the public support policy. |
 | macOS, Python 3.11+ | Intended compatible, unverified | No current committed verification record | Default `inhouse` path should be portable if dependencies install; optional CLI/system tools need separate checks. |

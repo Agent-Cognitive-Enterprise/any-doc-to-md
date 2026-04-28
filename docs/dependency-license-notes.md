@@ -63,9 +63,15 @@ Release gate:
 - a maintainer with authority to publish must explicitly accept this posture
   before the first public upload
 
-If that posture is not acceptable, the release must stop and the package must
-be refactored before publish so PDF support moves behind an explicit extra or
-separate distribution boundary.
+**Acceptance recorded `2026-04-28`:** the maintainer has reviewed and accepted
+the `0.1.0` posture. ADTM's own code is Apache-2.0. The installed runtime stack
+includes PyMuPDF under GNU AGPL-3.0 or Artifex Commercial License. This is
+disclosed in the README, release notes, and this document. The decision to keep
+PyMuPDF in the base install for `0.1.0` is a deliberate product choice.
+
+If that posture is not acceptable for a future release, the release must stop
+and PDF support must move behind an explicit extra or separate distribution
+boundary before publish.
 
 ## Optional Adapter Boundaries
 

@@ -173,7 +173,18 @@ Audit date: `2026-04-28`
 - Source distribution includes `LICENSE`, `SECURITY.md`,
   `.github/workflows/ci.yml`, and `.github/dependabot.yml`.
 - Historical private-corpus benchmark references remain only in dated benchmark
-  context and are not required for public reproduction.
+  context (`adapter-corpus-2026-04-23.md`, tournament spec snapshot) and are
+  explicitly labeled as private-host runs. They are not required for public
+  reproduction and do not expose private data.
+- P1 security fix applied: `html_converter.py` `allow_network_images` default
+  changed from `True` to `False`. Untrusted HTML processed locally will no
+  longer make outbound network requests unless the caller explicitly enables
+  `allow_network_images` in overrides.
+- P1 doc fix applied: `adapter-guide.md` and `troubleshooting.md` now correctly
+  state that DOC/DOCX/ODT/RTF conversion via the `inhouse` adapter requires
+  LibreOffice. PDF/HTML/TXT remain package-only paths.
+- PyMuPDF `0.1.0` posture explicitly accepted: see
+  `docs/dependency-license-notes.md`.
 
 ## Recommended First Implementation Slice
 
