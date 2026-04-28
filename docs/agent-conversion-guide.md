@@ -90,10 +90,12 @@ Your job:
 ### Step 4 — re-run
 
 ```bash
-anydoc2md convert <source_file> --output-dir <output_dir> --audit-mode auto
+anydoc2md convert <source_file> --output-dir <output_dir> \
+    --project-dir <project_dir> --audit-mode auto
 ```
 
-ADTM picks up the implemented scaffolds automatically from `.any-doc-to-md/`.
+ADTM picks up the implemented scaffolds automatically from
+`<project_dir>/.any-doc-to-md/`.
 
 ### Step 5 — repeat up to 3 attempts total
 
@@ -116,6 +118,60 @@ If major findings persist after 3 attempts, stop and report to a human with:
 Do not attempt a fourth retry. Some documents have structural issues that
 require converter-level changes or human judgment, not scaffold patches.
 
+## Extension layers
+
+ADTM applies QA checks and in-house post-processing from three sources, in
+order from lowest to highest scope:
+
+| Layer | What runs | How to activate |
+|---|---|---|
+| Package built-ins | Shipped checks, run for every user | Always active |
+| Per-document | `qa-extensions/<source_filename>.py` | Auto-applied when the file exists |
+| Project-wide (file) | A specific `.py` file you supply | `--project-qa <file>` / `--project-inhouse <file>` |
+| Project-wide (all) | Every file in `qa-extensions/` or `inhouse-extensions/` | `--project-qa-all` / `--project-inhouse-all` |
+
+When a project-wide extension and a per-document scaffold both exist, ADTM
+merges them automatically — both run in the same pass.
+
+`--project-qa` and `--project-qa-all` are mutually exclusive. Same for the
+inhouse variants.
+
+### Using project-wide extensions
+
+Apply a shared QA rule to every document in a batch run:
+
+```bash
+anydoc2md convert doc.pdf --output-dir out/doc \
+    --project-dir . \
+    --project-qa house-style-checks.py \
+    --audit-mode auto
+```
+
+Apply every accumulated extension from previous runs to a new document:
+
+```bash
+anydoc2md convert new-doc.pdf --output-dir out/new-doc \
+    --project-dir . \
+    --project-qa-all \
+    --project-inhouse-all \
+    --audit-mode auto
+```
+
+### Submitting extensions upstream
+
+If a QA check or in-house fix proves useful across multiple unrelated projects,
+consider submitting it for inclusion as a package built-in:
+
+1. The check must have a low false-positive risk and cover a format-level issue
+   (not a customer-specific one).
+2. Add a small synthetic fixture that reproduces the failure.
+3. Verify the check fails before the fix and passes after.
+4. Open a pull request with the fixture, the check, and a one-line description
+   of the issue class.
+
+See `docs/learning-loop.md` — "When To Promote A Local Lesson Into The Package"
+for the full promotion checklist.
+
 ## Rules
 
 1. Never implement a scaffold without reading the evidence comments first.
@@ -136,4 +192,4 @@ export ANYDOC2MD_JUDGE_MODEL=<model-id>
 ```
 
 See [`docs/llm-judge-setup.md`](llm-judge-setup.md) for provider setup and
-[`docs/find_judge`](../src/anydoc2md/find_judge.py) for model selection.
+model selection (includes a pre-screened model shortlist for common endpoints).
