@@ -84,6 +84,7 @@ Public project process docs:
 - [`docs/troubleshooting.md`](docs/troubleshooting.md)
 - [`docs/publishing.md`](docs/publishing.md)
 - [`docs/releases/0.1.0-release-checklist.md`](docs/releases/0.1.0-release-checklist.md)
+- [`docs/releases/0.1.0-github-release-notes.md`](docs/releases/0.1.0-github-release-notes.md)
 - [`docs/releases/maintainer-runbook-template.md`](docs/releases/maintainer-runbook-template.md)
 - [`docs/releases/testpypi-execution-checklist.md`](docs/releases/testpypi-execution-checklist.md)
 - [`docs/release-support-matrix.md`](docs/release-support-matrix.md)
@@ -109,6 +110,14 @@ Install with test dependencies:
 ```bash
 python -m pip install -e ".[test]"
 ```
+
+### PDF support and PyMuPDF licensing
+
+ADTM's own code is licensed under Apache-2.0. The default PDF conversion and PDF audit paths depend on PyMuPDF, which is distributed under GNU AGPL-3.0 or an Artifex commercial licence.
+
+This means the default ADTM install is not an Apache-only runtime stack. If you use ADTM in proprietary, commercial, hosted, or closed-source software, review PyMuPDF's licence terms and obtain appropriate legal/commercial clearance before relying on the default PDF support.
+
+ADTM keeps optional converter stacks default-off, but PyMuPDF remains part of the base install for `0.1.0` because PDF support is core to the initial release.
 
 Run the default local test suite:
 
