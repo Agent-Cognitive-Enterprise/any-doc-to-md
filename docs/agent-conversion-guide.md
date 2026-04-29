@@ -101,8 +101,9 @@ ADTM picks up the implemented scaffolds automatically from
 ### Step 5 — repeat up to 3 attempts total
 
 If major findings persist after the re-run, return to step 3 with the updated
-scaffolds (overwrite=True is used on re-runs so your implementations are
-preserved and can be refined).
+scaffolds. On re-runs, existing scaffold files are preserved by default so your
+implementations are not overwritten. New scaffold files are created only when
+they do not already exist.
 
 **Hard limit: 3 conversion attempts total** (counting step 1).
 

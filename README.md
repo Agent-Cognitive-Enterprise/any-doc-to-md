@@ -460,18 +460,18 @@ through these stages:
 5. Run programmatic QA on surviving candidates (using `index_fixed.md` when
    present) and rank them by weighted score.
 6. Select the current leading candidate.
-6. Render the candidate Markdown to an audit PDF.
-7. For PDF sources, run deterministic source-vs-candidate checks to localize
+7. Render the candidate Markdown to an audit PDF.
+8. For PDF sources, run deterministic source-vs-candidate checks to localize
    suspicious windows; for non-PDF sources, build a bounded source evidence
    packet.
-8. If PDF checks find suspect windows, ask the LLM to review only those narrow
+9. If PDF checks find suspect windows, ask the LLM to review only those narrow
    issue packets. If they find nothing suspicious, accept the PDF audit without
    an LLM call. Non-PDF sources still use the bounded evidence-packet prompt.
-9. If the judge finds major issues, optionally build a remediation plan, persist
-   findings in `.any-doc-to-md/`, penalize and rescore the candidate, and
-   retry with the next ranked candidate only if the rescored candidate is no
-   longer leading.
-10. If the candidate passes the audit, promote it to `winner/`, optionally
+10. If the judge finds major issues, optionally build a remediation plan, persist
+    findings in `.any-doc-to-md/`, penalize and rescore the candidate, and
+    retry with the next ranked candidate only if the rescored candidate is no
+    longer leading.
+11. If the candidate passes the audit, promote it to `winner/`, optionally
     persist host-project findings, and accept the winner.
 
 The high-level idea is:

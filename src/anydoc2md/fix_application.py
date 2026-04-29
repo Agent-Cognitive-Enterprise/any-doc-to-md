@@ -39,6 +39,7 @@ def apply_fix_extensions(
     base_report = run_all(adapter_staging_dir, source_path)
     base_score = build_scorecard(base_report, adapter_name).total_score
 
+    current_score = base_score
     current_text = original_text
     improved = False
 
@@ -58,8 +59,9 @@ def apply_fix_extensions(
             index_md.write_text(current_text, encoding="utf-8")
             continue
 
-        if candidate_score < base_score:
+        if candidate_score < current_score:
             current_text = candidate_text
+            current_score = candidate_score
             improved = True
         else:
             index_md.write_text(current_text, encoding="utf-8")

@@ -179,6 +179,21 @@ def test_multiple_fixes_both_improving_accumulate(tmp_path: Path) -> None:
     assert (adapter_dir / "index.md").read_text(encoding="utf-8") == "hello"
 
 
+def test_second_fix_rejected_when_worse_than_first_not_just_original(tmp_path: Path) -> None:
+    # Regression: guard must compare against current_score, not base_score.
+    # fix_1: 10→5 accepted; fix_2: →8, which beats original (8<10) but loses to fix_1 (8>5)
+    # → fix_2 must be rejected; index_fixed.md must contain fix_1's output only.
+    staging_root, adapter_dir, source = _setup(tmp_path, "hello")
+    _write_fix(staging_root, "_all_fix_0.py", _FIX_UPPERCASE)  # accepted: "HELLO"
+    _write_fix(staging_root, "_all_fix_1.py", _FIX_APPEND)     # rejected: "HELLO APPENDED"
+
+    with _patch_scores(10.0, 5.0, 8.0):  # base=10, after fix_1=5 (keep), after fix_2=8 (reject)
+        apply_fix_extensions("inhouse", adapter_dir, staging_root, source)
+
+    assert (adapter_dir / "index_fixed.md").read_text(encoding="utf-8") == "HELLO"
+    assert (adapter_dir / "index.md").read_text(encoding="utf-8") == "hello"
+
+
 def test_multiple_fixes_first_bad_second_good(tmp_path: Path) -> None:
     staging_root, adapter_dir, source = _setup(tmp_path, "hello")
     _write_fix(staging_root, "_all_fix_0.py", _FIX_NOOP)    # no change → equal → discard
