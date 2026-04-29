@@ -454,9 +454,12 @@ through these stages:
 
 1. Classify the source document to capture rough structural traits.
 2. Run the requested adapters into method-scoped staging directories.
-3. Hard-disqualify obviously broken outputs.
-4. Run programmatic QA on surviving candidates and rank them by weighted score.
-5. Select the current leading candidate.
+3. Apply fix extensions to each adapter's output — each fix is kept only when it
+   strictly improves the QA score; improved output is written as `index_fixed.md`.
+4. Hard-disqualify obviously broken outputs.
+5. Run programmatic QA on surviving candidates (using `index_fixed.md` when
+   present) and rank them by weighted score.
+6. Select the current leading candidate.
 6. Render the candidate Markdown to an audit PDF.
 7. For PDF sources, run deterministic source-vs-candidate checks to localize
    suspicious windows; for non-PDF sources, build a bounded source evidence
@@ -494,7 +497,7 @@ summary.
 ```mermaid
 flowchart TD
     A[Source document] --> B[Classify document]
-    B --> C[Run tournament]
+    B --> C[Run adapters in parallel]
     C --> C1[inhouse]
     C --> C2[markitdown]
     C --> C3[docling]
@@ -505,14 +508,15 @@ flowchart TD
     C3 --> D
     C4 --> D
     C5 --> D
-    D --> E[Run hard gates]
-    E --> F[Run QA and build scorecard]
+    D --> FX[Apply fix extensions per adapter\nscore-guarded → index_fixed.md if improved]
+    FX --> E[Run hard gates]
+    E --> F[Run QA and build scorecard\nuses index_fixed.md when present]
     F --> G[Select candidate]
     G --> H[Render candidate Markdown to audit PDF]
     H --> I[LLM audit against source]
     I --> J{Minor or major?}
-    J -- minor --> N[Promote to winner]
-    J -- major --> P[Build remediation plan optional and persist findings in .any-doc-to-md]
+    J -- minor --> N[Promote winner\nindex_fixed.md preferred over index.md]
+    J -- major --> P[Build remediation plan optional\npersist findings in .any-doc-to-md]
     P --> L[Penalize and rescore candidate]
     L --> M[Next ranked candidate]
     M --> H
