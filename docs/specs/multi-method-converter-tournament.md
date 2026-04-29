@@ -37,7 +37,7 @@ Implemented today:
 - corpus benchmark matrix aggregation for speed, pages/sec, score proxy, win rate, and default-set tuning signals
 - `auto` vs `light` audit modes, where `auto` falls back to score-only selection if no judge is configured
 - persisted ADTM findings under project-local `.any-doc-to-md/` state when the host project enables it
-- staged project-local `qa_extension.py` and `inhouse_extension.py` hooks loaded from `.any-doc-to-md/` in read-only consumer mode
+- staged project-local `qa_extension.py` and `fix_extension.py` hooks loaded from `.any-doc-to-md/` in read-only consumer mode
 - winner promotion into a stable `winner/` staging dir
 
 Still planned, not implemented yet:
@@ -476,7 +476,7 @@ When the package is installed read-only:
 
 - do not patch package source
 - store project-local extensions, overrides, and findings under `.any-doc-to-md/`
-- rely on staged document-root files such as `document.override.yaml`, `qa_extension.py`, and `inhouse_extension.py`
+- rely on staged document-root files such as `document.override.yaml`, `qa_extension.py`, and `fix_extension.py`
 - never execute hook files discovered inside adapter output directories; executable hooks are trusted project code, not converter output
 - prefer additive extensions over full replacements
 
@@ -531,7 +531,7 @@ Supported patterns today:
 - `evidence-packets/<doc-key>.json` for richer persisted source evidence packets referenced from `llm-findings`
 - `inhouse-overrides/<doc-key>.override.yaml` for coding-agent-authored in-house conversion overrides that get staged into `document.override.yaml`
 - `qa-extensions/<doc-key>.py` for document-local QA hook modules that can add checks or disable selected built-in checks
-- `inhouse-extensions/<doc-key>.py` for document-local in-house post-processing hooks
+- `fix-extensions/<doc-key>.py` for document-local fix hooks applied to every adapter's output after conversion
 
 Deterministic scaffold authoring is implemented via
 `anydoc2md.remediation_authoring.author_project_local_scaffolds(...)`, which

@@ -40,7 +40,7 @@ ADTM can extend checks today in two ways:
 ADTM can help fix issues today, but it does not secretly rewrite itself:
 
 - it can build a remediation plan from judge findings
-- it can author no-op `qa-extensions/*.py` and `inhouse-extensions/*.py`
+- it can author no-op `qa-extensions/*.py` and `fix-extensions/*.py`
   scaffolds from that plan
 - a human or coding agent reviews those scaffolds, adds a deterministic check,
   adds or adjusts the converter fix, and reruns ADTM
@@ -173,7 +173,7 @@ A host project can keep state like this:
   llm-findings/vendor-report-2026.json
   evidence-packets/vendor-report-2026.json
   qa-extensions/vendor-report-2026.py
-  inhouse-extensions/vendor-report-2026.py
+  fix-extensions/vendor-report-2026.py
 ```
 
 `qa-extensions/*.py` can add or disable checks. This example adds a check for a
@@ -226,21 +226,26 @@ def check_vendor_caption_contract(md_text):
     )
 ```
 
-`inhouse-extensions/*.py` can patch staging output for that document family.
+`fix-extensions/*.py` can patch staging output for that document family.
 Keep these hooks small, deterministic, and boring. Clever fixes are hard to
 trust.
 
+Fix hooks are applied to every adapter's output after conversion — not just
+inhouse. ADTM runs each fix, scores the result, and keeps it only when the
+QA score strictly improves. This means a bad fix for one adapter is discarded
+without harming the others.
+
 Treat these hooks as trusted code. A host project should stage reviewed
-`qa_extension.py` and `inhouse_extension.py` files at the document root, not
+`qa_extension.py` and `fix_extension.py` files at the document root, not
 inside an adapter output directory. ADTM ignores executable hook files found in
 adapter staging directories so a converter output cannot smuggle code into the
-QA or in-house post-processing path.
+QA or fix post-processing path.
 
 ```python
 from pathlib import Path
 
 
-def apply_inhouse_extension(source_path, staging_dir, converter_name):
+def apply_fix_extension(source_path, staging_dir, converter_name):
     index_path = Path(staging_dir) / "index.md"
     text = index_path.read_text(encoding="utf-8")
     fixed = text.replace(
@@ -352,7 +357,7 @@ winner/
   llm-findings/vendor-report-2026.json
   evidence-packets/vendor-report-2026.json
   qa-extensions/vendor-report-2026.py
-  inhouse-extensions/vendor-report-2026.py
+  fix-extensions/vendor-report-2026.py
 
 tests/
   test_output_qa_checks.py
@@ -390,8 +395,8 @@ findings for later review.
 4. If a coding agent is present:
      a) Expand gates: add or update a qa-extension that catches this issue
         class deterministically in future runs.
-     b) Expand the inhouse converter: add or update an inhouse-extension
-        (or override) that fixes the issue for this document or document family.
+     b) Expand fix coverage: add or update a fix-extension that fixes the issue
+        for this document or document family across all adapters.
 5. Re-run steps 1–4, up to 3 attempts total.
    If the same or more issues persist after 3 attempts:
      → stop retrying

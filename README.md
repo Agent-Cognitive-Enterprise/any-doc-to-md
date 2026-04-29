@@ -704,11 +704,12 @@ Supported patterns today:
   before the in-house converter runs
 - `qa-extensions/<doc-key>.py` for project-local QA hook modules that can add
   checks or disable selected built-in checks for that document
-- `inhouse-extensions/<doc-key>.py` for project-local in-house post-processing
-  hooks that can patch the converted staging output for that document
+- `fix-extensions/<doc-key>.py` for project-local fix hooks applied to every
+  adapter's output after conversion; only fixes that strictly improve QA score
+  are kept
 
 Executable hooks are trusted code. ADTM loads staged `qa_extension.py` and
-`inhouse_extension.py` only from the document root, which is the parent of each
+`fix_extension.py` only from the document root, which is the parent of each
 adapter staging directory. It does not execute hook files found inside adapter
 output directories. YAML overrides remain data-only and may be staged beside an
 adapter output or at the document root.
@@ -716,7 +717,7 @@ adapter output or at the document root.
 Deterministic scaffold authoring is also available through
 `anydoc2md.remediation_authoring.author_project_local_scaffolds(...)`. It
 turns a persisted remediation plan into reviewable `qa-extensions/*.py` and
-`inhouse-extensions/*.py` stubs without overwriting existing files by default.
+`fix-extensions/*.py` stubs without overwriting existing files by default.
 
 This keeps parent-project-specific ADTM learnings out of package source while
 still making them easy to review or share.
