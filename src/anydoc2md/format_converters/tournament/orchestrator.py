@@ -26,6 +26,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from anydoc2md.fix_application import apply_fix_extensions
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import (
     DocumentTraits,
@@ -156,7 +157,13 @@ def run_full_tournament(
         source_path, staging_root, adapter_names, timeout_s=timeout_s,
     )
 
-    # Stage 3: gate + score → select winner
+    # Stage 2.5: apply fix extensions to each adapter's output (in-place)
+    for name in adapter_names:
+        adapter_dir = staging_root / name
+        if (adapter_dir / "index.md").exists():
+            apply_fix_extensions(name, adapter_dir, staging_root, source_path)
+
+    # Stage 3: gate + score → select winner (uses index_fixed.md when present)
     selection = select_candidate(source_path, staging_root, adapter_names,
                                  near_tie_threshold=near_tie_threshold)
 
@@ -178,7 +185,7 @@ def run_full_tournament(
             traits=traits,
             settings=resolved_judge_settings,
             max_attempts=max_audit_attempts,
-            remediation_target_adapter="inhouse",
+            remediation_target_adapter=selection.candidate or "inhouse",
         )
         judge_verdict = audit_result.final_verdict
         remediation_plan = audit_result.remediation_plan

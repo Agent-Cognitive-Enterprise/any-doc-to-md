@@ -243,7 +243,8 @@ def _write_result_json(output_dir: Path, payload: dict) -> None:
 
 def _publish_winner(winner_dir: Path, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    markdown_src = winner_dir / "index.md"
+    fixed_md = winner_dir / "index_fixed.md"
+    markdown_src = fixed_md if fixed_md.exists() else winner_dir / "index.md"
     if markdown_src.exists():
         shutil.copy2(markdown_src, output_dir / "index.md")
 

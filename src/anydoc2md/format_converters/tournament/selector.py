@@ -180,7 +180,9 @@ def select_candidate(
             continue
 
         try:
-            report = run_all(staging_dir, source_path)
+            fixed_md = staging_dir / "index_fixed.md"
+            md_file = fixed_md if fixed_md.exists() else None
+            report = run_all(staging_dir, source_path, md_file=md_file)
             card = build_scorecard(report, name)
             scorecards.append(card)
         except Exception as exc:

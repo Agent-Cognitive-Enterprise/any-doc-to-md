@@ -88,18 +88,22 @@ class QAReport:
 def run_all(
     staging_dir: Path,
     source_path: Path | None = None,
+    *,
+    md_file: Path | None = None,
 ) -> QAReport:
     """
     Run all applicable QA checks.
 
     Layer 1 checks always run (index.md + staging_dir).
     Layer 2 checks run only when source_path is provided.
+    When md_file is given, that file is read for markdown text instead of
+    staging_dir/index.md (useful for scoring index_fixed.md).
     """
-    index_md = staging_dir / "index.md"
-    if not index_md.exists():
-        raise FileNotFoundError(f"index.md not found in {staging_dir}")
+    effective_md = md_file if md_file is not None else staging_dir / "index.md"
+    if not effective_md.exists():
+        raise FileNotFoundError(f"{effective_md.name} not found in {staging_dir}")
 
-    md_text = index_md.read_text(encoding="utf-8")
+    md_text = effective_md.read_text(encoding="utf-8")
     results: list[CheckResult] = []
     extension = load_qa_extension(staging_dir)
     disabled_checks = extension.disabled_checks
