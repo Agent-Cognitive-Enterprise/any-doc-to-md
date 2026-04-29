@@ -10,12 +10,15 @@ Usage:
 """
 from __future__ import annotations
 
+import concurrent.futures
 import importlib
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import ModuleType
 
 from anydoc2md.format_converters.adapters.base import AdapterResult
+
+_THREAD_GRACE_S = 15  # extra seconds beyond timeout_s before a thread is declared hung
 
 # Registry of implemented adapters (module path suffix → module).
 _ADAPTER_MODULES: dict[str, str] = {
@@ -80,19 +83,36 @@ def run_tournament(
             # Backward compatibility for adapters that haven't been updated yet.
             return module.run(source_path, staging_dir)
 
+    wall_timeout = timeout_s + _THREAD_GRACE_S
+    completed_names: set[str] = set()
+
     with ThreadPoolExecutor(max_workers=worker_count) as pool:
         futures = {pool.submit(_run_one, name): name for name in names}
-        for future in as_completed(futures):
-            try:
-                results.append(future.result())
-            except Exception as exc:
+        try:
+            for future in concurrent.futures.as_completed(futures, timeout=wall_timeout):
                 name = futures[future]
-                from anydoc2md.format_converters.adapters.base import error_result
-                results.append(error_result(
-                    name, "unknown", "",
-                    staging_root / name, 0,
-                    f"Unhandled exception in adapter: {exc}",
-                ))
+                completed_names.add(name)
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    from anydoc2md.format_converters.adapters.base import error_result
+                    results.append(error_result(
+                        name, "unknown", "",
+                        staging_root / name, 0,
+                        f"Unhandled exception in adapter: {exc}",
+                    ))
+        except concurrent.futures.TimeoutError:
+            pass
+
+    from anydoc2md.format_converters.adapters.base import error_result
+    for name in names:
+        if name not in completed_names:
+            results.append(error_result(
+                name, "unknown", "",
+                staging_root / name, wall_timeout * 1000,
+                f"Adapter did not complete within {wall_timeout}s wall-clock timeout",
+                status="timeout",
+            ))
 
     return results
 

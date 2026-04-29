@@ -4,7 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from anydoc2md.cli import main
+from anydoc2md.cli import _print_adapter_table, main
+from anydoc2md.output_qa.scoring import ScoreCard
 from anydoc2md.scaffold_staging import stage_project_scaffolds
 
 
@@ -292,3 +293,87 @@ def test_convert_rejects_fix_and_fix_all_together(tmp_path: Path, capsys) -> Non
 
     assert rc == 2
     assert "mutually exclusive" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Adapter timing table
+# ---------------------------------------------------------------------------
+
+def _make_adapter_result(name: str, timing_ms: int, status: str = "ok"):
+    return SimpleNamespace(method_name=name, timing_ms=timing_ms, status=status)
+
+
+def _make_selection(ranked, disqualified=None):
+    return SimpleNamespace(ranked=ranked, disqualified=disqualified or {})
+
+
+def test_print_adapter_table_shows_timing_and_score(capsys) -> None:
+    result = SimpleNamespace(
+        winner="inhouse",
+        adapter_results=[
+            _make_adapter_result("inhouse", 12),
+            _make_adapter_result("docling", 1823),
+        ],
+        selection=_make_selection(
+            ranked=[
+                ScoreCard("inhouse", 0.0, {}, 0, 0, 5),
+                ScoreCard("docling", 15.0, {}, 1, 0, 4),
+            ]
+        ),
+    )
+
+    _print_adapter_table(result)
+
+    out = capsys.readouterr().out
+    assert "inhouse" in out
+    assert "docling" in out
+    assert "12ms" in out
+    assert "1823ms" in out
+    assert "0.0" in out
+    assert "15.0" in out
+    assert "[winner]" in out
+
+
+def test_print_adapter_table_shows_timeout_status(capsys) -> None:
+    result = SimpleNamespace(
+        winner="inhouse",
+        adapter_results=[
+            _make_adapter_result("inhouse", 12),
+            _make_adapter_result("docling", 615000, status="timeout"),
+        ],
+        selection=_make_selection(
+            ranked=[ScoreCard("inhouse", 0.0, {}, 0, 0, 5)],
+            disqualified={},
+        ),
+    )
+
+    _print_adapter_table(result)
+
+    out = capsys.readouterr().out
+    assert "timeout" in out
+    assert "[winner]" in out
+
+
+def test_print_adapter_table_shows_disqualified(capsys) -> None:
+    result = SimpleNamespace(
+        winner="inhouse",
+        adapter_results=[
+            _make_adapter_result("inhouse", 12),
+            _make_adapter_result("pandoc", 50),
+        ],
+        selection=_make_selection(
+            ranked=[ScoreCard("inhouse", 0.0, {}, 0, 0, 5)],
+            disqualified={"pandoc": "index.md missing"},
+        ),
+    )
+
+    _print_adapter_table(result)
+
+    out = capsys.readouterr().out
+    assert "disq" in out
+
+
+def test_print_adapter_table_noop_without_adapter_results(capsys) -> None:
+    result = SimpleNamespace(winner="inhouse")
+    _print_adapter_table(result)
+    assert capsys.readouterr().out == ""

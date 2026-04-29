@@ -97,3 +97,27 @@ def test_run_tournament_clamps_non_positive_max_workers(tmp_path: Path, monkeypa
 
     assert len(results) == 1
     assert results[0].method_name == "stub"
+
+
+def test_run_tournament_wall_clock_timeout_produces_error_result(tmp_path: Path, monkeypatch) -> None:
+    import threading
+
+    class HungAdapter:
+        @staticmethod
+        def run(source_path: Path, staging_dir: Path, *, timeout_s: int = 0) -> AdapterResult:
+            threading.Event().wait(timeout=60)  # blocks until test is done
+            return _ok_result(staging_dir, "hung")
+
+    monkeypatch.setattr(runner, "_ADAPTER_MODULES", {"hung": "hung.module"})
+    monkeypatch.setattr(runner.importlib, "import_module", lambda _path: HungAdapter)
+    monkeypatch.setattr(runner, "_THREAD_GRACE_S", 0)
+    source = tmp_path / "doc.txt"
+    source.write_text("hello", encoding="utf-8")
+
+    results = runner.run_tournament(
+        source, tmp_path / "staging", adapters=["hung"], timeout_s=0, max_workers=1
+    )
+
+    assert len(results) == 1
+    assert results[0].method_name == "hung"
+    assert results[0].status == "timeout"

@@ -204,7 +204,8 @@ def _convert(args: argparse.Namespace) -> int:
     _publish_winner(result.winner_staging_dir, output_dir)
     _print_result(args, result.to_dict())
     if not args.json:
-        print(f"winner={result.winner} output={output_dir / 'index.md'}")
+        _print_adapter_table(result)
+        print(f"winner={result.winner}  output={output_dir / 'index.md'}")
         if result.remediation_plan is not None:
             print(f"findings: {anydoc2md_dir / 'llm-findings' / source.name}.json")
             print(f"scaffolds: {anydoc2md_dir / 'qa-extensions'} and fix-extensions/")
@@ -280,6 +281,29 @@ def _save_findings(anydoc2md_dir: Path, source: Path, result) -> None:
             anydoc2md_dir=anydoc2md_dir,
             doc_key=doc_key,
         )
+
+
+def _print_adapter_table(result) -> None:
+    adapter_results = getattr(result, "adapter_results", None)
+    selection = getattr(result, "selection", None)
+    if not adapter_results or selection is None:
+        return
+    scores = {c.adapter_name: c.total_score for c in selection.ranked}
+    disq = getattr(selection, "disqualified", {})
+    name_w = max(len(r.method_name) for r in adapter_results)
+    for r in adapter_results:
+        n = r.method_name
+        ms = f"{r.timing_ms}ms"
+        if r.status == "timeout":
+            score_s = "timeout"
+        elif n in disq:
+            score_s = "disq"
+        elif n in scores:
+            score_s = f"{scores[n]:.1f}"
+        else:
+            score_s = "error"
+        mark = "  [winner]" if n == result.winner else ""
+        print(f"  {n:<{name_w}}  {score_s:>7}  {ms:>8}{mark}")
 
 
 def _print_result(args: argparse.Namespace, payload: dict) -> None:
