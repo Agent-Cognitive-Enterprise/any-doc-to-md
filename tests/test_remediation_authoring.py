@@ -38,11 +38,11 @@ def test_writes_expected_files(tmp_path: Path) -> None:
         doc_key="org__doc.txt",
     )
     qa_path = tmp_path / "qa-extensions" / "org__doc.txt.py"
-    inhouse_path = tmp_path / "inhouse-extensions" / "org__doc.txt.py"
+    fix_path = tmp_path / "fix-extensions" / "org__doc.txt.py"
     assert written["qa_extension"] == qa_path
-    assert written["inhouse_extension"] == inhouse_path
+    assert written["fix_extension"] == fix_path
     assert "REMEDIATION_TASKS" in qa_path.read_text(encoding="utf-8")
-    assert "apply_inhouse_extension" in inhouse_path.read_text(encoding="utf-8")
+    assert "apply_fix_extension" in fix_path.read_text(encoding="utf-8")
     assert "reading_order" in qa_path.read_text(encoding="utf-8")
 
 
@@ -55,7 +55,7 @@ def test_does_not_overwrite_by_default(tmp_path: Path) -> None:
         anydoc2md_dir=tmp_path,
         doc_key="org__doc.txt",
     )
-    assert "qa_extension" not in written
+    assert "qa_extension" not in written  # per overwrite=False default
     assert qa_path.read_text(encoding="utf-8") == "# custom\n"
 
 
@@ -188,7 +188,7 @@ def test_double_bullets_generates_working_fix(tmp_path: Path) -> None:
         anydoc2md_dir=tmp_path,
         doc_key="doc",
     )
-    src = (tmp_path / "inhouse-extensions" / "doc.py").read_text(encoding="utf-8")
+    src = (tmp_path / "fix-extensions" / "doc.py").read_text(encoding="utf-8")
     assert "re.sub" in src
     assert "index.md" in src
     assert "pass" not in src
@@ -205,11 +205,11 @@ def test_double_bullets_fix_actually_fixes_content(tmp_path: Path) -> None:
     staging.mkdir()
     (staging / "index.md").write_text("- \u2022 item one\n- \u2022 item two\n", encoding="utf-8")
 
-    ext_path = tmp_path / "inhouse-extensions" / "doc.py"
+    ext_path = tmp_path / "fix-extensions" / "doc.py"
     spec = importlib.util.spec_from_file_location("_inhouse_ext_test", ext_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    mod.apply_inhouse_extension(None, staging, "inhouse")
+    mod.apply_fix_extension(None, staging, "inhouse")
 
     result = (staging / "index.md").read_text(encoding="utf-8")
     assert "\u2022" not in result
@@ -227,7 +227,7 @@ def test_unknown_type_inhouse_stub_embeds_evidence(tmp_path: Path) -> None:
         anydoc2md_dir=tmp_path,
         doc_key="doc",
     )
-    src = (tmp_path / "inhouse-extensions" / "doc.py").read_text(encoding="utf-8")
+    src = (tmp_path / "fix-extensions" / "doc.py").read_text(encoding="utf-8")
     assert "reading_order" in src
     assert "Evidence for reading_order" in src
     assert "TODO" in src

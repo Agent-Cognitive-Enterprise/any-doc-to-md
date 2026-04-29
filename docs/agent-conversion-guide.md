@@ -38,7 +38,7 @@ This produces:
   verdict and remediation plan (only when findings exist)
 - `<project_dir>/.any-doc-to-md/qa-extensions/<source_filename>.py` — QA check
   scaffolds (only when findings exist)
-- `<project_dir>/.any-doc-to-md/inhouse-extensions/<source_filename>.py` —
+- `<project_dir>/.any-doc-to-md/fix-extensions/<source_filename>.py` —
   converter fix scaffolds (only when findings exist)
 
 ### Step 2 — check the result
@@ -75,10 +75,11 @@ Your job:
 - Do not remove or disable existing checks.
 - Keep each check body small and deterministic.
 
-**`inhouse-extensions/<source_filename>.py`**
+**`fix-extensions/<source_filename>.py`**
 
-The `apply_inhouse_extension(source_path, staging_dir, converter_name)` function
-patches `staging_dir/index.md` after the inhouse converter runs.
+The `apply_fix_extension(source_path, staging_dir, converter_name)` function
+patches `staging_dir/index.md`. Fixes are applied to every adapter's output
+after conversion; ADTM keeps a fix only when it strictly improves the QA score.
 
 Your job:
 - For TODO stubs: read the embedded evidence and implement a targeted fix.
@@ -120,21 +121,20 @@ require converter-level changes or human judgment, not scaffold patches.
 
 ## Extension layers
 
-ADTM applies QA checks and in-house post-processing from three sources, in
+ADTM applies QA checks and fix post-processing from three sources, in
 order from lowest to highest scope:
 
 | Layer | What runs | How to activate |
 |---|---|---|
 | Package built-ins | Shipped checks, run for every user | Always active |
 | Per-document | `qa-extensions/<source_filename>.py` | Auto-applied when the file exists |
-| Project-wide (file) | A specific `.py` file you supply | `--project-qa <file>` / `--project-inhouse <file>` |
-| Project-wide (all) | Every file in `qa-extensions/` or `inhouse-extensions/` | `--project-qa-all` / `--project-inhouse-all` |
+| Project-wide (file) | A specific `.py` file you supply | `--qa <file>` / `--fix <file>` |
+| Project-wide (all) | Every file in `qa-extensions/` or `fix-extensions/` | `--qa-all` / `--fix-all` |
 
 When a project-wide extension and a per-document scaffold both exist, ADTM
 merges them automatically — both run in the same pass.
 
-`--project-qa` and `--project-qa-all` are mutually exclusive. Same for the
-inhouse variants.
+`--qa` and `--qa-all` are mutually exclusive. Same for the fix variants.
 
 ### Using project-wide extensions
 
@@ -143,7 +143,7 @@ Apply a shared QA rule to every document in a batch run:
 ```bash
 anydoc2md convert doc.pdf --output-dir out/doc \
     --project-dir . \
-    --project-qa house-style-checks.py \
+    --qa house-style-checks.py \
     --audit-mode auto
 ```
 
@@ -152,14 +152,14 @@ Apply every accumulated extension from previous runs to a new document:
 ```bash
 anydoc2md convert new-doc.pdf --output-dir out/new-doc \
     --project-dir . \
-    --project-qa-all \
-    --project-inhouse-all \
+    --qa-all \
+    --fix-all \
     --audit-mode auto
 ```
 
 ### Submitting extensions upstream
 
-If a QA check or in-house fix proves useful across multiple unrelated projects,
+If a QA check or fix proves useful across multiple unrelated projects,
 consider submitting it for inclusion as a package built-in:
 
 1. The check must have a low false-positive risk and cover a format-level issue
@@ -177,7 +177,7 @@ for the full promotion checklist.
 1. Never implement a scaffold without reading the evidence comments first.
 2. Never skip the re-run step after implementing a scaffold.
 3. Never disable a QA check to make a run pass.
-4. Never call an LLM inside `apply_inhouse_extension`.
+4. Never call an LLM inside `apply_fix_extension`.
 5. If a fix cannot be made deterministic, say so and escalate.
 6. Keep scaffold implementations small — one violation type, one targeted change.
 

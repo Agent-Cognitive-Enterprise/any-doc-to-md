@@ -19,7 +19,7 @@ _VIOLATION_TO_LAYER1_CHECK: dict[str, str] = {
     "repeated_headings": "check_no_repeated_headings",
 }
 
-# Maps violation_type values to working inhouse-extension fix bodies (4-space indent).
+# Maps violation_type values to working fix-extension bodies (4-space indent).
 _VIOLATION_TO_FIX_BODY: dict[str, str] = {
     "double_bullets": (
         "    import re\n"
@@ -48,14 +48,14 @@ def author_project_local_scaffolds(
 
     written: dict[str, Path] = {}
     qa_path = anydoc2md_dir / "qa-extensions" / f"{doc_key}.py"
-    inhouse_path = anydoc2md_dir / "inhouse-extensions" / f"{doc_key}.py"
+    fix_path = anydoc2md_dir / "fix-extensions" / f"{doc_key}.py"
 
     if overwrite or not qa_path.exists():
         _write_text(qa_path, _render_qa_extension(doc_key, tasks))
         written["qa_extension"] = qa_path
-    if overwrite or not inhouse_path.exists():
-        _write_text(inhouse_path, _render_inhouse_extension(doc_key, tasks, remediation_plan))
-        written["inhouse_extension"] = inhouse_path
+    if overwrite or not fix_path.exists():
+        _write_text(fix_path, _render_fix_extension(doc_key, tasks, remediation_plan))
+        written["fix_extension"] = fix_path
     return written
 
 
@@ -131,7 +131,7 @@ def _render_qa_extension(doc_key: str, tasks: list[dict]) -> str:
     )
 
 
-def _render_inhouse_extension(doc_key: str, tasks: list[dict], remediation_plan: dict) -> str:
+def _render_fix_extension(doc_key: str, tasks: list[dict], remediation_plan: dict) -> str:
     tasks_literal = json.dumps(tasks, indent=2, ensure_ascii=True)
     target_adapter = remediation_plan.get("target_adapter", "inhouse")
 
@@ -178,10 +178,10 @@ def _render_inhouse_extension(doc_key: str, tasks: list[dict], remediation_plan:
         body += "    pass\n"
 
     return (
-        f'"""Generated in-house remediation scaffold for {doc_key}.\n{docstring_note}"""\n\n'
+        f'"""Generated fix extension scaffold for {doc_key}.\n{docstring_note}"""\n\n'
         f"TARGET_ADAPTER = {target_adapter!r}\n"
         f"REMEDIATION_TASKS = {tasks_literal}\n\n"
-        f"def apply_inhouse_extension(source_path, staging_dir, converter_name):\n"
+        f"def apply_fix_extension(source_path, staging_dir, converter_name):\n"
         f"{body}"
     )
 

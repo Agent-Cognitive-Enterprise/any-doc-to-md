@@ -76,14 +76,14 @@ def apply_fix_extensions(
 def _find_fix_files(staging_root: Path) -> list[Path]:
     """Return the ordered list of fix extension files to apply.
 
-    Component files (_*inhouse*.py) are preferred over the merged
-    inhouse_extension.py when both exist — components allow per-file
+    Component files (_*fix*.py) are preferred over the merged
+    fix_extension.py when both exist — components allow per-file
     score guarding.
     """
-    component_files = sorted(staging_root.glob("_*inhouse*.py"))
+    component_files = sorted(staging_root.glob("_*fix*.py"))
     if component_files:
         return component_files
-    merged = staging_root / "inhouse_extension.py"
+    merged = staging_root / "fix_extension.py"
     return [merged] if merged.exists() else []
 
 
@@ -94,11 +94,11 @@ def _run_fix_hook(
     converter_name: str,
 ) -> None:
     module = _load_fix_module(fix_file)
-    hook = getattr(module, "apply_inhouse_extension", None)
+    hook = getattr(module, "apply_fix_extension", None)
     if hook is None:
-        raise ValueError(f"{fix_file.name} must define apply_inhouse_extension()")
+        raise ValueError(f"{fix_file.name} must define apply_fix_extension()")
     if not callable(hook):
-        raise TypeError(f"{fix_file.name} apply_inhouse_extension is not callable")
+        raise TypeError(f"{fix_file.name} apply_fix_extension is not callable")
     hook(source_path, staging_dir, converter_name)
 
 

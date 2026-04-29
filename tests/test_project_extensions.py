@@ -34,17 +34,14 @@ def get_additional_md_only_checks():
     assert "staging_extension_executed" not in check_names
 
 
-def test_inhouse_extension_from_adapter_staging_dir_is_not_executed(tmp_path: Path) -> None:
+def test_fix_extension_from_adapter_staging_dir_is_not_executed(tmp_path: Path) -> None:
     source = tmp_path / "source.txt"
     source.write_text("Safe text.", encoding="utf-8")
     staging = tmp_path / "doc" / "inhouse"
     staging.mkdir(parents=True)
-    (staging / "inhouse_extension.py").write_text(
-        """
-def apply_inhouse_extension(source_path, staging_dir, converter_name):
-    raise RuntimeError("staging extension should not run")
-""".strip()
-        + "\n",
+    (staging / "fix_extension.py").write_text(
+        "def apply_fix_extension(source_path, staging_dir, converter_name):\n"
+        "    raise RuntimeError('staging extension should not run')\n",
         encoding="utf-8",
     )
 

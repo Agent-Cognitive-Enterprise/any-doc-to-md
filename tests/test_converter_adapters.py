@@ -216,14 +216,14 @@ class TestInhouseAdapter:
         assert inhouse.supports(Path("doc.xyz")) is False
 
     def test_inhouse_adapter_does_not_apply_fix_extension(self, tmp_path: Path) -> None:
-        # Fix extensions are no longer applied inside the adapter; they are
-        # applied by fix_application.apply_fix_extensions after all adapters run.
+        # Fix extensions are applied by fix_application.apply_fix_extensions
+        # after all adapters run, not inside the adapter itself.
         src = _txt_source(tmp_path)
         doc_root = tmp_path / "doc"
         staging = doc_root / "inhouse"
         doc_root.mkdir()
-        (doc_root / "inhouse_extension.py").write_text(
-            "def apply_inhouse_extension(source_path, staging_dir, converter_name):\n"
+        (doc_root / "fix_extension.py").write_text(
+            "def apply_fix_extension(source_path, staging_dir, converter_name):\n"
             "    index_md = staging_dir / 'index.md'\n"
             "    index_md.write_text(\n"
             "        index_md.read_text(encoding='utf-8') + '\\n\\nExtension footer.\\n',\n"

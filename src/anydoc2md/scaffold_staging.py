@@ -1,4 +1,4 @@
-"""Stage QA and in-house extension files into the tournament staging root."""
+"""Stage QA and fix extension files into the tournament staging root."""
 
 from __future__ import annotations
 
@@ -46,8 +46,8 @@ def get_additional_source_checks():
     return _call(_project, "get_additional_source_checks") + _call(_doc, "get_additional_source_checks")
 '''
 
-_MERGED_INHOUSE_TEMPLATE = '''\
-"""Auto-generated in-house extension merger: project-wide + per-document."""
+_MERGED_FIX_TEMPLATE = '''\
+"""Auto-generated fix extension merger: project-wide + per-document."""
 from __future__ import annotations
 import importlib.util as _ilu
 from pathlib import Path as _P
@@ -61,20 +61,20 @@ def _load(name, path):
 
 
 _here = _P(__file__).parent
-_project = _load("_project_inhouse", _here / "_project_inhouse_extension.py")
-_doc = _load("_doc_inhouse", _here / "_doc_inhouse_extension.py")
+_project = _load("_project_fix", _here / "_project_fix_extension.py")
+_doc = _load("_doc_fix", _here / "_doc_fix_extension.py")
 
 
-def apply_inhouse_extension(source_path, staging_dir, converter_name):
+def apply_fix_extension(source_path, staging_dir, converter_name):
     for mod in (_project, _doc):
-        hook = getattr(mod, "apply_inhouse_extension", None)
+        hook = getattr(mod, "apply_fix_extension", None)
         if callable(hook):
             hook(source_path, staging_dir, converter_name)
 '''
 
 
 # ---------------------------------------------------------------------------
-# N-file merger generators (--project-qa-all / --project-inhouse-all)
+# N-file merger generators (--qa-all / --fix-all)
 # ---------------------------------------------------------------------------
 
 def _all_qa_merger(load_lines: str) -> str:
@@ -121,9 +121,9 @@ def get_additional_source_checks():
 '''
 
 
-def _all_inhouse_merger(load_lines: str) -> str:
+def _all_fix_merger(load_lines: str) -> str:
     return f'''\
-"""Auto-generated in-house extension merger: all project extensions."""
+"""Auto-generated fix extension merger: all project extensions."""
 from __future__ import annotations
 import importlib.util as _ilu
 from pathlib import Path as _P
@@ -142,9 +142,9 @@ _extensions = [
 ]
 
 
-def apply_inhouse_extension(source_path, staging_dir, converter_name):
+def apply_fix_extension(source_path, staging_dir, converter_name):
     for mod in _extensions:
-        hook = getattr(mod, "apply_inhouse_extension", None)
+        hook = getattr(mod, "apply_fix_extension", None)
         if callable(hook):
             hook(source_path, staging_dir, converter_name)
 '''
@@ -161,14 +161,14 @@ def _stage_all_qa(files: list[Path], staging_dir: Path) -> None:
     )
 
 
-def _stage_all_inhouse(files: list[Path], staging_dir: Path) -> None:
+def _stage_all_fix(files: list[Path], staging_dir: Path) -> None:
     load_lines = ""
     for i, f in enumerate(files):
-        name = f"_all_inhouse_{i}.py"
+        name = f"_all_fix_{i}.py"
         shutil.copy2(f, staging_dir / name)
-        load_lines += f'    _load("_all_inhouse_{i}", _here / "{name}"),\n'
-    (staging_dir / "inhouse_extension.py").write_text(
-        _all_inhouse_merger(load_lines.rstrip()), encoding="utf-8"
+        load_lines += f'    _load("_all_fix_{i}", _here / "{name}"),\n'
+    (staging_dir / "fix_extension.py").write_text(
+        _all_fix_merger(load_lines.rstrip()), encoding="utf-8"
     )
 
 
@@ -180,38 +180,38 @@ def stage_project_scaffolds(
     anydoc2md_dir: Path,
     source: Path,
     staging_dir: Path,
-    project_qa: Path | None = None,
-    project_inhouse: Path | None = None,
-    project_qa_all: bool = False,
-    project_inhouse_all: bool = False,
+    qa: Path | None = None,
+    fix: Path | None = None,
+    qa_all: bool = False,
+    fix_all: bool = False,
 ) -> None:
     """Copy/merge extension files into staging_root before the tournament runs.
 
     Priority (highest to lowest, per extension type):
-      --project-qa-all / --project-inhouse-all  → all files in extensions dir
-      --project-qa / --project-inhouse          → specific file, merged with per-doc
-      per-document scaffold                     → matched by source filename
+      --qa-all / --fix-all  → all files in extensions dir
+      --qa / --fix          → specific file, merged with per-doc
+      per-document scaffold → matched by source filename
     """
     doc_key = source.name
     doc_qa = anydoc2md_dir / "qa-extensions" / f"{doc_key}.py"
-    doc_inhouse = anydoc2md_dir / "inhouse-extensions" / f"{doc_key}.py"
+    doc_fix = anydoc2md_dir / "fix-extensions" / f"{doc_key}.py"
 
     # Collect all-extension file lists when requested
     all_qa_files: list[Path] = []
-    all_inhouse_files: list[Path] = []
-    if project_qa_all:
+    all_fix_files: list[Path] = []
+    if qa_all:
         all_qa_files = sorted((anydoc2md_dir / "qa-extensions").glob("*.py"))
-    if project_inhouse_all:
-        all_inhouse_files = sorted((anydoc2md_dir / "inhouse-extensions").glob("*.py"))
+    if fix_all:
+        all_fix_files = sorted((anydoc2md_dir / "fix-extensions").glob("*.py"))
 
-    has_pqa = project_qa is not None and project_qa.exists()
+    has_pqa = qa is not None and qa.exists()
     has_dqa = doc_qa.exists()
-    has_pih = project_inhouse is not None and project_inhouse.exists()
-    has_dih = doc_inhouse.exists()
+    has_pfix = fix is not None and fix.exists()
+    has_dfix = doc_fix.exists()
 
     needs_staging = (
-        all_qa_files or all_inhouse_files
-        or has_pqa or has_dqa or has_pih or has_dih
+        all_qa_files or all_fix_files
+        or has_pqa or has_dqa or has_pfix or has_dfix
     )
     if not needs_staging:
         return
@@ -221,22 +221,22 @@ def stage_project_scaffolds(
     if all_qa_files:
         _stage_all_qa(all_qa_files, staging_dir)
     elif has_pqa and has_dqa:
-        shutil.copy2(project_qa, staging_dir / "_project_qa_extension.py")
+        shutil.copy2(qa, staging_dir / "_project_qa_extension.py")
         shutil.copy2(doc_qa, staging_dir / "_doc_qa_extension.py")
         (staging_dir / "qa_extension.py").write_text(_MERGED_QA_TEMPLATE, encoding="utf-8")
     elif has_pqa:
-        shutil.copy2(project_qa, staging_dir / "qa_extension.py")
+        shutil.copy2(qa, staging_dir / "qa_extension.py")
     elif has_dqa:
         shutil.copy2(doc_qa, staging_dir / "qa_extension.py")
 
-    # In-house extension
-    if all_inhouse_files:
-        _stage_all_inhouse(all_inhouse_files, staging_dir)
-    elif has_pih and has_dih:
-        shutil.copy2(project_inhouse, staging_dir / "_project_inhouse_extension.py")
-        shutil.copy2(doc_inhouse, staging_dir / "_doc_inhouse_extension.py")
-        (staging_dir / "inhouse_extension.py").write_text(_MERGED_INHOUSE_TEMPLATE, encoding="utf-8")
-    elif has_pih:
-        shutil.copy2(project_inhouse, staging_dir / "inhouse_extension.py")
-    elif has_dih:
-        shutil.copy2(doc_inhouse, staging_dir / "inhouse_extension.py")
+    # Fix extension
+    if all_fix_files:
+        _stage_all_fix(all_fix_files, staging_dir)
+    elif has_pfix and has_dfix:
+        shutil.copy2(fix, staging_dir / "_project_fix_extension.py")
+        shutil.copy2(doc_fix, staging_dir / "_doc_fix_extension.py")
+        (staging_dir / "fix_extension.py").write_text(_MERGED_FIX_TEMPLATE, encoding="utf-8")
+    elif has_pfix:
+        shutil.copy2(fix, staging_dir / "fix_extension.py")
+    elif has_dfix:
+        shutil.copy2(doc_fix, staging_dir / "fix_extension.py")

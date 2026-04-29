@@ -12,7 +12,7 @@ from typing import Callable
 from anydoc2md.output_qa.checks import CheckResult
 
 QA_EXTENSION_FILENAME = "qa_extension.py"
-INHOUSE_EXTENSION_FILENAME = "inhouse_extension.py"
+FIX_EXTENSION_FILENAME = "fix_extension.py"
 
 MdOnlyCheck = Callable[[str], CheckResult]
 MdWithDirCheck = Callable[[str, Path], CheckResult]
@@ -55,23 +55,23 @@ def load_qa_extension(staging_dir: Path) -> QAExtensionSpec:
     )
 
 
-def apply_inhouse_extension(
+def apply_fix_extension(
     *,
     source_path: Path,
     staging_dir: Path,
     converter_name: str,
 ) -> None:
-    """Run an optional in-house extension hook from the trusted document root."""
-    extension_path = _resolve_trusted_hook_path(staging_dir, INHOUSE_EXTENSION_FILENAME)
+    """Run an optional fix extension hook from the trusted document root."""
+    extension_path = _resolve_trusted_hook_path(staging_dir, FIX_EXTENSION_FILENAME)
     if extension_path is None:
         return
 
-    module = _load_module(extension_path, "inhouse_extension")
-    hook = getattr(module, "apply_inhouse_extension", None)
+    module = _load_module(extension_path, "fix_extension")
+    hook = getattr(module, "apply_fix_extension", None)
     if hook is None:
-        raise ValueError(f"{extension_path.name} must define apply_inhouse_extension()")
+        raise ValueError(f"{extension_path.name} must define apply_fix_extension()")
     if not callable(hook):
-        raise TypeError(f"{extension_path.name} apply_inhouse_extension is not callable")
+        raise TypeError(f"{extension_path.name} apply_fix_extension is not callable")
     hook(source_path, staging_dir, converter_name)
 
 

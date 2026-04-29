@@ -71,43 +71,43 @@ def build_argument_parser() -> argparse.ArgumentParser:
         ),
     )
     convert.add_argument(
-        "--project-qa",
+        "--qa",
         type=Path,
         default=None,
         metavar="FILE",
         help=(
             "Project-wide QA extension (.py) applied to every document in this run."
             " When a per-document scaffold also exists both are merged and run together."
-            " Mutually exclusive with --project-qa-all."
+            " Mutually exclusive with --qa-all."
         ),
     )
     convert.add_argument(
-        "--project-inhouse",
+        "--fix",
         type=Path,
         default=None,
         metavar="FILE",
         help=(
-            "Project-wide in-house post-processing extension (.py) applied to every"
-            " document in this run. Merged with any per-document inhouse scaffold."
-            " Mutually exclusive with --project-inhouse-all."
+            "Project-wide fix extension (.py) applied to every adapter's output in this"
+            " run. Merged with any per-document fix scaffold."
+            " Mutually exclusive with --fix-all."
         ),
     )
     convert.add_argument(
-        "--project-qa-all",
+        "--qa-all",
         action="store_true",
         help=(
             "Apply every QA extension in .any-doc-to-md/qa-extensions/ to this run,"
             " merged into a single combined check set."
-            " Mutually exclusive with --project-qa."
+            " Mutually exclusive with --qa."
         ),
     )
     convert.add_argument(
-        "--project-inhouse-all",
+        "--fix-all",
         action="store_true",
         help=(
-            "Apply every in-house extension in .any-doc-to-md/inhouse-extensions/ to"
-            " this run, merged into a single combined post-processing step."
-            " Mutually exclusive with --project-inhouse."
+            "Apply every fix extension in .any-doc-to-md/fix-extensions/ to this run,"
+            " merged into a single combined post-processing step."
+            " Mutually exclusive with --fix."
         ),
     )
     convert.add_argument(
@@ -162,17 +162,17 @@ def _convert(args: argparse.Namespace) -> int:
     if args.timeout_s <= 0:
         print("Error: --timeout-s must be > 0.", file=sys.stderr)
         return 2
-    if args.project_qa and args.project_qa_all:
-        print("Error: --project-qa and --project-qa-all are mutually exclusive.", file=sys.stderr)
+    if args.qa and args.qa_all:
+        print("Error: --qa and --qa-all are mutually exclusive.", file=sys.stderr)
         return 2
-    if args.project_inhouse and args.project_inhouse_all:
-        print("Error: --project-inhouse and --project-inhouse-all are mutually exclusive.", file=sys.stderr)
+    if args.fix and args.fix_all:
+        print("Error: --fix and --fix-all are mutually exclusive.", file=sys.stderr)
         return 2
-    if args.project_qa is not None and not args.project_qa.is_file():
-        print(f"Error: --project-qa file not found: {args.project_qa}", file=sys.stderr)
+    if args.qa is not None and not args.qa.is_file():
+        print(f"Error: --qa file not found: {args.qa}", file=sys.stderr)
         return 2
-    if args.project_inhouse is not None and not args.project_inhouse.is_file():
-        print(f"Error: --project-inhouse file not found: {args.project_inhouse}", file=sys.stderr)
+    if args.fix is not None and not args.fix.is_file():
+        print(f"Error: --fix file not found: {args.fix}", file=sys.stderr)
         return 2
 
     project_dir = args.project_dir or Path.cwd()
@@ -181,10 +181,10 @@ def _convert(args: argparse.Namespace) -> int:
     staging_dir = args.staging_dir or (output_dir / ".any-doc-to-md" / "staging")
     stage_project_scaffolds(
         anydoc2md_dir, source, staging_dir,
-        project_qa=args.project_qa,
-        project_inhouse=args.project_inhouse,
-        project_qa_all=args.project_qa_all,
-        project_inhouse_all=args.project_inhouse_all,
+        qa=args.qa,
+        fix=args.fix,
+        qa_all=args.qa_all,
+        fix_all=args.fix_all,
     )
     result = run_full_tournament(
         source,
@@ -207,7 +207,7 @@ def _convert(args: argparse.Namespace) -> int:
         print(f"winner={result.winner} output={output_dir / 'index.md'}")
         if result.remediation_plan is not None:
             print(f"findings: {anydoc2md_dir / 'llm-findings' / source.name}.json")
-            print(f"scaffolds: {anydoc2md_dir / 'qa-extensions'} and inhouse-extensions/")
+            print(f"scaffolds: {anydoc2md_dir / 'qa-extensions'} and fix-extensions/")
             print("next steps: see docs/agent-conversion-guide.md")
     return 0
 

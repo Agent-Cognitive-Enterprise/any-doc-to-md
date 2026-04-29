@@ -134,17 +134,17 @@ def test_convert_project_dir_routes_anydoc2md_dir(tmp_path: Path) -> None:
 def test_stage_project_scaffolds_copies_existing_files(tmp_path: Path) -> None:
     anydoc2md_dir = tmp_path / ".any-doc-to-md"
     qa_src = anydoc2md_dir / "qa-extensions" / "doc.txt.py"
-    inhouse_src = anydoc2md_dir / "inhouse-extensions" / "doc.txt.py"
+    fix_src = anydoc2md_dir / "fix-extensions" / "doc.txt.py"
     qa_src.parent.mkdir(parents=True)
-    inhouse_src.parent.mkdir(parents=True)
+    fix_src.parent.mkdir(parents=True)
     qa_src.write_text("# qa", encoding="utf-8")
-    inhouse_src.write_text("# inhouse", encoding="utf-8")
+    fix_src.write_text("# fix", encoding="utf-8")
     staging_dir = tmp_path / "staging"
 
     stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir)
 
     assert (staging_dir / "qa_extension.py").read_text(encoding="utf-8") == "# qa"
-    assert (staging_dir / "inhouse_extension.py").read_text(encoding="utf-8") == "# inhouse"
+    assert (staging_dir / "fix_extension.py").read_text(encoding="utf-8") == "# fix"
 
 
 def test_stage_project_scaffolds_noop_when_no_scaffolds(tmp_path: Path) -> None:
@@ -157,7 +157,7 @@ def test_stage_project_qa_only_copies_as_qa_extension(tmp_path: Path) -> None:
     project_qa.write_text("# project qa", encoding="utf-8")
     staging_dir = tmp_path / "staging"
 
-    stage_project_scaffolds(tmp_path / ".any-doc-to-md", tmp_path / "doc.txt", staging_dir, project_qa=project_qa)
+    stage_project_scaffolds(tmp_path / ".any-doc-to-md", tmp_path / "doc.txt", staging_dir, qa=project_qa)
 
     assert (staging_dir / "qa_extension.py").read_text(encoding="utf-8") == "# project qa"
     assert not (staging_dir / "_project_qa_extension.py").exists()
@@ -172,7 +172,7 @@ def test_stage_project_qa_merges_when_doc_scaffold_also_exists(tmp_path: Path) -
     doc_qa.write_text("# doc qa", encoding="utf-8")
     staging_dir = tmp_path / "staging"
 
-    stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir, project_qa=project_qa)
+    stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir, qa=project_qa)
 
     assert (staging_dir / "_project_qa_extension.py").read_text(encoding="utf-8") == "# project qa"
     assert (staging_dir / "_doc_qa_extension.py").read_text(encoding="utf-8") == "# doc qa"
@@ -182,23 +182,23 @@ def test_stage_project_qa_merges_when_doc_scaffold_also_exists(tmp_path: Path) -
     assert "get_additional_md_only_checks" in merged
 
 
-def test_stage_project_inhouse_merges_when_doc_scaffold_also_exists(tmp_path: Path) -> None:
-    project_ih = tmp_path / "project_inhouse.py"
-    project_ih.write_text("# project inhouse", encoding="utf-8")
+def test_stage_project_fix_merges_when_doc_scaffold_also_exists(tmp_path: Path) -> None:
+    project_fix = tmp_path / "project_fix.py"
+    project_fix.write_text("# project fix", encoding="utf-8")
     anydoc2md_dir = tmp_path / ".any-doc-to-md"
-    doc_ih = anydoc2md_dir / "inhouse-extensions" / "doc.txt.py"
-    doc_ih.parent.mkdir(parents=True)
-    doc_ih.write_text("# doc inhouse", encoding="utf-8")
+    doc_fix = anydoc2md_dir / "fix-extensions" / "doc.txt.py"
+    doc_fix.parent.mkdir(parents=True)
+    doc_fix.write_text("# doc fix", encoding="utf-8")
     staging_dir = tmp_path / "staging"
 
-    stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir, project_inhouse=project_ih)
+    stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir, fix=project_fix)
 
-    assert (staging_dir / "_project_inhouse_extension.py").read_text(encoding="utf-8") == "# project inhouse"
-    assert (staging_dir / "_doc_inhouse_extension.py").read_text(encoding="utf-8") == "# doc inhouse"
-    merged = (staging_dir / "inhouse_extension.py").read_text(encoding="utf-8")
-    assert "_project_inhouse_extension.py" in merged
-    assert "_doc_inhouse_extension.py" in merged
-    assert "apply_inhouse_extension" in merged
+    assert (staging_dir / "_project_fix_extension.py").read_text(encoding="utf-8") == "# project fix"
+    assert (staging_dir / "_doc_fix_extension.py").read_text(encoding="utf-8") == "# doc fix"
+    merged = (staging_dir / "fix_extension.py").read_text(encoding="utf-8")
+    assert "_project_fix_extension.py" in merged
+    assert "_doc_fix_extension.py" in merged
+    assert "apply_fix_extension" in merged
 
 
 def test_stage_project_qa_all_merges_all_extensions(tmp_path: Path) -> None:
@@ -209,7 +209,7 @@ def test_stage_project_qa_all_merges_all_extensions(tmp_path: Path) -> None:
     (qa_dir / "doc-b.html.py").write_text("# qa-b", encoding="utf-8")
     staging_dir = tmp_path / "staging"
 
-    stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir, project_qa_all=True)
+    stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir, qa_all=True)
 
     assert (staging_dir / "_all_qa_0.py").exists()
     assert (staging_dir / "_all_qa_1.py").exists()
@@ -219,21 +219,21 @@ def test_stage_project_qa_all_merges_all_extensions(tmp_path: Path) -> None:
     assert "get_additional_md_only_checks" in merged
 
 
-def test_stage_project_inhouse_all_merges_all_extensions(tmp_path: Path) -> None:
+def test_stage_project_fix_all_merges_all_extensions(tmp_path: Path) -> None:
     anydoc2md_dir = tmp_path / ".any-doc-to-md"
-    ih_dir = anydoc2md_dir / "inhouse-extensions"
-    ih_dir.mkdir(parents=True)
-    (ih_dir / "doc-a.pdf.py").write_text("# ih-a", encoding="utf-8")
-    (ih_dir / "doc-b.html.py").write_text("# ih-b", encoding="utf-8")
+    fix_dir = anydoc2md_dir / "fix-extensions"
+    fix_dir.mkdir(parents=True)
+    (fix_dir / "doc-a.pdf.py").write_text("# fix-a", encoding="utf-8")
+    (fix_dir / "doc-b.html.py").write_text("# fix-b", encoding="utf-8")
     staging_dir = tmp_path / "staging"
 
-    stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir, project_inhouse_all=True)
+    stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir, fix_all=True)
 
-    assert (staging_dir / "_all_inhouse_0.py").exists()
-    assert (staging_dir / "_all_inhouse_1.py").exists()
-    merged = (staging_dir / "inhouse_extension.py").read_text(encoding="utf-8")
-    assert "_all_inhouse_0.py" in merged
-    assert "apply_inhouse_extension" in merged
+    assert (staging_dir / "_all_fix_0.py").exists()
+    assert (staging_dir / "_all_fix_1.py").exists()
+    merged = (staging_dir / "fix_extension.py").read_text(encoding="utf-8")
+    assert "_all_fix_0.py" in merged
+    assert "apply_fix_extension" in merged
 
 
 def test_stage_project_qa_all_noop_when_dir_empty(tmp_path: Path) -> None:
@@ -241,54 +241,54 @@ def test_stage_project_qa_all_noop_when_dir_empty(tmp_path: Path) -> None:
     (anydoc2md_dir / "qa-extensions").mkdir(parents=True)
     staging_dir = tmp_path / "staging"
 
-    stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir, project_qa_all=True)
+    stage_project_scaffolds(anydoc2md_dir, tmp_path / "doc.txt", staging_dir, qa_all=True)
 
     assert not staging_dir.exists()
 
 
-def test_convert_rejects_missing_project_qa(tmp_path: Path, capsys) -> None:
+def test_convert_rejects_missing_qa(tmp_path: Path, capsys) -> None:
     source = tmp_path / "source.txt"
     source.write_text("x", encoding="utf-8")
 
     rc = main(["convert", str(source), "--output-dir", str(tmp_path / "out"),
-               "--project-qa", str(tmp_path / "nonexistent.py")])
+               "--qa", str(tmp_path / "nonexistent.py")])
 
     assert rc == 2
-    assert "--project-qa" in capsys.readouterr().err
+    assert "--qa" in capsys.readouterr().err
 
 
-def test_convert_rejects_missing_project_inhouse(tmp_path: Path, capsys) -> None:
+def test_convert_rejects_missing_fix(tmp_path: Path, capsys) -> None:
     source = tmp_path / "source.txt"
     source.write_text("x", encoding="utf-8")
 
     rc = main(["convert", str(source), "--output-dir", str(tmp_path / "out"),
-               "--project-inhouse", str(tmp_path / "nonexistent.py")])
+               "--fix", str(tmp_path / "nonexistent.py")])
 
     assert rc == 2
-    assert "--project-inhouse" in capsys.readouterr().err
+    assert "--fix" in capsys.readouterr().err
 
 
-def test_convert_rejects_project_qa_and_project_qa_all_together(tmp_path: Path, capsys) -> None:
+def test_convert_rejects_qa_and_qa_all_together(tmp_path: Path, capsys) -> None:
     source = tmp_path / "source.txt"
     source.write_text("x", encoding="utf-8")
     qa_file = tmp_path / "qa.py"
     qa_file.write_text("# qa", encoding="utf-8")
 
     rc = main(["convert", str(source), "--output-dir", str(tmp_path / "out"),
-               "--project-qa", str(qa_file), "--project-qa-all"])
+               "--qa", str(qa_file), "--qa-all"])
 
     assert rc == 2
     assert "mutually exclusive" in capsys.readouterr().err
 
 
-def test_convert_rejects_project_inhouse_and_project_inhouse_all_together(tmp_path: Path, capsys) -> None:
+def test_convert_rejects_fix_and_fix_all_together(tmp_path: Path, capsys) -> None:
     source = tmp_path / "source.txt"
     source.write_text("x", encoding="utf-8")
-    ih_file = tmp_path / "ih.py"
-    ih_file.write_text("# ih", encoding="utf-8")
+    fix_file = tmp_path / "fix.py"
+    fix_file.write_text("# fix", encoding="utf-8")
 
     rc = main(["convert", str(source), "--output-dir", str(tmp_path / "out"),
-               "--project-inhouse", str(ih_file), "--project-inhouse-all"])
+               "--fix", str(fix_file), "--fix-all"])
 
     assert rc == 2
     assert "mutually exclusive" in capsys.readouterr().err

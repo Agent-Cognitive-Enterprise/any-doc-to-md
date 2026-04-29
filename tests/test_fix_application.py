@@ -24,24 +24,24 @@ def _write_fix(staging_root: Path, filename: str, body: str) -> Path:
 
 
 _FIX_UPPERCASE = """\
-def apply_inhouse_extension(src, staging, conv):
+def apply_fix_extension(src, staging, conv):
     md = staging / 'index.md'
     md.write_text(md.read_text(encoding='utf-8').upper(), encoding='utf-8')
 """
 
 _FIX_APPEND = """\
-def apply_inhouse_extension(src, staging, conv):
+def apply_fix_extension(src, staging, conv):
     md = staging / 'index.md'
     md.write_text(md.read_text(encoding='utf-8') + ' APPENDED', encoding='utf-8')
 """
 
 _FIX_NOOP = """\
-def apply_inhouse_extension(src, staging, conv):
+def apply_fix_extension(src, staging, conv):
     pass
 """
 
 _FIX_RAISES = """\
-def apply_inhouse_extension(src, staging, conv):
+def apply_fix_extension(src, staging, conv):
     raise RuntimeError("intentional failure")
 """
 
@@ -77,15 +77,15 @@ def test_find_fix_files_empty_dir(tmp_path: Path) -> None:
 
 
 def test_find_fix_files_merged_only(tmp_path: Path) -> None:
-    merged = tmp_path / "inhouse_extension.py"
+    merged = tmp_path / "fix_extension.py"
     merged.write_text("", encoding="utf-8")
     assert _find_fix_files(tmp_path) == [merged]
 
 
 def test_find_fix_files_prefers_components_over_merged(tmp_path: Path) -> None:
-    (tmp_path / "inhouse_extension.py").write_text("", encoding="utf-8")
-    c0 = tmp_path / "_all_inhouse_0.py"
-    c1 = tmp_path / "_all_inhouse_1.py"
+    (tmp_path / "fix_extension.py").write_text("", encoding="utf-8")
+    c0 = tmp_path / "_all_fix_0.py"
+    c1 = tmp_path / "_all_fix_1.py"
     c0.write_text("", encoding="utf-8")
     c1.write_text("", encoding="utf-8")
     result = _find_fix_files(tmp_path)
@@ -109,7 +109,7 @@ def test_no_index_md_noop(tmp_path: Path) -> None:
     adapter_dir.mkdir(parents=True)
     source = tmp_path / "doc.txt"
     source.write_text("x", encoding="utf-8")
-    _write_fix(staging_root, "inhouse_extension.py", _FIX_UPPERCASE)
+    _write_fix(staging_root, "fix_extension.py", _FIX_UPPERCASE)
     apply_fix_extensions("inhouse", adapter_dir, staging_root, source)
     assert not (adapter_dir / "index_fixed.md").exists()
 
@@ -120,7 +120,7 @@ def test_no_index_md_noop(tmp_path: Path) -> None:
 
 def test_fix_that_improves_score_writes_index_fixed(tmp_path: Path) -> None:
     staging_root, adapter_dir, source = _setup(tmp_path)
-    _write_fix(staging_root, "inhouse_extension.py", _FIX_UPPERCASE)
+    _write_fix(staging_root, "fix_extension.py", _FIX_UPPERCASE)
 
     with _patch_scores(10.0, 5.0):  # base=10, candidate=5 → keep
         apply_fix_extensions("inhouse", adapter_dir, staging_root, source)
@@ -131,7 +131,7 @@ def test_fix_that_improves_score_writes_index_fixed(tmp_path: Path) -> None:
 
 def test_fix_with_equal_score_discarded(tmp_path: Path) -> None:
     staging_root, adapter_dir, source = _setup(tmp_path)
-    _write_fix(staging_root, "inhouse_extension.py", _FIX_UPPERCASE)
+    _write_fix(staging_root, "fix_extension.py", _FIX_UPPERCASE)
 
     with _patch_scores(10.0, 10.0):  # equal → discard
         apply_fix_extensions("inhouse", adapter_dir, staging_root, source)
@@ -142,7 +142,7 @@ def test_fix_with_equal_score_discarded(tmp_path: Path) -> None:
 
 def test_fix_that_worsens_score_discarded(tmp_path: Path) -> None:
     staging_root, adapter_dir, source = _setup(tmp_path)
-    _write_fix(staging_root, "inhouse_extension.py", _FIX_UPPERCASE)
+    _write_fix(staging_root, "fix_extension.py", _FIX_UPPERCASE)
 
     with _patch_scores(5.0, 10.0):  # worse → discard
         apply_fix_extensions("inhouse", adapter_dir, staging_root, source)
@@ -153,7 +153,7 @@ def test_fix_that_worsens_score_discarded(tmp_path: Path) -> None:
 
 def test_stale_index_fixed_removed_when_no_improvement(tmp_path: Path) -> None:
     staging_root, adapter_dir, source = _setup(tmp_path)
-    _write_fix(staging_root, "inhouse_extension.py", _FIX_UPPERCASE)
+    _write_fix(staging_root, "fix_extension.py", _FIX_UPPERCASE)
     (adapter_dir / "index_fixed.md").write_text("stale", encoding="utf-8")
 
     with _patch_scores(5.0, 10.0):  # worse → discard
@@ -168,8 +168,8 @@ def test_stale_index_fixed_removed_when_no_improvement(tmp_path: Path) -> None:
 
 def test_multiple_fixes_both_improving_accumulate(tmp_path: Path) -> None:
     staging_root, adapter_dir, source = _setup(tmp_path, "hello")
-    c0 = _write_fix(staging_root, "_all_inhouse_0.py", _FIX_UPPERCASE)
-    c1 = _write_fix(staging_root, "_all_inhouse_1.py", _FIX_APPEND)
+    c0 = _write_fix(staging_root, "_all_fix_0.py", _FIX_UPPERCASE)
+    c1 = _write_fix(staging_root, "_all_fix_1.py", _FIX_APPEND)
 
     with _patch_scores(10.0, 7.0, 4.0):  # base, after c0, after c1 → both kept
         apply_fix_extensions("inhouse", adapter_dir, staging_root, source)
@@ -181,8 +181,8 @@ def test_multiple_fixes_both_improving_accumulate(tmp_path: Path) -> None:
 
 def test_multiple_fixes_first_bad_second_good(tmp_path: Path) -> None:
     staging_root, adapter_dir, source = _setup(tmp_path, "hello")
-    _write_fix(staging_root, "_all_inhouse_0.py", _FIX_NOOP)    # no change → equal → discard
-    _write_fix(staging_root, "_all_inhouse_1.py", _FIX_UPPERCASE)  # improves
+    _write_fix(staging_root, "_all_fix_0.py", _FIX_NOOP)    # no change → equal → discard
+    _write_fix(staging_root, "_all_fix_1.py", _FIX_UPPERCASE)  # improves
 
     with _patch_scores(10.0, 10.0, 5.0):  # base, c0 equal → discard, c1 better → keep
         apply_fix_extensions("inhouse", adapter_dir, staging_root, source)
@@ -196,7 +196,7 @@ def test_multiple_fixes_first_bad_second_good(tmp_path: Path) -> None:
 
 def test_fix_that_raises_is_skipped(tmp_path: Path) -> None:
     staging_root, adapter_dir, source = _setup(tmp_path)
-    _write_fix(staging_root, "inhouse_extension.py", _FIX_RAISES)
+    _write_fix(staging_root, "fix_extension.py", _FIX_RAISES)
 
     apply_fix_extensions("inhouse", adapter_dir, staging_root, source)
 
@@ -206,7 +206,7 @@ def test_fix_that_raises_is_skipped(tmp_path: Path) -> None:
 
 def test_fix_missing_hook_is_skipped(tmp_path: Path) -> None:
     staging_root, adapter_dir, source = _setup(tmp_path)
-    _write_fix(staging_root, "inhouse_extension.py", "# no hook defined\n")
+    _write_fix(staging_root, "fix_extension.py", "# no hook defined\n")
 
     apply_fix_extensions("inhouse", adapter_dir, staging_root, source)
 
