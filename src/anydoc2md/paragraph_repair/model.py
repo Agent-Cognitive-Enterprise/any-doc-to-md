@@ -1,10 +1,51 @@
 """Data model for deterministic paragraph continuity repair."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TypeAlias
+from dataclasses import asdict, dataclass, field
+from typing import Literal, TypeAlias
 
+BlockKind: TypeAlias = Literal[
+    "prose",
+    "blank",
+    "heading",
+    "list_item",
+    "table",
+    "code_fence",
+    "indented_code",
+    "blockquote",
+    "image",
+    "caption",
+    "horizontal_rule",
+    "html",
+    "front_matter",
+]
 SignalValue: TypeAlias = float | int | str | bool
+
+
+@dataclass(frozen=True)
+class MarkdownBlock:
+    """One conservative Markdown block with original text preserved."""
+
+    kind: BlockKind
+    text: str
+    start_line: int
+    end_line: int
+
+    @property
+    def is_prose(self) -> bool:
+        return self.kind == "prose"
+
+    @property
+    def is_blank(self) -> bool:
+        return self.kind == "blank"
+
+    @property
+    def is_hard_boundary(self) -> bool:
+        """True for kinds the merger must not merge across (excludes blanks)."""
+        return self.kind not in {"prose", "blank"}
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 @dataclass(frozen=True)
