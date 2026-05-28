@@ -20,6 +20,17 @@ BlockKind: TypeAlias = Literal[
     "front_matter",
 ]
 SignalValue: TypeAlias = float | int | str | bool
+DetectionReason: TypeAlias = Literal[
+    "disabled",
+    "too_few_prose_blocks",
+    "structure_ratio_above_threshold",
+    "short_ratio_below_threshold",
+    "no_terminal_ratio_below_threshold",
+    "continuation_pair_ratio_below_threshold",
+    "lowercase_start_ratio_below_threshold",
+    "no_qualifying_continuation_run",
+    "row_sliced_prose_detected",
+]
 
 
 @dataclass(frozen=True)
@@ -49,6 +60,46 @@ class MarkdownBlock:
 
 
 @dataclass(frozen=True)
+class FragmentationSignals:
+    """Cheap signals for likely row-sliced prose.
+
+    `median_prose_chars` is reported for diagnostics and downstream repair
+    quality scoring; the detector itself does not gate on it.
+    """
+
+    prose_block_count: int
+    structural_block_count: int
+    blank_block_count: int
+    median_prose_chars: float
+    short_ratio: float
+    no_terminal_ratio: float
+    lowercase_start_ratio: float
+    continuation_pair_ratio: float
+    qualifying_continuation_run_count: int
+    longest_continuation_run: int
+    structure_ratio: float
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True, kw_only=True)
+class DetectionDecision:
+    """Decision and evidence for row-sliced paragraph detection."""
+
+    detected: bool
+    reason: DetectionReason
+    signals: FragmentationSignals
+
+    def to_dict(self) -> dict:
+        return {
+            "detected": self.detected,
+            "reason": self.reason,
+            "signals": self.signals.to_dict(),
+        }
+
+
+@dataclass(frozen=True)
 class ParagraphRepairSettings:
     """Conservative defaults for row-sliced paragraph repair."""
 
@@ -56,7 +107,12 @@ class ParagraphRepairSettings:
     min_paragraphs: int = 20
     min_short_ratio: float = 0.55
     min_no_terminal_ratio: float = 0.35
+    min_lowercase_start_ratio: float = 0.20
     min_continuation_ratio: float = 0.35
+    max_structure_ratio: float = 0.50
+    short_prose_chars: int = 100
+    min_continuation_chars: int = 24
+    min_continuation_run_blocks: int = 4
     min_quality_delta: float = 0.75
     max_merged_paragraph_chars: int = 2500
     max_examples: int = 5

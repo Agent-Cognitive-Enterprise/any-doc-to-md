@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 
 from anydoc2md.paragraph_repair.model import (
+    DetectionDecision,
+    FragmentationSignals,
+    MarkdownBlock,
     ParagraphRepairReport,
     ParagraphRepairResult,
     ParagraphRepairSettings,
@@ -17,7 +20,12 @@ def test_default_settings_are_conservative() -> None:
     assert settings.min_paragraphs == 20
     assert settings.min_short_ratio == 0.55
     assert settings.min_no_terminal_ratio == 0.35
+    assert settings.min_lowercase_start_ratio == 0.20
     assert settings.min_continuation_ratio == 0.35
+    assert settings.max_structure_ratio == 0.50
+    assert settings.short_prose_chars == 100
+    assert settings.min_continuation_chars == 24
+    assert settings.min_continuation_run_blocks == 4
     assert settings.min_quality_delta == 0.75
     assert settings.max_merged_paragraph_chars == 2500
     assert settings.max_examples == 5
@@ -210,3 +218,32 @@ def test_bound_examples_uses_default_settings() -> None:
         len(example) <= ParagraphRepairSettings().max_example_chars
         for example in bounded
     )
+
+
+def test_paragraph_repair_package_exports_internal_models() -> None:
+    import anydoc2md.paragraph_repair as paragraph_repair
+
+    assert paragraph_repair.MarkdownBlock is MarkdownBlock
+    assert paragraph_repair.FragmentationSignals is FragmentationSignals
+    assert paragraph_repair.DetectionDecision is DetectionDecision
+
+
+def test_paragraph_repair_package_exports_detector_and_blocks() -> None:
+    import anydoc2md.paragraph_repair as paragraph_repair
+    from anydoc2md.paragraph_repair.detector import (
+        compute_fragmentation_signals,
+        looks_like_continuation,
+        looks_row_sliced,
+    )
+    from anydoc2md.paragraph_repair.markdown_blocks import (
+        classify_line,
+        reconstruct_markdown,
+        split_markdown_blocks,
+    )
+
+    assert paragraph_repair.compute_fragmentation_signals is compute_fragmentation_signals
+    assert paragraph_repair.looks_row_sliced is looks_row_sliced
+    assert paragraph_repair.looks_like_continuation is looks_like_continuation
+    assert paragraph_repair.split_markdown_blocks is split_markdown_blocks
+    assert paragraph_repair.reconstruct_markdown is reconstruct_markdown
+    assert paragraph_repair.classify_line is classify_line
