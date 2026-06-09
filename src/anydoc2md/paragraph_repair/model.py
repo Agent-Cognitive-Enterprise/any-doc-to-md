@@ -31,6 +31,12 @@ DetectionReason: TypeAlias = Literal[
     "no_qualifying_continuation_run",
     "row_sliced_prose_detected",
 ]
+MergeReason: TypeAlias = Literal[
+    "not_prose",
+    "not_continuation",
+    "continuation",
+]
+JoinKind: TypeAlias = Literal["none", "space", "hyphen"]
 
 
 @dataclass(frozen=True)
@@ -117,6 +123,63 @@ class ParagraphRepairSettings:
     max_merged_paragraph_chars: int = 2500
     max_examples: int = 5
     max_example_chars: int = 160
+
+
+@dataclass(frozen=True, kw_only=True)
+class MergeDecision:
+    """Pair-level merge decision used by the repairer."""
+
+    merge: bool
+    reason: MergeReason
+    join_kind: JoinKind
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class RepairDraft:
+    """In-memory result of a single repair pass.
+
+    `content_preserved` is a whitespace-insensitive character round-trip check:
+    `True` means no non-whitespace character was dropped, added, or rewritten by
+    the merger. A value of `False` means real content loss and the draft must
+    not be accepted by downstream gates.
+
+    `hyphen_join_count` reports how many merge joins collapsed an ambiguous
+    end-of-block hyphen boundary (e.g. ``well-`` + ``known`` -> ``well-known``).
+    These joins are character-preserving, so they do not flip `content_preserved`,
+    but they are the boundaries a quality gate should scrutinize. This keeps the
+    ambiguity signal orthogonal to the loss guard instead of tainting the whole
+    draft with a single document-level boolean.
+    """
+
+    text: str
+    merge_group_count: int
+    original_paragraph_count: int
+    repaired_paragraph_count: int
+    content_preserved: bool
+    hyphen_join_count: int = 0
+    examples: list[str] = field(default_factory=list)
+    settings: ParagraphRepairSettings | None = field(
+        default=None, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "examples", bound_examples(self.examples, self.settings)
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "text": self.text,
+            "merge_group_count": self.merge_group_count,
+            "original_paragraph_count": self.original_paragraph_count,
+            "repaired_paragraph_count": self.repaired_paragraph_count,
+            "content_preserved": self.content_preserved,
+            "hyphen_join_count": self.hyphen_join_count,
+            "examples": list(self.examples),
+        }
 
 
 @dataclass(frozen=True)

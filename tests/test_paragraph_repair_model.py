@@ -6,9 +6,11 @@ from anydoc2md.paragraph_repair.model import (
     DetectionDecision,
     FragmentationSignals,
     MarkdownBlock,
+    MergeDecision,
     ParagraphRepairReport,
     ParagraphRepairResult,
     ParagraphRepairSettings,
+    RepairDraft,
     bound_examples,
 )
 
@@ -226,6 +228,83 @@ def test_paragraph_repair_package_exports_internal_models() -> None:
     assert paragraph_repair.MarkdownBlock is MarkdownBlock
     assert paragraph_repair.FragmentationSignals is FragmentationSignals
     assert paragraph_repair.DetectionDecision is DetectionDecision
+
+
+def test_merge_decision_to_dict_round_trips_through_json() -> None:
+    decision = MergeDecision(merge=True, reason="continuation", join_kind="space")
+
+    payload = decision.to_dict()
+
+    assert payload == {
+        "merge": True,
+        "reason": "continuation",
+        "join_kind": "space",
+    }
+    assert json.loads(json.dumps(payload)) == payload
+
+
+def test_merge_decision_rejects_positional_arguments() -> None:
+    import pytest
+
+    with pytest.raises(TypeError):
+        MergeDecision(True, "continuation", "space")  # type: ignore[misc]
+
+
+def test_repair_draft_to_dict_round_trips_and_omits_settings() -> None:
+    draft = RepairDraft(
+        text="merged text\n",
+        merge_group_count=1,
+        original_paragraph_count=5,
+        repaired_paragraph_count=1,
+        content_preserved=True,
+        examples=["alpha", "beta"],
+    )
+
+    payload = draft.to_dict()
+
+    assert payload == {
+        "text": "merged text\n",
+        "merge_group_count": 1,
+        "original_paragraph_count": 5,
+        "repaired_paragraph_count": 1,
+        "content_preserved": True,
+        "hyphen_join_count": 0,
+        "examples": ["alpha", "beta"],
+    }
+    assert "settings" not in payload
+    assert json.loads(json.dumps(payload)) == payload
+
+
+def test_repair_draft_bounds_examples_with_carried_settings() -> None:
+    settings = ParagraphRepairSettings(max_examples=2, max_example_chars=8)
+    draft = RepairDraft(
+        text="",
+        merge_group_count=0,
+        original_paragraph_count=0,
+        repaired_paragraph_count=0,
+        content_preserved=True,
+        examples=["one", "two", "three", "four"],
+        settings=settings,
+    )
+
+    assert len(draft.examples) == 2
+    assert all(len(example) <= 8 for example in draft.examples)
+
+
+def test_repair_draft_settings_do_not_affect_equality_or_repr() -> None:
+    base = dict(
+        text="",
+        merge_group_count=0,
+        original_paragraph_count=0,
+        repaired_paragraph_count=0,
+        content_preserved=True,
+        examples=[],
+    )
+    a = RepairDraft(**base, settings=ParagraphRepairSettings(max_examples=1))
+    b = RepairDraft(**base, settings=ParagraphRepairSettings(max_examples=9))
+
+    assert a == b
+    assert "settings" not in repr(a)
 
 
 def test_paragraph_repair_package_exports_detector_and_blocks() -> None:

@@ -38,14 +38,62 @@ Important existing contracts:
 Before making substantive changes:
 
 1. Read this `AGENTS.md`.
-2. Read `README.md`.
-3. Read the relevant sections of `docs/specs/multi-method-converter-tournament.md`.
-4. Read `CONTRIBUTING.md` for test, release, adapter, and contribution boundaries.
-5. Inspect the current code and tests around the exact area being changed.
-6. Identify acceptance criteria, affected files, compatibility risks, and required verification.
-7. Make the smallest coherent plan before editing.
+2. Read `HANDOFF.md` if it exists. If it is missing, proceed conservatively and create it before ending change-producing work.
+3. Read `README.md`.
+4. Read the relevant sections of `docs/specs/multi-method-converter-tournament.md`.
+5. Read `CONTRIBUTING.md` for test, release, adapter, and contribution boundaries.
+6. Inspect the current code and tests around the exact area being changed.
+7. Identify acceptance criteria, affected files, compatibility risks, and required verification.
+8. Make the smallest coherent plan before editing.
 
 Do not make blind edits. Familiarity is not compliance.
+
+### 2.1 Session handoff discipline
+
+At the end of each change-producing task, and before yielding control, update `HANDOFF.md`. Read-only Q&A or red-team review may leave `HANDOFF.md` untouched so the reviewer does not mutate the diff under review; in that case, report that no handoff update was needed.
+
+`HANDOFF.md` is the current-state bridge for the next session. It is not a changelog, diary, or replacement for progress docs. Keep it concise, current, and action-oriented; overwrite stale content rather than appending indefinitely.
+
+If `HANDOFF.md` is missing, create it before ending change-producing work.
+
+Rules:
+
+- preserve enough context for a fresh session to resume quickly,
+- record what was completed, current status, and the immediate next step,
+- keep entries factual, specific, and relevant to the current workstream,
+- include only the minimum context needed to continue effectively,
+- always update the `Last updated` timestamp in UTC,
+- if priorities changed, rewrite `Current objective` and `Next step`,
+- if work is blocked, state the blocker and the exact condition required to unblock it,
+- if work is complete, say so plainly and state the next meaningful task if one exists,
+- if `HANDOFF.md` grows beyond roughly 150 to 250 lines, compress it to current facts only.
+
+Maintain this section structure:
+
+```text
+# HANDOFF
+
+## Current objective
+...
+
+## Completed in this session
+- ...
+
+## Current status
+...
+
+## Next step
+...
+
+## Important files
+- path/to/file
+
+## Notes for next session
+...
+
+## Last updated
+YYYY-MM-DD HH:MM UTC
+```
 
 ---
 
@@ -324,9 +372,12 @@ Avoid gravity wells: files that attract unrelated complexity until every change 
 
 ## 11. SABRE working protocol
 
+SABRE means Slice-Based Adversarial Build/Review Engineering.
+
 When using SABRE-style implementation and review:
 
 - one slice means one coherent behavior change,
+- the slice must be narrow, observable, and reviewable,
 - the implementer builds the slice,
 - the reviewer red-teams the uncommitted diff,
 - the reviewer does not silently patch the code they are reviewing,
@@ -336,6 +387,8 @@ When using SABRE-style implementation and review:
 - commit only after implementation and review are both satisfied.
 
 A slice should leave the repository operational. If a slice must be partial, it must leave truthful `TODO:` notes or progress docs that make the remaining work obvious without chat context.
+
+For change-producing SABRE tasks, record or update the local-date progress file under `docs/progress/YYYYMMDD.md` before completion. The progress file is the historical slice/review record; `HANDOFF.md` is the current-state snapshot.
 
 High-risk areas need extra scrutiny:
 
@@ -375,6 +428,7 @@ When reporting completed work, include:
 - commands run,
 - documentation updated,
 - assumptions made,
+- `HANDOFF.md` updated or why no update was needed,
 - new files tracked or ignored,
 - remaining risks or follow-up work,
 - short commit-message-style summary.
