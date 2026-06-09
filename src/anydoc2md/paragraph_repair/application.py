@@ -146,6 +146,72 @@ def apply_paragraph_continuity_repair(
     return result.report
 
 
+def paragraph_repair_candidate_is_current(adapter_staging_dir: Path) -> bool:
+    """Return True iff a trusted, intact current-run paragraph-repair candidate exists.
+
+    A candidate is trusted only when `index_paragraph_repaired.md`, a well-formed
+    `paragraph_repair_report.json` written by this helper, and `index.md` are all
+    present and the sidecar's recorded fingerprints both verify: the recorded raw
+    input SHA-256 matches the current `index.md` (the candidate is for this run's
+    input) and the recorded output SHA-256 matches the on-disk
+    `index_paragraph_repaired.md` (the candidate is intact and unmodified). Any
+    missing file, foreign or malformed sidecar, raw-input mismatch, or
+    output-integrity mismatch is untrusted. Callers use this to decide whether a
+    paragraph-repair candidate may survive staging hygiene or be composed into
+    published output; it never writes anything.
+    """
+    repaired = adapter_staging_dir / PARAGRAPH_REPAIRED_MD
+    sidecar = adapter_staging_dir / PARAGRAPH_REPAIR_REPORT_JSON
+    index_md = adapter_staging_dir / INDEX_MD
+    if not (repaired.is_file() and sidecar.is_file() and index_md.is_file()):
+        return False
+    recorded = _recorded_artifact_hashes(sidecar)
+    if recorded is None:
+        return False
+    recorded_input_sha256, recorded_output_sha256 = recorded
+    return (
+        recorded_input_sha256 == _sha256_file(index_md)
+        and recorded_output_sha256 == _sha256_file(repaired)
+    )
+
+
+def _recorded_artifact_hashes(sidecar: Path) -> tuple[str, str] | None:
+    """Return (input_sha256, output_sha256) from a sidecar this helper can vouch for.
+
+    Returns None for any sidecar this helper cannot trust: unreadable or non-JSON
+    content, a non-object payload, a `created_by` that is not this helper, or an
+    `input`/`output` artifact whose recorded `path` is unexpected or whose
+    `sha256` is missing or not a string.
+    """
+    try:
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("created_by") != _SIDECAR_CREATED_BY:
+        return None
+    input_sha256 = _artifact_sha256(payload.get("input"), INDEX_MD)
+    output_sha256 = _artifact_sha256(payload.get("output"), PARAGRAPH_REPAIRED_MD)
+    if input_sha256 is None or output_sha256 is None:
+        return None
+    return input_sha256, output_sha256
+
+
+def _artifact_sha256(artifact: object, expected_path: str) -> str | None:
+    """Return a recorded artifact's sha256 when its path matches, else None."""
+    if not isinstance(artifact, dict):
+        return None
+    if artifact.get("path") != expected_path:
+        return None
+    sha256 = artifact.get("sha256")
+    return sha256 if isinstance(sha256, str) else None
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _no_input_report(
     reason: str,
     settings: ParagraphRepairSettings,

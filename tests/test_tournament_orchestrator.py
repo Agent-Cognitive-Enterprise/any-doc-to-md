@@ -401,6 +401,36 @@ class TestOrchestratorFlow:
         assert result.judge_verdict is None
         assert result.audit_mode == AUDIT_MODE_LIGHT
 
+    def test_stale_index_fixed_is_cleared_before_selection(self, tmp_path: Path) -> None:
+        source_path = tmp_path / "doc.pdf"
+        source_path.write_bytes(b"%PDF-1.4")
+        staging_root = tmp_path / "staging"
+        adapter_dir = staging_root / "inhouse"
+        adapter_dir.mkdir(parents=True)
+        (adapter_dir / "index.md").write_text("# Fresh", encoding="utf-8")
+        stale = adapter_dir / "index_fixed.md"
+        stale.write_text("stale published output from a prior run", encoding="utf-8")
+        selection = _selection("inhouse")
+        audit_result = _audit_result(winner="inhouse", verdict=_verdict("inhouse"))
+
+        with patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament",
+                   return_value=[_adapter_result("inhouse", staging_root, md="# Fresh")]), \
+             patch(f"{MOCK_BASE}.select_candidate", return_value=selection), \
+             patch(f"{MOCK_BASE}.run_post_selection_audit_loop", return_value=audit_result):
+            run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=["inhouse"],
+                judge_settings=_judge_settings(),
+                promote=False,
+            )
+
+        # No fix files exist, so apply_fix_extensions is a no-op; without the
+        # Stage 2.3 guard the stale fixed output would survive into selection.
+        assert not stale.exists()
+        assert (adapter_dir / "index.md").read_text(encoding="utf-8") == "# Fresh"
+
 
 class TestPromotionBehavior:
     def test_promotes_winner_dir(self, tmp_path: Path) -> None:

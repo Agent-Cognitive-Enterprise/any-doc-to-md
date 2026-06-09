@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from anydoc2md.paragraph_repair.application import (
     apply_paragraph_continuity_repair,
+    paragraph_repair_candidate_is_current,
     repair_markdown_paragraph_continuity,
 )
 from anydoc2md.paragraph_repair.detector import (
@@ -43,6 +44,7 @@ __all__ = [
     "ends_with_continuation_word",
     "looks_like_continuation",
     "looks_row_sliced",
+    "paragraph_repair_candidate_is_current",
     "reconstruct_markdown",
     "repair_markdown_paragraph_continuity",
     "split_markdown_blocks",

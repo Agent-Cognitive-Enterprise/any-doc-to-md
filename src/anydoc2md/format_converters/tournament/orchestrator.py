@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from anydoc2md.fix_application import apply_fix_extensions
+from anydoc2md.staging_hygiene import prepare_adapter_fixed_output_slot
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import (
     DocumentTraits,
@@ -157,10 +158,15 @@ def run_full_tournament(
         source_path, staging_root, adapter_names, timeout_s=timeout_s,
     )
 
-    # Stage 2.5: apply fix extensions to each adapter's output (in-place)
+    # Stage 2.3: clear stale generated fixed-output artifacts before any current-run
+    #            fix-extension, selection, or publishing stage inspects the slot, so a
+    #            rerun into a reused staging dir cannot select/publish a prior run's
+    #            index_fixed.md.
+    # Stage 2.5: apply fix extensions to each adapter's output (in-place).
     for name in adapter_names:
         adapter_dir = staging_root / name
         if (adapter_dir / "index.md").exists():
+            prepare_adapter_fixed_output_slot(adapter_dir)
             apply_fix_extensions(name, adapter_dir, staging_root, source_path)
 
     # Stage 3: gate + score → select winner (uses index_fixed.md when present)

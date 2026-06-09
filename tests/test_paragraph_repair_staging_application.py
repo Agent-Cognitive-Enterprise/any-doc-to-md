@@ -8,6 +8,7 @@ from anydoc2md.paragraph_repair.application import (
     PARAGRAPH_REPAIRED_MD,
     PARAGRAPH_REPAIR_REPORT_JSON,
     apply_paragraph_continuity_repair,
+    paragraph_repair_candidate_is_current,
 )
 from anydoc2md.paragraph_repair import application as repair_application
 from anydoc2md.paragraph_repair.model import ParagraphRepairSettings
@@ -259,6 +260,101 @@ def test_package_exports_staging_helper() -> None:
         paragraph_repair.apply_paragraph_continuity_repair
         is apply_paragraph_continuity_repair
     )
+    assert (
+        paragraph_repair.paragraph_repair_candidate_is_current
+        is paragraph_repair_candidate_is_current
+    )
+
+
+def test_candidate_is_current_true_after_accepted_repair(tmp_path: Path) -> None:
+    adapter_dir, _ = _make_accepted_candidate(tmp_path)
+
+    assert paragraph_repair_candidate_is_current(adapter_dir) is True
+
+
+def test_candidate_is_current_false_when_index_md_changed(tmp_path: Path) -> None:
+    adapter_dir, _ = _make_accepted_candidate(tmp_path)
+    (adapter_dir / "index.md").write_text("different raw output\n", encoding="utf-8")
+
+    assert paragraph_repair_candidate_is_current(adapter_dir) is False
+
+
+def test_candidate_is_current_false_without_repaired_file(tmp_path: Path) -> None:
+    adapter_dir, _ = _make_accepted_candidate(tmp_path)
+    (adapter_dir / PARAGRAPH_REPAIRED_MD).unlink()
+
+    assert paragraph_repair_candidate_is_current(adapter_dir) is False
+
+
+def test_candidate_is_current_false_without_sidecar(tmp_path: Path) -> None:
+    adapter_dir, _ = _make_accepted_candidate(tmp_path)
+    (adapter_dir / PARAGRAPH_REPAIR_REPORT_JSON).unlink()
+
+    assert paragraph_repair_candidate_is_current(adapter_dir) is False
+
+
+def test_candidate_is_current_false_without_index_md(tmp_path: Path) -> None:
+    adapter_dir, _ = _make_accepted_candidate(tmp_path)
+    (adapter_dir / "index.md").unlink()
+
+    assert paragraph_repair_candidate_is_current(adapter_dir) is False
+
+
+def test_candidate_is_current_false_when_repaired_content_changed(
+    tmp_path: Path,
+) -> None:
+    # Raw index.md is untouched, so input fingerprint still matches; only the
+    # repaired output is corrupted/swapped. Output-integrity verification must
+    # reject it rather than trusting a stale or tampered candidate.
+    adapter_dir, _ = _make_accepted_candidate(tmp_path)
+    (adapter_dir / PARAGRAPH_REPAIRED_MD).write_text(
+        "corrupted old output\n", encoding="utf-8"
+    )
+
+    assert paragraph_repair_candidate_is_current(adapter_dir) is False
+
+
+def test_candidate_is_current_false_when_output_path_tampered(
+    tmp_path: Path,
+) -> None:
+    adapter_dir, _ = _make_accepted_candidate(tmp_path)
+    sidecar = adapter_dir / PARAGRAPH_REPAIR_REPORT_JSON
+    payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    payload["output"]["path"] = "somewhere_else.md"
+    sidecar.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert paragraph_repair_candidate_is_current(adapter_dir) is False
+
+
+def test_candidate_is_current_false_for_malformed_sidecar(tmp_path: Path) -> None:
+    adapter_dir, _ = _make_accepted_candidate(tmp_path)
+    (adapter_dir / PARAGRAPH_REPAIR_REPORT_JSON).write_text(
+        "not json", encoding="utf-8"
+    )
+
+    assert paragraph_repair_candidate_is_current(adapter_dir) is False
+
+
+def test_candidate_is_current_false_for_foreign_created_by(tmp_path: Path) -> None:
+    adapter_dir, _ = _make_accepted_candidate(tmp_path)
+    sidecar = adapter_dir / PARAGRAPH_REPAIR_REPORT_JSON
+    payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    # Keep the matching input fingerprint; only foreign provenance differs.
+    payload["created_by"] = "some.other.tool"
+    sidecar.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert paragraph_repair_candidate_is_current(adapter_dir) is False
+
+
+def test_candidate_is_current_false_for_missing_dir(tmp_path: Path) -> None:
+    assert paragraph_repair_candidate_is_current(tmp_path / "nope") is False
+
+
+def _make_accepted_candidate(tmp_path: Path) -> tuple[Path, Path]:
+    adapter_dir, source_path = _setup_staging(tmp_path, _row_sliced_fixture())
+    report = apply_paragraph_continuity_repair("inhouse", adapter_dir, source_path)
+    assert report.accepted is True
+    return adapter_dir, source_path
 
 
 def _setup_staging(tmp_path: Path, md_text: str) -> tuple[Path, Path]:
