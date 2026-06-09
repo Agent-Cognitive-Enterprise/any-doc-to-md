@@ -1,6 +1,9 @@
 """Internal paragraph continuity repair models and helpers."""
 from __future__ import annotations
 
+from anydoc2md.paragraph_repair.application import (
+    repair_markdown_paragraph_continuity,
+)
 from anydoc2md.paragraph_repair.detector import (
     compute_fragmentation_signals,
     ends_terminal,
@@ -39,6 +42,7 @@ __all__ = [
     "looks_like_continuation",
     "looks_row_sliced",
     "reconstruct_markdown",
+    "repair_markdown_paragraph_continuity",
     "split_markdown_blocks",
     "starts_lowercase",
 ]
