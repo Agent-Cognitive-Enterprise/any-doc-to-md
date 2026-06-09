@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from anydoc2md.paragraph_repair.application import (
+    apply_paragraph_continuity_repair,
     repair_markdown_paragraph_continuity,
 )
 from anydoc2md.paragraph_repair.detector import (
@@ -34,6 +35,7 @@ __all__ = [
     "ParagraphRepairReport",
     "ParagraphRepairResult",
     "ParagraphRepairSettings",
+    "apply_paragraph_continuity_repair",
     "bound_examples",
     "classify_line",
     "compute_fragmentation_signals",
