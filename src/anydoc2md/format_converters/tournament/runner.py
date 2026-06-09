@@ -13,10 +13,15 @@ from __future__ import annotations
 import concurrent.futures
 import importlib
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
 
 from anydoc2md.format_converters.adapters.base import AdapterResult
+from anydoc2md.staging_hygiene import (
+    clear_failed_adapter_output,
+    prepare_adapter_run_output_slot,
+)
 
 _THREAD_GRACE_S = 15  # extra seconds beyond timeout_s before a thread is declared hung
 
@@ -74,9 +79,10 @@ def run_tournament(
     results: list[AdapterResult] = []
 
     def _run_one(name: str) -> AdapterResult:
-        module = _load_adapter(name)
         staging_dir = staging_root / name
         staging_dir.mkdir(parents=True, exist_ok=True)
+        prepare_adapter_run_output_slot(staging_dir)
+        module = _load_adapter(name)
         try:
             return module.run(source_path, staging_dir, timeout_s=timeout_s)
         except TypeError:
@@ -93,20 +99,28 @@ def run_tournament(
                 name = futures[future]
                 completed_names.add(name)
                 try:
-                    results.append(future.result())
+                    result = future.result()
                 except Exception as exc:
                     from anydoc2md.format_converters.adapters.base import error_result
+                    clear_failed_adapter_output(staging_root / name)
                     results.append(error_result(
                         name, "unknown", "",
                         staging_root / name, 0,
                         f"Unhandled exception in adapter: {exc}",
                     ))
+                    continue
+                if not result.succeeded:
+                    clear_failed_adapter_output(staging_root / name)
+                    if result.staging_dir != staging_root / name:
+                        result = replace(result, staging_dir=staging_root / name)
+                results.append(result)
         except concurrent.futures.TimeoutError:
             pass
 
     from anydoc2md.format_converters.adapters.base import error_result
     for name in names:
         if name not in completed_names:
+            clear_failed_adapter_output(staging_root / name)
             results.append(error_result(
                 name, "unknown", "",
                 staging_root / name, wall_timeout * 1000,
