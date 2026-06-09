@@ -20,6 +20,7 @@ from anydoc2md.paragraph_repair.model import (
     MarkdownBlock,
     ParagraphRepairSettings,
 )
+from anydoc2md.paragraph_repair.normalization import collapse_whitespace
 
 _TERMINAL_RE = re.compile(r"""[.!?]["')\]]*$""")
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z'-]*")
@@ -181,8 +182,8 @@ def looks_like_continuation(
 ) -> bool:
     """Return whether two prose snippets look like adjacent sliced rows."""
     resolved = settings or ParagraphRepairSettings()
-    left_text = _normalize_text(left)
-    right_text = _normalize_text(right)
+    left_text = collapse_whitespace(left)
+    right_text = collapse_whitespace(right)
     if not left_text or not right_text:
         return False
     if ends_terminal(left_text):
@@ -268,11 +269,7 @@ def _merge_like_run_lengths(pair_decisions: list[bool]) -> list[int]:
 
 
 def _normalized_block_text(block: MarkdownBlock) -> str:
-    return _normalize_text(block.text)
-
-
-def _normalize_text(text: str) -> str:
-    return " ".join(text.split())
+    return collapse_whitespace(block.text)
 
 
 def _lowercase_after_nonterminal_ratio(blocks: list[MarkdownBlock]) -> float:

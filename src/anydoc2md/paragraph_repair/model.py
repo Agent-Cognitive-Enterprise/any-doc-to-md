@@ -36,6 +36,15 @@ MergeReason: TypeAlias = Literal[
     "not_continuation",
     "continuation",
 ]
+AcceptanceReason: TypeAlias = Literal[
+    "accepted",
+    "disabled",
+    "no_merge_groups",
+    "no_row_sliced_evidence",
+    "structural_counts_changed",
+    "content_not_preserved",
+    "quality_delta_too_small",
+]
 JoinKind: TypeAlias = Literal["none", "space", "hyphen"]
 
 
@@ -179,6 +188,38 @@ class RepairDraft:
             "content_preserved": self.content_preserved,
             "hyphen_join_count": self.hyphen_join_count,
             "examples": list(self.examples),
+        }
+
+
+@dataclass(frozen=True, kw_only=True)
+class AcceptanceDecision:
+    """Quality-gate decision for one in-memory paragraph repair draft."""
+
+    accepted: bool
+    reason: AcceptanceReason
+    before_score: float
+    after_score: float
+    quality_delta: float
+    content_preserved: bool
+    structural_counts_preserved: bool
+    row_sliced_evidence: bool
+    merge_group_count: int
+    hyphen_join_count: int
+    signals: dict[str, SignalValue] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "accepted": self.accepted,
+            "reason": self.reason,
+            "before_score": self.before_score,
+            "after_score": self.after_score,
+            "quality_delta": self.quality_delta,
+            "content_preserved": self.content_preserved,
+            "structural_counts_preserved": self.structural_counts_preserved,
+            "row_sliced_evidence": self.row_sliced_evidence,
+            "merge_group_count": self.merge_group_count,
+            "hyphen_join_count": self.hyphen_join_count,
+            "signals": dict(self.signals),
         }
 
 

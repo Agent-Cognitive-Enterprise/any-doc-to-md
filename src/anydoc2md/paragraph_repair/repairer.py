@@ -26,6 +26,7 @@ from anydoc2md.paragraph_repair.model import (
     ParagraphRepairSettings,
     RepairDraft,
 )
+from anydoc2md.paragraph_repair.normalization import strip_whitespace
 
 _TRAILING_NEWLINE_RE = re.compile(r"(\r\n|\r|\n)$")
 _WORD_FRAGMENT_LEFT_RE = re.compile(r"[a-z]-\Z")
@@ -229,8 +230,4 @@ def _content_preserved(original: str, repaired: str) -> bool:
     reported separately via `RepairDraft.hyphen_join_count`. A `False` here means
     real content loss, such as the old hyphen-dropping bug.
     """
-    return _strip_whitespace(original) == _strip_whitespace(repaired)
-
-
-def _strip_whitespace(text: str) -> str:
-    return "".join(text.split())
+    return strip_whitespace(original) == strip_whitespace(repaired)
