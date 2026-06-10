@@ -62,7 +62,7 @@ def prepare_adapter_run_output_slot(adapter_staging_dir: Path) -> None:
         IMAGE_DIMENSIONS_JSON,
         ADAPTER_RESULT_JSON,
     ):
-        _remove_path(adapter_staging_dir / filename)
+        remove_path(adapter_staging_dir / filename)
     _remove_generated_fixed_output_artifacts(adapter_staging_dir)
 
 
@@ -78,7 +78,7 @@ def clear_failed_adapter_output(adapter_staging_dir: Path) -> None:
         return
 
     for filename in (INDEX_MD, IMAGES_DIR, IMAGE_DIMENSIONS_JSON):
-        _remove_path(adapter_staging_dir / filename)
+        remove_path(adapter_staging_dir / filename)
     _remove_generated_fixed_output_artifacts(adapter_staging_dir)
 
 
@@ -96,18 +96,18 @@ def prepare_adapter_fixed_output_slot(adapter_staging_dir: Path) -> None:
 
 
 def _remove_generated_fixed_output_artifacts(adapter_staging_dir: Path) -> None:
-    _remove_path(adapter_staging_dir / INDEX_FIXED_MD)
+    remove_path(adapter_staging_dir / INDEX_FIXED_MD)
 
     # In pre-run and failed-run cleanup, raw index.md has already been removed,
     # so no paragraph-repair candidate can be current and these owned artifacts
     # are cleared. In fixed-output-slot cleanup, a matching current-run candidate
     # is preserved for later composition.
     if not paragraph_repair_candidate_is_current(adapter_staging_dir):
-        _remove_path(adapter_staging_dir / PARAGRAPH_REPAIRED_MD)
-        _remove_path(adapter_staging_dir / PARAGRAPH_REPAIR_REPORT_JSON)
+        remove_path(adapter_staging_dir / PARAGRAPH_REPAIRED_MD)
+        remove_path(adapter_staging_dir / PARAGRAPH_REPAIR_REPORT_JSON)
 
 
-def _remove_path(path: Path) -> None:
+def remove_path(path: Path) -> None:
     """Remove whatever is at `path` — file, symlink, or directory; no-op if absent.
 
     Downstream stages test the fixed-output slot with `Path.exists()`, which is

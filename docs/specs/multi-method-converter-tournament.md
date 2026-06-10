@@ -38,7 +38,7 @@ Implemented today:
 - `auto` vs `light` audit modes, where `auto` falls back to score-only selection if no judge is configured
 - persisted ADTM findings under project-local `.any-doc-to-md/` state when the host project enables it
 - staged project-local `qa_extension.py` and `fix_extension.py` hooks loaded from `.any-doc-to-md/` in read-only consumer mode
-- score-guarded fix extension application to every adapter's output before scoring (`fix_application.py`), writing `index_fixed.md` only when a fix strictly improves QA score; selector and winner promotion prefer `index_fixed.md`
+- score-guarded fix extension application to every adapter's output before scoring (`fix_application.py`), writing `index_fixed.md` when a fix strictly improves QA score or to promote a trusted built-in paragraph-repair candidate, and clearing a stale `index_fixed.md` when neither holds; selector, post-selection audit, and winner promotion prefer `index_fixed.md`
 - per-adapter timing table printed to CLI output after conversion
 - wall-clock timeout guard in tournament runner — hung adapters produce a `timeout` error result
 - winner promotion into a stable `winner/` staging dir
@@ -74,11 +74,11 @@ Do **not** optimise for pixel-perfect layout recreation. Semantic flow matters; 
 ```text
 Stage 0: Document classification
 Stage 1: Multi-method conversion tournament (run N converters in parallel)
-Stage 2: Apply fix extensions to each adapter's output (score-guarded; writes index_fixed.md when improved)
+Stage 2: Apply fix extensions to each adapter's output (score-guarded; writes index_fixed.md when a fix improves the score or to promote a trusted built-in paragraph-repair candidate, else clears a stale one)
 Stage 3: Hard disqualification gates (blank output, major content loss, etc.)
 Stage 4: Weighted QA scoring (uses index_fixed.md when present; structured violation report per candidate)
 Stage 5: Candidate selection (lowest weighted score, log losers)
-Stage 6: LLM source-fidelity audit of the selected candidate
+Stage 6: LLM source-fidelity audit of the selected candidate (uses index_fixed.md when present)
 Stage 7: Penalty/rescore current candidate and continue only if it no longer leads
 Stage 8: Fix-learning loop (coding agent codifies failures as tests + rules)
 Stage 9: Human escalation (if max retries exhausted)

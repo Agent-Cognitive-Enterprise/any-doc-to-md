@@ -269,3 +269,43 @@ class TestAuditLoop:
                 traits=_traits(),
             )
         assert judge_mock.call_args.kwargs["audit_pdf_path"] == rendered_pdf
+
+    def test_audit_renders_index_fixed_md_when_present(self, tmp_path: Path) -> None:
+        # The audit must review the same effective candidate that selection
+        # scored and the CLI publishes: index_fixed.md when present.
+        selection = _selection("inhouse")
+        adapters = [_adapter_result("inhouse", tmp_path)]
+        fixed_md = tmp_path / "inhouse" / "index_fixed.md"
+        fixed_md.write_text("# fixed", encoding="utf-8")
+        with patch(
+            "anydoc2md.format_converters.tournament.audit.render_markdown_to_audit_pdf",
+            side_effect=lambda markdown_path, output_path: output_path,
+        ) as render_mock, patch(
+            "anydoc2md.format_converters.tournament.audit.judge_candidate_against_source",
+            return_value=_accepted_verdict("inhouse"),
+        ):
+            run_post_selection_audit_loop(
+                selection=selection,
+                adapter_results=adapters,
+                source_path=tmp_path / "doc.pdf",
+                traits=_traits(),
+            )
+        assert render_mock.call_args.args[0] == fixed_md
+
+    def test_audit_renders_index_md_when_no_fixed(self, tmp_path: Path) -> None:
+        selection = _selection("inhouse")
+        adapters = [_adapter_result("inhouse", tmp_path)]
+        with patch(
+            "anydoc2md.format_converters.tournament.audit.render_markdown_to_audit_pdf",
+            side_effect=lambda markdown_path, output_path: output_path,
+        ) as render_mock, patch(
+            "anydoc2md.format_converters.tournament.audit.judge_candidate_against_source",
+            return_value=_accepted_verdict("inhouse"),
+        ):
+            run_post_selection_audit_loop(
+                selection=selection,
+                adapter_results=adapters,
+                source_path=tmp_path / "doc.pdf",
+                traits=_traits(),
+            )
+        assert render_mock.call_args.args[0] == tmp_path / "inhouse" / "index.md"
