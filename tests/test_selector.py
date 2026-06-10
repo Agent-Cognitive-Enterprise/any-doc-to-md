@@ -249,3 +249,45 @@ class TestSelectWinner:
         result = select_winner(None, tmp_path, ["x"])
         # Should not raise
         json.dumps(result.to_dict())
+
+    def test_paragraph_fragmentation_score_prefers_clean_adapter(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        _staging(tmp_path, "fragmented", _row_sliced_fixture())
+        _staging(
+            tmp_path,
+            "clean",
+            (
+                "The inspection team arrived at the north intake after the first alarm "
+                "and found stable readings.\n\n"
+                "The operator reviewed the morning log and found no missing values.\n"
+            ),
+        )
+
+        result = select_winner(None, tmp_path, ["fragmented", "clean"])
+
+        assert result.winner == "clean"
+        by_name = {card.adapter_name: card for card in result.ranked}
+        assert by_name["clean"].check_scores["paragraph_not_row_sliced"] == 0.0
+        assert by_name["fragmented"].check_scores["paragraph_not_row_sliced"] > 0.0
+
+
+def _row_sliced_fixture() -> str:
+    return "\n\n".join(
+        [
+            "The inspection team arrived at the north intake",
+            "after the first alarm and found that the overflow",
+            "channel was carrying shallow water across the grated",
+            "walkway while the upstream valve remained partially",
+            "open and the temporary pump continued cycling",
+            "every few minutes without recording a stable",
+            "pressure reading.",
+            "The operator reported that the same pattern",
+            "had appeared during the previous storm and that",
+            "the manual log showed brief pressure drops",
+            "near the east manifold whenever the backup",
+            "generator switched load while the",
+            "backup pump continued running.",
+        ]
+    ) + "\n"

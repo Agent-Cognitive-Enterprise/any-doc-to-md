@@ -22,6 +22,7 @@ from anydoc2md.output_qa.checks import (
     check_images_locally_resolvable,
     check_no_double_bullets,
     check_no_repeated_headings,
+    check_paragraph_not_row_sliced,
     check_numbered_list_sequential,
     check_heading_not_fragmented,
     check_text_coverage,
@@ -36,6 +37,7 @@ _LAYER1_CHECKS_MD_ONLY = [
     check_box_title_precedes_content,
     check_image_size_plausible,
     check_no_repeated_headings,
+    check_paragraph_not_row_sliced,
 ]
 
 # Takes (md_text, staging_dir)

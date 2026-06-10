@@ -15,6 +15,10 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from anydoc2md.paragraph_repair.detector import ends_terminal, looks_row_sliced
+from anydoc2md.paragraph_repair.markdown_blocks import split_markdown_blocks
+from anydoc2md.paragraph_repair.model import ParagraphRepairSettings
+from anydoc2md.paragraph_repair.normalization import collapse_whitespace
 from anydoc2md.output_qa.image_refs import (
     extract_image_srcs,
     image_ref_key,
@@ -231,6 +235,59 @@ def check_no_repeated_headings(md_text: str) -> CheckResult:
         )
     return CheckResult(name="no_repeated_headings", layer=1, status="pass",
                        message="No suspiciously repeated headings.")
+
+
+def check_paragraph_not_row_sliced(
+    md_text: str,
+    settings: ParagraphRepairSettings | None = None,
+) -> CheckResult:
+    """Warn when prose looks like visual rows split into Markdown paragraphs.
+
+    Detection uses conservative defaults when ``settings`` is ``None``, which is
+    how the tournament always calls it. The warning is a quality-visibility
+    signal, so it is deliberately independent of ``--paragraph-repair``:
+    running with ``off`` still reports row-sliced prose (it is simply not
+    auto-fixed), and tuning repair thresholds does not move this check. The
+    optional ``settings`` only lets direct/advanced callers override detection
+    thresholds; it is never wired to the repair mode and must not be used to
+    gate the warning on whether repair ran.
+    """
+    blocks = split_markdown_blocks(md_text)
+    decision = looks_row_sliced(blocks, settings)
+    if not decision.detected:
+        return CheckResult(name="paragraph_not_row_sliced", layer=1, status="pass",
+                           message="No row-sliced paragraph fragmentation detected.")
+
+    signals = decision.signals
+    details = [
+        "signals: "
+        f"prose_blocks={signals.prose_block_count}; "
+        f"short_ratio={signals.short_ratio:.2f}; "
+        f"no_terminal_ratio={signals.no_terminal_ratio:.2f}; "
+        f"continuation_pair_ratio={signals.continuation_pair_ratio:.2f}; "
+        f"longest_continuation_run={signals.longest_continuation_run}"
+    ]
+    sample_lines = _nonterminal_prose_start_lines(blocks)
+    if sample_lines:
+        details.append(
+            "sample_nonterminal_prose_lines="
+            + ",".join(str(line) for line in sample_lines[:5])
+        )
+    return CheckResult(
+        name="paragraph_not_row_sliced",
+        layer=1,
+        status="warn",
+        message="Likely row-sliced paragraph fragmentation detected.",
+        details=details,
+    )
+
+
+def _nonterminal_prose_start_lines(blocks) -> list[int]:
+    return [
+        block.start_line
+        for block in blocks
+        if block.is_prose and not ends_terminal(collapse_whitespace(block.text))
+    ]
 
 
 def check_images_locally_resolvable(md_text: str, staging_dir: Path) -> CheckResult:

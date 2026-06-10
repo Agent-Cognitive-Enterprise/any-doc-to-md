@@ -462,11 +462,13 @@ through these stages:
 
 1. Classify the source document to capture rough structural traits.
 2. Run the requested adapters into method-scoped staging directories.
-3. Apply fix extensions to each adapter's output — each fix is kept only when it
-   strictly improves the QA score; improved output is written as `index_fixed.md`.
+3. Clean stale fixed-output artifacts, run built-in paragraph-continuity repair,
+   then apply fix extensions to each adapter's output. Accepted repair and kept
+   fixes are composed through `index_fixed.md`.
 4. Hard-disqualify obviously broken outputs.
 5. Run programmatic QA on surviving candidates (using `index_fixed.md` when
-   present) and rank them by weighted score.
+   present) and rank them by weighted score. QA includes a warning-level
+   row-sliced paragraph-fragmentation check.
 6. Select the current leading candidate.
 7. Render the candidate Markdown to an audit PDF.
 8. For PDF sources, run deterministic source-vs-candidate checks to localize

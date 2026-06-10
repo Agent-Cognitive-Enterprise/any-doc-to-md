@@ -7,6 +7,9 @@ violation_multiplier = max(1, min(len(details), MAX_VIOLATION_MULTIPLIER))
   → 0 details on a fail/warn → multiplier 1 (still penalised)
   → 10+ violations          → capped at MAX_VIOLATION_MULTIPLIER
 
+Document-level checks listed in DOCUMENT_LEVEL_CHECK_MULTIPLIERS use an
+explicit multiplier instead; their details are diagnostic, not violation counts.
+
 Checks not in CHECK_WEIGHTS default to DEFAULT_CHECK_WEIGHT so new checks
 added to checks.py are automatically included without a code change here.
 
@@ -49,6 +52,7 @@ CHECK_WEIGHTS: dict[str, float] = {
     "box_title_precedes_content": 2.0,
     "image_size_plausible":       0.5,
     "no_repeated_headings":       1.5,
+    "paragraph_not_row_sliced":   1.5,
     "images_locally_resolvable":  5.0,   # broken refs are a hard signal
     # Layer 2 — fidelity
     "image_count_match":          3.0,
@@ -57,6 +61,10 @@ CHECK_WEIGHTS: dict[str, float] = {
 
 DEFAULT_CHECK_WEIGHT: float = 1.0
 MAX_VIOLATION_MULTIPLIER: int = 10
+
+DOCUMENT_LEVEL_CHECK_MULTIPLIERS: dict[str, int] = {
+    "paragraph_not_row_sliced": 2,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -100,16 +108,24 @@ def score_check(check: CheckResult) -> float:
 
     Score = check_weight × severity_weight × violation_multiplier
 
-    violation_multiplier is 1 when details is empty (still penalised for the
-    status itself), or min(len(details), MAX_VIOLATION_MULTIPLIER) otherwise.
+    Most checks treat details as per-violation records. Document-level checks
+    use an explicit multiplier so diagnostic detail formatting cannot change
+    rankings.
     """
     severity = SEVERITY_WEIGHTS.get(check.status, 0.0)
     if severity == 0.0:
         return 0.0
 
     weight = CHECK_WEIGHTS.get(check.name, DEFAULT_CHECK_WEIGHT)
-    multiplier = max(1, min(len(check.details), MAX_VIOLATION_MULTIPLIER))
+    multiplier = _violation_multiplier(check)
     return weight * severity * multiplier
+
+
+def _violation_multiplier(check: CheckResult) -> int:
+    fixed = DOCUMENT_LEVEL_CHECK_MULTIPLIERS.get(check.name)
+    if fixed is not None:
+        return fixed
+    return max(1, min(len(check.details), MAX_VIOLATION_MULTIPLIER))
 
 
 def build_scorecard(report: QAReport, adapter_name: str) -> ScoreCard:

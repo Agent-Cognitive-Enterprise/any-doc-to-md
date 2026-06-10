@@ -2,7 +2,7 @@
 
 ## Current objective
 
-Slice 10 is complete in the working tree, including the red-team residual fix: default paragraph-continuity repair is wired into tournament orchestration, has an `auto`/`off` opt-out, and now demonstrably repairs a realistic short row-sliced document through the real CLI and public benchmark pipeline.
+Slice 12 is complete in the working tree: paragraph fragmentation now has QA/scoring visibility, building on the completed Slice 10 paragraph-repair integration and red-team residual fix.
 
 ## Completed in this session
 
@@ -19,16 +19,27 @@ Slice 10 is complete in the working tree, including the red-team residual fix: d
 - Added orchestrator tests proving repair runs before selection, `off` clears a current candidate before selection, and project-local fixes still layer after repair.
 - Added CLI/settings tests for default forwarding, explicit `off`, invalid CLI values, normalization, and top-level exports.
 - Added detector/application/CLI/public-benchmark regressions for realistic short row-sliced repair.
+- Added `check_paragraph_not_row_sliced(...)` as a Layer 1 QA warning that reuses the paragraph repair detector and emits only bounded numeric signal details plus sample line numbers.
+- Registered the new QA check in `run_all(...)` and added a modest `paragraph_not_row_sliced` score weight of `1.5`.
+- Fixed the Slice 12 scoring review finding by adding an explicit `DOCUMENT_LEVEL_CHECK_MULTIPLIERS["paragraph_not_row_sliced"] = 2`, so diagnostic detail count no longer controls the penalty.
+- Added an optional `ParagraphRepairSettings` parameter to `check_paragraph_not_row_sliced(...)` and a regression proving custom settings can tighten detection.
+- Resolved the follow-up review finding that this parameter was untyped and inert in the pipeline: typed it as `ParagraphRepairSettings | None`, documented that the QA warning is intentionally independent of `--paragraph-repair` (the tournament always scores with defaults, so `off` reports fragmentation without auto-fixing and never silences the penalty), and pinned it with `test_warning_is_independent_of_repair_mode`.
+- Reverted a collateral trailing-whitespace edit that had stripped Markdown hard breaks from the two pre-existing Slice 10 progress entries.
+- Loosened brittle paragraph-fragmentation tests away from exact fixture signal values.
+- Documented the detector's Latin-script/lowercase heuristic bias in the spec and troubleshooting guide.
+- Added selector coverage proving a clean eligible adapter beats an unrepaired row-sliced adapter by score.
+- Updated README, the tournament spec, and troubleshooting docs for the new warning and current repair/fix/QA ordering.
 - Recorded the Slice 10 progress entry in `docs/progress/20260610.md`.
-- Verified: focused paragraph-repair/CLI/public-benchmark tests 80 passed; paragraph-repair-selected tests 130 passed; fix/staging/orchestrator/public-benchmark tests 74 passed; full suite 612 passed.
+- Recorded the Slice 12 progress entry in `docs/progress/20260610.md`.
+- Verified after Slice 12 review fix: focused QA/scoring/selector tests 98 passed; tournament/fix/public-benchmark tests 43 passed; combined paragraph-repair/output-QA/scoring/selector selection 229 passed, 394 deselected; full suite 623 passed.
 
 ## Current status
 
-Default `run_full_tournament(...)` now creates and composes trusted paragraph-repair candidates when the deterministic quality gate accepts them, including the committed 13-fragment `row-sliced-note.txt` fixture. Raw adapter `index.md` remains preserved; `index_fixed.md` remains the selected/published improved-output slot; `TournamentResult.to_dict()` shape is unchanged.
+Default `run_full_tournament(...)` now creates and composes trusted paragraph-repair candidates when the deterministic quality gate accepts them, including the committed 13-fragment `row-sliced-note.txt` fixture. Raw adapter `index.md` remains preserved; `index_fixed.md` remains the selected/published improved-output slot; `TournamentResult.to_dict()` shape is unchanged. If row-sliced Markdown remains unrepaired, QA emits a warning and scoring applies an explicit 6-point document-level penalty.
 
 ## Next step
 
-Run another SABRE red-team review before committing. High-risk review areas: the lower default floor and short-document false positives, public benchmark fixture semantics, opt-out correctness, stale artifact handling, CLI/API compatibility, and selector/publisher/audit consistency.
+Run a SABRE red-team review before committing. High-risk review areas: the lower default repair floor, short-document false positives, the explicit 6-point QA warning penalty, language-uneven detector behavior, bounded-detail privacy, public benchmark fixture semantics, opt-out correctness, stale artifact handling, CLI/API compatibility, and selector/publisher/audit consistency.
 
 ## Important files
 
@@ -46,10 +57,16 @@ Run another SABRE red-team review before committing. High-risk review areas: the
 - `tests/test_fix_application.py`
 - `tests/test_paragraph_repair_staging_application.py`
 - `tests/test_staging_hygiene.py`
+- `src/anydoc2md/output_qa/checks.py`
+- `src/anydoc2md/output_qa/runner.py`
+- `src/anydoc2md/output_qa/scoring.py`
+- `tests/test_output_qa_paragraph_fragmentation.py`
+- `tests/test_selector.py`
 - `README.md`
 - `docs/benchmark-reproduction.md`
 - `docs/specs/multi-method-converter-tournament.md`
 - `docs/agent-conversion-guide.md`
+- `docs/troubleshooting.md`
 - `docs/progress/20260610.md`
 - `examples/benchmark-corpus/row-sliced-note.txt`
 - `.gitignore`
@@ -61,9 +78,10 @@ Run another SABRE red-team review before committing. High-risk review areas: the
 - `apply_fix_extensions(...)` is still the only writer of `index_fixed.md`; paragraph repair writes only `index_paragraph_repaired.md` and its sidecar.
 - The first Slice 10 implementation deliberately avoids adding repair reports to `TournamentResult`; sidecar reports are the evidence surface.
 - The CLI option exposes only `auto` and `off`; threshold tuning remains private.
+- `paragraph_not_row_sliced` is a soft QA warning, not a hard gate. Its details are numeric and line-number only, and scoring ignores diagnostic detail count via an explicit document-level multiplier. The warning is independent of `--paragraph-repair`: it always scores with default thresholds, so `off` surfaces fragmentation rather than silencing it. Do not thread repair settings into QA scoring.
 - `BIBLE.md` was intentionally ignored per the latest user instruction.
-- Full suite is green at 612 tests after the review fix.
+- Full suite is green at 624 tests after the Slice 12 repair-mode-independence review fix.
 
 ## Last updated
 
-2026-06-10 01:17 UTC
+2026-06-10 02:01 UTC
