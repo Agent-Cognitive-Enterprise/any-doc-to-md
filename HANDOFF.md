@@ -2,7 +2,7 @@
 
 ## Current objective
 
-Slice 15 review fix is complete in the working tree: programmatic QA check results have optional structured issue metadata (`violation_type`, `severity`, `confidence`) for built-in warning/failure issue results, with metadata owned explicitly by each built-in issue branch rather than a constructor-side name map.
+Slice 16 closure hardening is complete in the working tree: branch-level review found and fixed two residual robustness gaps, one in paragraph-repair owned-artifact cleanup and one in tournament runner wall-clock timeout shutdown. Follow-up review deduplicated cleanup onto `path_hygiene.remove_path`, made timeout notes precise, and hardened the shared remover against concurrent timeout/pre-run cleanup races.
 
 ## Completed in this session
 
@@ -45,29 +45,44 @@ Slice 15 review fix is complete in the working tree: programmatic QA check resul
 - Recorded the Slice 15 progress entry in `docs/progress/20260610.md`.
 - Recorded the Slice 15 review-fix progress entry in `docs/progress/20260610.md`.
 - Verified after Slice 15 review fix: focused QA/scoring/selector tests 106 passed; adjacent QA/extension/CLI tests 146 passed; full suite 633 passed.
+- Fixed paragraph-repair helper cleanup so stale owned artifacts that are directories are removed instead of crashing direct helper calls.
+- Fixed tournament runner wall-clock timeout shutdown so `run_tournament(...)` returns a timeout result without waiting for a blocked adapter thread to finish.
+- Added regressions for stale owned artifact directories and for timeout return before adapter release. The owned-artifact directory regression lives in its own focused test file so `test_paragraph_repair_staging_application.py` does not grow further.
+- Recorded the Slice 16 progress entry in `docs/progress/20260610.md`.
+- Verified Slice 16: repair staging/hygiene/fix tests 59 passed; tournament runner tests 11 passed; combined affected suite 112 passed; full suite 635 passed.
+- Review follow-up: extracted the duplicated file/symlink/directory removal branch into a dependency-free `path_hygiene.remove_path` and reused it in `_remove_owned_artifacts` and `staging_hygiene` (the inline copy only existed because `staging_hygiene` imports from `paragraph_repair.application`, blocking a direct import back). Dropped the now-unused `import shutil` from both modules.
+- Added `tests/test_path_hygiene.py` covering files, recursive directories, symlinks to files and directories, and broken symlinks; corrected the runner timeout notes to record the cleanup race and interpreter-exit join.
+- Re-verified after the follow-up: affected repair/hygiene/runner tests 76 passed; full suite 641 passed.
+- Fixed the concurrent cleanup race found during compatibility review: if another cleanup path removes a directory between `remove_path(...)`'s node-type probe and `shutil.rmtree(...)`, `FileNotFoundError` is now treated as a successful cleanup result while non-missing errors still propagate.
+- Added a deterministic `tests/test_path_hygiene.py` regression for concurrent directory removal and re-ran the default suite: 642 passed.
 
 ## Current status
 
-Default `run_full_tournament(...)` now creates and composes trusted paragraph-repair candidates when the deterministic quality gate accepts them, including the committed 13-fragment `row-sliced-note.txt` fixture. Raw adapter `index.md` remains preserved; `index_fixed.md` remains the selected/published improved-output slot. If row-sliced Markdown remains unrepaired, QA emits a warning and scoring applies an explicit 6-point document-level penalty. CLI e2e coverage proves both `auto` and `off` behavior. Built-in QA issue results now add structured metadata in their check payloads, but scoring, `check_scores`, and adapter ranking are unchanged.
+Default `run_full_tournament(...)` now creates and composes trusted paragraph-repair candidates when the deterministic quality gate accepts them, including the committed 13-fragment `row-sliced-note.txt` fixture. Raw adapter `index.md` remains preserved; `index_fixed.md` remains the selected/published improved-output slot. If row-sliced Markdown remains unrepaired, QA emits a warning and scoring applies an explicit 6-point document-level penalty. CLI e2e coverage proves both `auto` and `off` behavior. Built-in QA issue results now add structured metadata in their check payloads, but scoring uses only check/status/detail data. Full suite is green at 642 tests.
 
 ## Next step
 
-Run SABRE red-team review before committing. High-risk review areas: additive QA check JSON fields for strict consumers, individual built-in metadata classifications, source/dependency skip-warning exclusion, the lower default repair floor, short-document false positives, the explicit QA warning penalty, language-uneven detector behavior, bounded-detail privacy, public benchmark fixture semantics, opt-out correctness, stale artifact handling, CLI/API compatibility, selector/publisher/audit consistency, and e2e staging-layout coupling.
+Run one final SABRE red-team review before committing. High-risk review areas: timeout-thread late-write residual risk, additive QA check JSON fields for strict consumers, individual built-in metadata classifications, source/dependency skip-warning exclusion, the lower default repair floor, short-document false positives, the explicit QA warning penalty, language-uneven detector behavior, bounded-detail privacy, public benchmark fixture semantics, opt-out correctness, stale artifact handling, CLI/API compatibility, selector/publisher/audit consistency, and e2e staging-layout coupling.
 
 ## Important files
 
 - `src/anydoc2md/format_converters/tournament/orchestrator.py`
+- `src/anydoc2md/format_converters/tournament/runner.py`
 - `src/anydoc2md/cli.py`
 - `src/anydoc2md/settings.py`
 - `src/anydoc2md/__init__.py`
 - `src/anydoc2md/fix_application.py`
 - `src/anydoc2md/staging_hygiene.py`
+- `src/anydoc2md/path_hygiene.py`
 - `src/anydoc2md/paragraph_repair/application.py`
 - `src/anydoc2md/paragraph_repair/model.py`
 - `tests/test_tournament_orchestrator.py`
+- `tests/test_tournament_runner.py`
 - `tests/test_cli.py`
 - `tests/test_llm_judge_decisions.py`
 - `tests/test_fix_application.py`
+- `tests/test_paragraph_repair_artifact_cleanup.py`
+- `tests/test_path_hygiene.py`
 - `tests/test_paragraph_repair_staging_application.py`
 - `tests/test_staging_hygiene.py`
 - `src/anydoc2md/output_qa/checks.py`
@@ -97,10 +112,11 @@ Run SABRE red-team review before committing. High-risk review areas: additive QA
 - The CLI option exposes only `auto` and `off`; threshold tuning remains private.
 - `paragraph_not_row_sliced` is a soft QA warning, not a hard gate. Its details are numeric and line-number only, and scoring ignores diagnostic detail count via an explicit document-level multiplier. The warning is independent of `--paragraph-repair`: it always scores with default thresholds, so `off` surfaces fragmentation rather than silencing it. Do not thread repair settings into QA scoring.
 - `CheckResult.to_dict()` omits `violation_type`, `severity`, and `confidence` when they are empty. Built-in warning/failure issue branches pass metadata explicitly with `issue_metadata(...)`; extension checks never inherit metadata by name collision. Scoring does not read these fields.
+- `run_tournament(...)` returns a timeout result after the wall-clock guard without joining a blocked adapter thread. Two residual consequences, not zero: post-timeout `clear_failed_adapter_output(...)` runs concurrently with the still-live worker, so a late write can leave staging artifacts (bounded — the name's result is `status="timeout"` so it cannot win, and `prepare_adapter_run_output_slot(...)` re-clears the slot before the next reuse); and the worker is a non-daemon `concurrent.futures` thread, so a never-returning adapter is still joined at interpreter exit and can block process shutdown even though the call returned. Python cannot kill a running thread; full late-write isolation would require a process-level adapter execution boundary.
 - `tests/test_paragraph_repair_e2e.py` is intended Git-tracked regression coverage; it creates only temporary output under pytest `tmp_path`. It intentionally inspects `.any-doc-to-md/staging/` to prove raw preservation and winner promotion.
 - `BIBLE.md` was intentionally ignored per the latest user instruction.
-- Full suite is green at 633 tests after the Slice 15 review fix.
+- Full suite is green at 642 tests after the Slice 16 closure hardening, review follow-up edits, and concurrent cleanup race fix.
 
 ## Last updated
 
-2026-06-10 04:33 UTC
+2026-06-10 06:23 UTC

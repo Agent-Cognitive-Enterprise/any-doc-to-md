@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from anydoc2md.format_converters.adapters.base import AdapterResult
@@ -268,8 +269,6 @@ def test_run_tournament_clamps_non_positive_max_workers(tmp_path: Path, monkeypa
 
 
 def test_run_tournament_wall_clock_timeout_produces_error_result(tmp_path: Path, monkeypatch) -> None:
-    import threading
-
     class HungAdapter:
         @staticmethod
         def run(source_path: Path, staging_dir: Path, *, timeout_s: int = 0) -> AdapterResult:
@@ -299,3 +298,48 @@ def test_run_tournament_wall_clock_timeout_produces_error_result(tmp_path: Path,
     assert not (staging_dir / "index.md").exists()
     assert not (staging_dir / "index_fixed.md").exists()
     assert not (staging_dir / "images").exists()
+
+
+def test_run_tournament_wall_clock_timeout_returns_before_adapter_finishes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    result_holder: dict[str, list[AdapterResult]] = {}
+
+    class HungAdapter:
+        @staticmethod
+        def run(source_path: Path, staging_dir: Path, *, timeout_s: int = 0) -> AdapterResult:
+            started.set()
+            release.wait(timeout=5)
+            return _error_adapter_result(staging_dir, "hung")
+
+    monkeypatch.setattr(runner, "_ADAPTER_MODULES", {"hung": "hung.module"})
+    monkeypatch.setattr(runner.importlib, "import_module", lambda _path: HungAdapter)
+    monkeypatch.setattr(runner, "_THREAD_GRACE_S", 0.01)
+    source = tmp_path / "doc.txt"
+    source.write_text("hello", encoding="utf-8")
+
+    def run() -> None:
+        result_holder["results"] = runner.run_tournament(
+            source,
+            tmp_path / "staging",
+            adapters=["hung"],
+            timeout_s=0,
+            max_workers=1,
+        )
+
+    thread = threading.Thread(target=run)
+    thread.start()
+    try:
+        assert started.wait(timeout=1)
+        thread.join(timeout=0.5)
+        assert not thread.is_alive()
+        results = result_holder["results"]
+        assert len(results) == 1
+        assert results[0].method_name == "hung"
+        assert results[0].status == "timeout"
+    finally:
+        release.set()
+        thread.join(timeout=1)

@@ -23,6 +23,7 @@ from anydoc2md.paragraph_repair.model import (
 )
 from anydoc2md.paragraph_repair.quality import accept_repair
 from anydoc2md.paragraph_repair.repairer import repair_blocks
+from anydoc2md.path_hygiene import remove_path
 
 INDEX_MD = "index.md"
 PARAGRAPH_REPAIRED_MD = "index_paragraph_repaired.md"
@@ -233,9 +234,7 @@ def _no_input_report(
 
 def _remove_owned_artifacts(adapter_staging_dir: Path) -> None:
     for filename in (PARAGRAPH_REPAIRED_MD, PARAGRAPH_REPAIR_REPORT_JSON):
-        path = adapter_staging_dir / filename
-        if path.exists():
-            path.unlink()
+        remove_path(adapter_staging_dir / filename)
 
 
 def _write_sidecar(

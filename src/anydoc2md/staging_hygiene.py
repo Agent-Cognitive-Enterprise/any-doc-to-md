@@ -30,7 +30,6 @@ Scope is deliberately narrow and local:
 """
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 from anydoc2md.paragraph_repair.application import (
@@ -39,6 +38,7 @@ from anydoc2md.paragraph_repair.application import (
     PARAGRAPH_REPAIRED_MD,
     paragraph_repair_candidate_is_current,
 )
+from anydoc2md.path_hygiene import remove_path
 
 ADAPTER_RESULT_JSON = "adapter_result.json"
 IMAGE_DIMENSIONS_JSON = "image_dimensions.json"
@@ -105,17 +105,3 @@ def _remove_generated_fixed_output_artifacts(adapter_staging_dir: Path) -> None:
     if not paragraph_repair_candidate_is_current(adapter_staging_dir):
         remove_path(adapter_staging_dir / PARAGRAPH_REPAIRED_MD)
         remove_path(adapter_staging_dir / PARAGRAPH_REPAIR_REPORT_JSON)
-
-
-def remove_path(path: Path) -> None:
-    """Remove whatever is at `path` — file, symlink, or directory; no-op if absent.
-
-    Downstream stages test the fixed-output slot with `Path.exists()`, which is
-    true for a directory or symlink as well as a regular file, so the slot must
-    be cleared regardless of node type. A symlink is unlinked without following
-    it (the target is left untouched); a real directory is removed recursively.
-    """
-    if path.is_symlink() or path.is_file():
-        path.unlink()
-    elif path.is_dir():
-        shutil.rmtree(path)

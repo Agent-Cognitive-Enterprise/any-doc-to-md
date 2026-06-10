@@ -92,8 +92,10 @@ def run_tournament(
     wall_timeout = timeout_s + _THREAD_GRACE_S
     completed_names: set[str] = set()
 
-    with ThreadPoolExecutor(max_workers=worker_count) as pool:
-        futures = {pool.submit(_run_one, name): name for name in names}
+    pool = ThreadPoolExecutor(max_workers=worker_count)
+    futures = {pool.submit(_run_one, name): name for name in names}
+    timed_out = False
+    try:
         try:
             for future in concurrent.futures.as_completed(futures, timeout=wall_timeout):
                 name = futures[future]
@@ -115,7 +117,9 @@ def run_tournament(
                         result = replace(result, staging_dir=staging_root / name)
                 results.append(result)
         except concurrent.futures.TimeoutError:
-            pass
+            timed_out = True
+    finally:
+        pool.shutdown(wait=not timed_out, cancel_futures=timed_out)
 
     from anydoc2md.format_converters.adapters.base import error_result
     for name in names:
@@ -123,7 +127,7 @@ def run_tournament(
             clear_failed_adapter_output(staging_root / name)
             results.append(error_result(
                 name, "unknown", "",
-                staging_root / name, wall_timeout * 1000,
+                staging_root / name, int(wall_timeout * 1000),
                 f"Adapter did not complete within {wall_timeout}s wall-clock timeout",
                 status="timeout",
             ))
