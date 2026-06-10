@@ -40,6 +40,9 @@ Implemented today:
 - staged project-local `qa_extension.py` and `fix_extension.py` hooks loaded from `.any-doc-to-md/` in read-only consumer mode
 - deterministic built-in paragraph-continuity repair before project-local fix extensions, enabled by default in `auto` mode and disabled with `paragraph_repair="off"` / `--paragraph-repair off`
 - warning-level QA/scoring visibility for row-sliced paragraph fragmentation, using the same deterministic detector as built-in paragraph repair
+- additive structured QA issue metadata (`violation_type`, `severity`, and
+  `confidence`) on built-in warning/failure `CheckResult` payloads; scoring
+  still uses the existing per-check/status weights
 - score-guarded fix extension application to every adapter's output before scoring (`fix_application.py`), writing `index_fixed.md` when a fix strictly improves QA score or to promote a trusted built-in paragraph-repair candidate, and clearing a stale `index_fixed.md` when neither holds; selector, post-selection audit, and winner promotion prefer `index_fixed.md`
 - per-adapter timing table printed to CLI output after conversion
 - wall-clock timeout guard in tournament runner — hung adapters produce a `timeout` error result
@@ -47,7 +50,8 @@ Implemented today:
 
 Still planned, not implemented yet:
 
-- the richer violation schema described below (`severity`, `violation_type`, `confidence` per programmatic check)
+- migrating QA ranking from the current per-check/status score table to the
+  richer violation-weight formula described below
 - coding-agent execution of remediation retries inside the package runtime
 - automated coding-agent extension authoring from judge findings
 - coding-agent maintainer-vs-read-only operating modes
@@ -256,7 +260,13 @@ Hard-gate failures are logged as `status: "hard_fail"` in the QA result and excl
 
 ## Stage 3: Weighted QA scoring
 
-QA produces a structured violation report per candidate.
+QA produces a structured report per candidate. Built-in issue results now carry
+additive `violation_type`, `severity`, and `confidence` fields when a check
+warns or fails; pass results and extension results without metadata keep the
+legacy `name`/`layer`/`status`/`message`/`details` shape. The current runtime
+still scores with the existing per-check/status score table. The violation
+weight formula below remains the target scoring design, not the active ranking
+formula.
 
 ### Violation classes and weights
 

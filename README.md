@@ -468,7 +468,9 @@ through these stages:
 4. Hard-disqualify obviously broken outputs.
 5. Run programmatic QA on surviving candidates (using `index_fixed.md` when
    present) and rank them by weighted score. QA includes a warning-level
-   row-sliced paragraph-fragmentation check.
+   row-sliced paragraph-fragmentation check. Built-in issue results include
+   optional structured metadata (`violation_type`, `severity`, `confidence`) in
+   addition to the legacy check fields.
 6. Select the current leading candidate.
 7. Render the candidate Markdown to an audit PDF.
 8. For PDF sources, run deterministic source-vs-candidate checks to localize
