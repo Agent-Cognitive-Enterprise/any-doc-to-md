@@ -157,10 +157,13 @@ class RepairDraft:
 
     `hyphen_join_count` reports how many merge joins collapsed an ambiguous
     end-of-block hyphen boundary (e.g. ``well-`` + ``known`` -> ``well-known``).
-    These joins are character-preserving, so they do not flip `content_preserved`,
-    but they are the boundaries a quality gate should scrutinize. This keeps the
-    ambiguity signal orthogonal to the loss guard instead of tainting the whole
-    draft with a single document-level boolean.
+    These joins are character-preserving, so they do not flip `content_preserved`.
+    No current gate consumes this count; it is surfaced as a diagnostic so a
+    future quality gate or a report consumer can scrutinize these specific
+    ambiguous boundaries without re-deriving them. Keeping it a separate count
+    rather than folding it into `content_preserved` keeps the ambiguity signal
+    orthogonal to the loss guard instead of tainting the whole draft with a
+    single document-level boolean.
     """
 
     text: str
