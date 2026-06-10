@@ -2,7 +2,7 @@
 
 ## Current objective
 
-Slice 12 is complete in the working tree: paragraph fragmentation now has QA/scoring visibility, building on the completed Slice 10 paragraph-repair integration and red-team residual fix.
+Slice 14 is complete in the working tree: paragraph repair now has end-to-end CLI regression coverage proving raw adapter preservation, fixed-output publication, result JSON validity, and `--paragraph-repair off` behavior.
 
 ## Completed in this session
 
@@ -28,18 +28,21 @@ Slice 12 is complete in the working tree: paragraph fragmentation now has QA/sco
 - Loosened brittle paragraph-fragmentation tests away from exact fixture signal values.
 - Documented the detector's Latin-script/lowercase heuristic bias in the spec and troubleshooting guide.
 - Added selector coverage proving a clean eligible adapter beats an unrepaired row-sliced adapter by score.
+- Added `tests/test_paragraph_repair_e2e.py` using the real CLI path and committed row-sliced public fixture to prove default repair publishes `index_fixed.md` while raw adapter `index.md` remains row-sliced, and `--paragraph-repair off` publishes raw output while still reporting the soft QA penalty.
+- Fixed the Slice 14 review finding by changing the off-mode e2e assertion from exact `6.0` to a positive-penalty assertion, and added comments documenting the intentional staging-layout and fixture blank-line coupling.
 - Updated README, the tournament spec, and troubleshooting docs for the new warning and current repair/fix/QA ordering.
 - Recorded the Slice 10 progress entry in `docs/progress/20260610.md`.
 - Recorded the Slice 12 progress entry in `docs/progress/20260610.md`.
-- Verified after Slice 12 review fix: focused QA/scoring/selector tests 98 passed; tournament/fix/public-benchmark tests 43 passed; combined paragraph-repair/output-QA/scoring/selector selection 229 passed, 394 deselected; full suite 623 passed.
+- Recorded the Slice 14 progress entry in `docs/progress/20260610.md`.
+- Verified after Slice 14 review fix: new e2e tests 2 passed; CLI/public-benchmark/e2e tests 28 passed; combined paragraph-repair/output-QA/scoring/selector/CLI selection 273 passed, 353 deselected; repair/tournament/public/e2e tests 76 passed; full suite 626 passed.
 
 ## Current status
 
-Default `run_full_tournament(...)` now creates and composes trusted paragraph-repair candidates when the deterministic quality gate accepts them, including the committed 13-fragment `row-sliced-note.txt` fixture. Raw adapter `index.md` remains preserved; `index_fixed.md` remains the selected/published improved-output slot; `TournamentResult.to_dict()` shape is unchanged. If row-sliced Markdown remains unrepaired, QA emits a warning and scoring applies an explicit 6-point document-level penalty.
+Default `run_full_tournament(...)` now creates and composes trusted paragraph-repair candidates when the deterministic quality gate accepts them, including the committed 13-fragment `row-sliced-note.txt` fixture. Raw adapter `index.md` remains preserved; `index_fixed.md` remains the selected/published improved-output slot; `TournamentResult.to_dict()` shape is unchanged. If row-sliced Markdown remains unrepaired, QA emits a warning and scoring applies an explicit 6-point document-level penalty. CLI e2e coverage now proves both `auto` and `off` behavior.
 
 ## Next step
 
-Run a SABRE red-team review before committing. High-risk review areas: the lower default repair floor, short-document false positives, the explicit 6-point QA warning penalty, language-uneven detector behavior, bounded-detail privacy, public benchmark fixture semantics, opt-out correctness, stale artifact handling, CLI/API compatibility, and selector/publisher/audit consistency.
+Run a SABRE red-team review before committing. High-risk review areas: the lower default repair floor, short-document false positives, the explicit QA warning penalty, language-uneven detector behavior, bounded-detail privacy, public benchmark fixture semantics, opt-out correctness, stale artifact handling, CLI/API compatibility, selector/publisher/audit consistency, and e2e staging-layout coupling.
 
 ## Important files
 
@@ -61,6 +64,7 @@ Run a SABRE red-team review before committing. High-risk review areas: the lower
 - `src/anydoc2md/output_qa/runner.py`
 - `src/anydoc2md/output_qa/scoring.py`
 - `tests/test_output_qa_paragraph_fragmentation.py`
+- `tests/test_paragraph_repair_e2e.py`
 - `tests/test_selector.py`
 - `README.md`
 - `docs/benchmark-reproduction.md`
@@ -79,9 +83,10 @@ Run a SABRE red-team review before committing. High-risk review areas: the lower
 - The first Slice 10 implementation deliberately avoids adding repair reports to `TournamentResult`; sidecar reports are the evidence surface.
 - The CLI option exposes only `auto` and `off`; threshold tuning remains private.
 - `paragraph_not_row_sliced` is a soft QA warning, not a hard gate. Its details are numeric and line-number only, and scoring ignores diagnostic detail count via an explicit document-level multiplier. The warning is independent of `--paragraph-repair`: it always scores with default thresholds, so `off` surfaces fragmentation rather than silencing it. Do not thread repair settings into QA scoring.
+- `tests/test_paragraph_repair_e2e.py` is intended Git-tracked regression coverage; it creates only temporary output under pytest `tmp_path`. It intentionally inspects `.any-doc-to-md/staging/` to prove raw preservation and winner promotion.
 - `BIBLE.md` was intentionally ignored per the latest user instruction.
-- Full suite is green at 624 tests after the Slice 12 repair-mode-independence review fix.
+- Full suite is green at 626 tests after Slice 14.
 
 ## Last updated
 
-2026-06-10 02:01 UTC
+2026-06-10 02:28 UTC
