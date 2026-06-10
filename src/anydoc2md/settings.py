@@ -40,6 +40,13 @@ AUDIT_MODE_AUTO = "auto"
 AUDIT_MODE_LIGHT = "light"
 VALID_AUDIT_MODES = frozenset({AUDIT_MODE_AUTO, AUDIT_MODE_LIGHT})
 
+PARAGRAPH_REPAIR_AUTO = "auto"
+PARAGRAPH_REPAIR_OFF = "off"
+VALID_PARAGRAPH_REPAIR_MODES = frozenset({
+    PARAGRAPH_REPAIR_AUTO,
+    PARAGRAPH_REPAIR_OFF,
+})
+
 DEFAULT_JUDGE_TIMEOUT_S = 90
 DEFAULT_JUDGE_MAX_TOKENS = 4096
 DEFAULT_JUDGE_DISABLE_THINKING = True
@@ -86,6 +93,18 @@ def normalize_audit_mode(value: str) -> str:
         valid = ", ".join(sorted(VALID_AUDIT_MODES))
         raise AnyDocToMdConfigError(
             f"Unsupported anydoc2md audit mode {value!r}; expected one of: {valid}"
+        )
+    return normalized
+
+
+def normalize_paragraph_repair_mode(value: str) -> str:
+    """Validate and normalize a requested paragraph-repair mode."""
+    normalized = value.strip().lower()
+    if normalized not in VALID_PARAGRAPH_REPAIR_MODES:
+        valid = ", ".join(sorted(VALID_PARAGRAPH_REPAIR_MODES))
+        raise AnyDocToMdConfigError(
+            f"Unsupported anydoc2md paragraph repair mode {value!r}; "
+            f"expected one of: {valid}"
         )
     return normalized
 

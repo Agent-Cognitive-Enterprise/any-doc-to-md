@@ -29,6 +29,23 @@ def test_clear_row_sliced_document_is_repaired() -> None:
     assert result.report.after_score > result.report.before_score
 
 
+def test_realistic_short_row_sliced_document_is_repaired() -> None:
+    original = _short_row_sliced_fixture()
+
+    result = repair_markdown_paragraph_continuity(original)
+
+    assert result.text != original
+    assert result.report.accepted is True
+    assert result.report.reason == "accepted"
+    assert result.report.original_paragraph_count == 13
+    assert result.report.repaired_paragraph_count == 2
+    assert result.report.signals["detection_reason"] == "row_sliced_prose_detected"
+    assert (
+        "The inspection team arrived at the north intake after the first alarm"
+        in result.text
+    )
+
+
 def test_normal_prose_is_returned_unchanged() -> None:
     original = _normal_prose_fixture()
 
@@ -175,6 +192,25 @@ def _row_sliced_fixture() -> str:
         "The maintenance lead asked that the morning crew",
         "verify the bypass pump before reopening the intake",
         "and record any new vibration near the manifold.",
+    ]
+    return "\n\n".join(rows) + "\n"
+
+
+def _short_row_sliced_fixture() -> str:
+    rows = [
+        "The inspection team arrived at the north intake",
+        "after the first alarm and found that the overflow",
+        "channel was carrying shallow water across the grated",
+        "walkway while the upstream valve remained partially",
+        "open and the temporary pump continued cycling",
+        "every few minutes without recording a stable",
+        "pressure reading.",
+        "The operator reported that the same pattern",
+        "had appeared during the previous storm and that",
+        "the manual log showed brief pressure drops",
+        "near the east manifold whenever the backup",
+        "generator switched load while the",
+        "backup pump continued running.",
     ]
     return "\n\n".join(rows) + "\n"
 

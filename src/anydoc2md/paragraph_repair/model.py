@@ -119,7 +119,7 @@ class ParagraphRepairSettings:
     """Conservative defaults for row-sliced paragraph repair."""
 
     enabled: bool = True
-    min_paragraphs: int = 20
+    min_paragraphs: int = 8
     min_short_ratio: float = 0.55
     min_no_terminal_ratio: float = 0.35
     min_lowercase_start_ratio: float = 0.20

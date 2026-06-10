@@ -40,6 +40,26 @@ def _row_sliced_fixture() -> str:
     )
 
 
+def _short_row_sliced_fixture() -> str:
+    return "\n\n".join(
+        [
+            "The inspection team arrived at the north intake",
+            "after the first alarm and found that the overflow",
+            "channel was carrying shallow water across the grated",
+            "walkway while the upstream valve remained partially",
+            "open and the temporary pump continued cycling",
+            "every few minutes without recording a stable",
+            "pressure reading.",
+            "The operator reported that the same pattern",
+            "had appeared during the previous storm and that",
+            "the manual log showed brief pressure drops",
+            "near the east manifold whenever the backup",
+            "generator switched load while the",
+            "backup pump continued running.",
+        ]
+    )
+
+
 def _decision(md_text: str, settings: ParagraphRepairSettings | None = None):
     return looks_row_sliced(split_markdown_blocks(md_text), settings)
 
@@ -59,6 +79,30 @@ def test_row_sliced_pdf_like_prose_is_detected_with_default_settings() -> None:
     assert decision.signals.lowercase_start_ratio == 1.0
     assert decision.signals.continuation_pair_ratio == pytest.approx(17 / 21)
     assert decision.signals.qualifying_continuation_run_count == 3
+    assert decision.signals.longest_continuation_run == 7
+
+
+def test_realistic_short_row_sliced_prose_is_detected_with_default_settings() -> None:
+    decision = _decision(_short_row_sliced_fixture())
+
+    assert decision.detected is True
+    assert decision.reason == "row_sliced_prose_detected"
+    assert decision.signals.prose_block_count == 13
+    assert decision.signals.short_ratio == 1.0
+    assert decision.signals.lowercase_start_ratio == 1.0
+    assert decision.signals.continuation_pair_ratio == pytest.approx(11 / 12)
+    assert decision.signals.qualifying_continuation_run_count == 2
+    assert decision.signals.longest_continuation_run == 7
+
+
+def test_subthreshold_row_sliced_prose_remains_rejected() -> None:
+    md = "\n\n".join(_short_row_sliced_fixture().split("\n\n")[:7])
+
+    decision = _decision(md)
+
+    assert decision.detected is False
+    assert decision.reason == "too_few_prose_blocks"
+    assert decision.signals.prose_block_count == 7
     assert decision.signals.longest_continuation_run == 7
 
 
@@ -151,7 +195,7 @@ def test_heading_heavy_outline_is_not_detected() -> None:
     decision = _decision(md)
 
     assert decision.detected is False
-    assert decision.reason == "too_few_prose_blocks"
+    assert decision.reason == "no_terminal_ratio_below_threshold"
     assert decision.signals.structural_block_count == 12
     assert decision.signals.prose_block_count == 12
     assert decision.signals.longest_continuation_run == 0

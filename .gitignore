@@ -33,6 +33,10 @@ adtm-*/
 *-staging/
 benchmark-*/
 
+# Package-owned public benchmark fixtures are committed source data.
+!examples/benchmark-corpus/
+!examples/benchmark-corpus/**
+
 # Downloaded archives, local corpora, and model artifacts
 *.zip
 *.tar

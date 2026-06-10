@@ -143,7 +143,9 @@ directory per source document, as re-running to the same path overwrites the
 previous result.
 The same command is available as `anydoc2md convert ...` after an editable
 install. This default path uses only the `inhouse` adapter and does not call a
-cloud LLM judge or external converter.
+cloud LLM judge or external converter. Deterministic paragraph-continuity
+repair runs by default before project-local fix extensions; use
+`--paragraph-repair off` when you need to compare raw adapter Markdown.
 
 Run the same package-only smoke conversion from Python:
 
@@ -163,7 +165,9 @@ PY
 ```
 
 This smoke path uses only the default `inhouse` adapter and does not call a
-cloud LLM judge or external converter.
+cloud LLM judge or external converter. Programmatic callers can pass
+`paragraph_repair="off"` to `run_full_tournament(...)` to disable the built-in
+paragraph-continuity repair for a run.
 
 ### CLI And Benchmarks
 
@@ -185,6 +189,10 @@ The CLI writes:
 - `.any-doc-to-md/staging/` under the output directory unless `--staging-dir`
   is supplied
 
+Built-in paragraph-continuity repair runs in `auto` mode by default. It is
+local, deterministic, and score/quality-gated; pass `--paragraph-repair off` to
+disable it for a conversion.
+
 The package also exposes console scripts for helper workflows:
 
 - `anydoc2md-find-judge`
@@ -195,7 +203,7 @@ To generate a dated converter speed/quality matrix from public fixtures, see
 The matrix reports wall time, pages per second, score- and gate-pass-derived
 quality tiers, win rate, and a conservative `default_set_signal` so slow
 adapters that never win can be considered for the optional adapter pool instead
-of the default set. The current package-owned public-fixture snapshot is
+of the default set. A dated package-owned public-fixture snapshot is
 [`docs/benchmarks/public-fixture-corpus-2026-04-27.md`](docs/benchmarks/public-fixture-corpus-2026-04-27.md).
 
 Dependency and license notes, including the required `PyMuPDF`

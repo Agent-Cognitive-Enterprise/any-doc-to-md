@@ -24,6 +24,10 @@ your `.any-doc-to-md/` folder). Defaults to the current working directory when
 omitted. Use the same `--project-dir` for every document in a project so all
 findings and scaffolds are written to one location.
 
+Built-in paragraph-continuity repair runs by default before project-local fix
+extensions. Use `--paragraph-repair off` only when you intentionally need the
+raw adapter Markdown for comparison or debugging.
+
 Each output directory holds exactly one conversion result. Use a separate
 directory per source document — re-running to the same path overwrites
 `index.md`, `images/`, and `anydoc2md-result.json`.

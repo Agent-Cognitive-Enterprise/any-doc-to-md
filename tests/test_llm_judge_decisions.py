@@ -21,7 +21,10 @@ from anydoc2md.llm_judge import judge_candidate_against_source, judge_near_tie
 from anydoc2md.settings import (
     AnyDocToMdConfigError,
     JudgeSettings,
+    PARAGRAPH_REPAIR_AUTO,
+    PARAGRAPH_REPAIR_OFF,
     load_judge_settings_from_env,
+    normalize_paragraph_repair_mode,
 )
 
 
@@ -298,3 +301,18 @@ class TestJudgeSettings:
                 model="qwen/test-model",
                 pdf_concurrency=0,
             )
+
+    def test_paragraph_repair_mode_normalization(self) -> None:
+        assert normalize_paragraph_repair_mode(" AUTO ") == PARAGRAPH_REPAIR_AUTO
+        assert normalize_paragraph_repair_mode("off") == PARAGRAPH_REPAIR_OFF
+
+    def test_invalid_paragraph_repair_mode_raises(self) -> None:
+        with pytest.raises(AnyDocToMdConfigError):
+            normalize_paragraph_repair_mode("always")
+
+    def test_paragraph_repair_modes_are_exported_from_package(self) -> None:
+        import anydoc2md
+
+        assert anydoc2md.PARAGRAPH_REPAIR_AUTO == PARAGRAPH_REPAIR_AUTO
+        assert anydoc2md.PARAGRAPH_REPAIR_OFF == PARAGRAPH_REPAIR_OFF
+        assert anydoc2md.normalize_paragraph_repair_mode("off") == "off"

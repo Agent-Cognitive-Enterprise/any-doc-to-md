@@ -19,7 +19,7 @@ def test_default_settings_are_conservative() -> None:
     settings = ParagraphRepairSettings()
 
     assert settings.enabled is True
-    assert settings.min_paragraphs == 20
+    assert settings.min_paragraphs == 8
     assert settings.min_short_ratio == 0.55
     assert settings.min_no_terminal_ratio == 0.35
     assert settings.min_lowercase_start_ratio == 0.20

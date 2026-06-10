@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from anydoc2md.fix_application import apply_fix_extensions
+from anydoc2md.paragraph_repair.application import apply_paragraph_continuity_repair
+from anydoc2md.paragraph_repair.model import ParagraphRepairSettings
 from anydoc2md.staging_hygiene import prepare_adapter_fixed_output_slot
 from anydoc2md.format_converters.adapters.base import AdapterResult
 from anydoc2md.format_converters.classification.classify_document import (
@@ -56,8 +58,11 @@ from anydoc2md.settings import (
     AUDIT_MODE_LIGHT,
     AnyDocToMdConfigError,
     JudgeSettings,
+    PARAGRAPH_REPAIR_AUTO,
+    PARAGRAPH_REPAIR_OFF,
     load_judge_settings_from_env,
     normalize_audit_mode,
+    normalize_paragraph_repair_mode,
 )
 
 WINNER_DIR_NAME = "winner"
@@ -118,6 +123,7 @@ def run_full_tournament(
     promote: bool = True,
     timeout_s: int = 600,
     max_audit_attempts: int = MAX_AUDIT_ATTEMPTS,
+    paragraph_repair: str = PARAGRAPH_REPAIR_AUTO,
 ) -> TournamentResult:
     """
     Run the complete converter tournament for one source document.
@@ -125,9 +131,10 @@ def run_full_tournament(
     Pipeline stages:
       1. classify(source_path)              → DocumentTraits
       2. run_tournament(...)                → list[AdapterResult]
-      3. select_candidate(...)              → SelectionResult
-      4. audit ranked candidates            → final audited winner or escalation
-      5. promote_winner(...) if promote     → copy winner dir to staging_root/winner/
+      3. clean/apply repairs and fixes      → index_fixed.md when improved/accepted
+      4. select_candidate(...)              → SelectionResult
+      5. audit ranked candidates            → final audited winner or escalation
+      6. promote_winner(...) if promote     → copy winner dir to staging_root/winner/
 
     Args:
         source_path:        Source document to convert.
@@ -142,12 +149,16 @@ def run_full_tournament(
         promote:            Copy winner staging dir to staging_root/winner/.
         timeout_s:          Per-adapter conversion timeout (seconds).
         max_audit_attempts: Maximum number of ranked candidates to audit before escalation.
+        paragraph_repair:   "auto" runs deterministic paragraph continuity repair
+                            before project-local fix extensions; "off" clears any
+                            paragraph-repair artifacts and skips repair promotion.
 
     Returns:
         TournamentResult.  Never raises — failures are captured in result fields.
     """
     adapter_names = default_adapter_names() if adapters is None else list(adapters)
     normalized_audit_mode = normalize_audit_mode(audit_mode)
+    normalized_paragraph_repair = normalize_paragraph_repair_mode(paragraph_repair)
     staging_root.mkdir(parents=True, exist_ok=True)
 
     # Stage 1: classify
@@ -162,11 +173,26 @@ def run_full_tournament(
     #            fix-extension, selection, or publishing stage inspects the slot, so a
     #            rerun into a reused staging dir cannot select/publish a prior run's
     #            index_fixed.md.
-    # Stage 2.5: apply fix extensions to each adapter's output (in-place).
+    # Stage 2.4: run built-in paragraph repair after stale-output hygiene and
+    #            before project-local fixes. In "off" mode, call the helper with
+    #            disabled settings so it clears owned paragraph-repair artifacts
+    #            that a prior identical run could otherwise promote.
+    # Stage 2.5: apply fix extensions to each adapter's output (in-place),
+    #            composing any trusted repair candidate into index_fixed.md.
+    disabled_repair_settings = ParagraphRepairSettings(enabled=False)
     for name in adapter_names:
         adapter_dir = staging_root / name
         if (adapter_dir / "index.md").exists():
             prepare_adapter_fixed_output_slot(adapter_dir)
+            if normalized_paragraph_repair == PARAGRAPH_REPAIR_OFF:
+                apply_paragraph_continuity_repair(
+                    name,
+                    adapter_dir,
+                    source_path,
+                    settings=disabled_repair_settings,
+                )
+            else:
+                apply_paragraph_continuity_repair(name, adapter_dir, source_path)
             apply_fix_extensions(name, adapter_dir, staging_root, source_path)
 
     # Stage 3: gate + score → select winner (uses index_fixed.md when present)
