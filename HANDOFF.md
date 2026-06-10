@@ -55,14 +55,16 @@ Slice 16 closure hardening is complete in the working tree: branch-level review 
 - Re-verified after the follow-up: affected repair/hygiene/runner tests 76 passed; full suite 641 passed.
 - Fixed the concurrent cleanup race found during compatibility review: if another cleanup path removes a directory between `remove_path(...)`'s node-type probe and `shutil.rmtree(...)`, `FileNotFoundError` is now treated as a successful cleanup result while non-missing errors still propagate.
 - Added a deterministic `tests/test_path_hygiene.py` regression for concurrent directory removal and re-ran the default suite: 642 passed.
+- Final PR-hardening pass found one stale spec module-map line that still described `CheckResult` metadata as future work in `output_qa/checks.py`; updated it to match the current `output_qa/result.py`, `checks.py`, `source_checks.py`, `scoring.py`, and `runner.py` ownership.
+- Re-ran final gates after the spec alignment: `git diff --check` clean; full suite 642 passed.
 
 ## Current status
 
-Default `run_full_tournament(...)` now creates and composes trusted paragraph-repair candidates when the deterministic quality gate accepts them, including the committed 13-fragment `row-sliced-note.txt` fixture. Raw adapter `index.md` remains preserved; `index_fixed.md` remains the selected/published improved-output slot. If row-sliced Markdown remains unrepaired, QA emits a warning and scoring applies an explicit 6-point document-level penalty. CLI e2e coverage proves both `auto` and `off` behavior. Built-in QA issue results now add structured metadata in their check payloads, but scoring uses only check/status/detail data. Full suite is green at 642 tests.
+Default `run_full_tournament(...)` now creates and composes trusted paragraph-repair candidates when the deterministic quality gate accepts them, including the committed 13-fragment `row-sliced-note.txt` fixture. Raw adapter `index.md` remains preserved; `index_fixed.md` remains the selected/published improved-output slot. If row-sliced Markdown remains unrepaired, QA emits a warning and scoring applies an explicit 6-point document-level penalty. CLI e2e coverage proves both `auto` and `off` behavior. Built-in QA issue results now add structured metadata in their check payloads, but scoring uses only check/status/detail data. Final PR-hardening checks are green at 642 tests; the remaining working-tree diff is documentation/handoff only.
 
 ## Next step
 
-Run one final SABRE red-team review before committing. High-risk review areas: timeout-thread late-write residual risk, additive QA check JSON fields for strict consumers, individual built-in metadata classifications, source/dependency skip-warning exclusion, the lower default repair floor, short-document false positives, the explicit QA warning penalty, language-uneven detector behavior, bounded-detail privacy, public benchmark fixture semantics, opt-out correctness, stale artifact handling, CLI/API compatibility, selector/publisher/audit consistency, and e2e staging-layout coupling.
+Commit the final PR-hardening documentation/handoff update, then open or update the PR. Release notes should explicitly call out that default output may change by paragraph whitespace/boundaries, while existing CLI/module calls remain compatible and `--paragraph-repair off` / `paragraph_repair="off"` preserves raw adapter Markdown.
 
 ## Important files
 
@@ -115,8 +117,8 @@ Run one final SABRE red-team review before committing. High-risk review areas: t
 - `run_tournament(...)` returns a timeout result after the wall-clock guard without joining a blocked adapter thread. Two residual consequences, not zero: post-timeout `clear_failed_adapter_output(...)` runs concurrently with the still-live worker, so a late write can leave staging artifacts (bounded — the name's result is `status="timeout"` so it cannot win, and `prepare_adapter_run_output_slot(...)` re-clears the slot before the next reuse); and the worker is a non-daemon `concurrent.futures` thread, so a never-returning adapter is still joined at interpreter exit and can block process shutdown even though the call returned. Python cannot kill a running thread; full late-write isolation would require a process-level adapter execution boundary.
 - `tests/test_paragraph_repair_e2e.py` is intended Git-tracked regression coverage; it creates only temporary output under pytest `tmp_path`. It intentionally inspects `.any-doc-to-md/staging/` to prove raw preservation and winner promotion.
 - `BIBLE.md` was intentionally ignored per the latest user instruction.
-- Full suite is green at 642 tests after the Slice 16 closure hardening, review follow-up edits, and concurrent cleanup race fix.
+- Full suite is green at 642 tests after the Slice 16 closure hardening, review follow-up edits, concurrent cleanup race fix, and final spec module-map alignment.
 
 ## Last updated
 
-2026-06-10 06:23 UTC
+2026-06-10 06:34 UTC

@@ -113,7 +113,7 @@ anydoc2md/
     audit.py         <- source-vs-rendered-candidate LLM audit loop
     remediation.py   <- findings -> remediation plan
     # existing modules unchanged:
-    base.py          <- ConversionResult (extend with severity on CheckResult)
+    base.py          <- ConversionResult
     pdf_converter.py
     docx_converter.py
     html_converter.py
@@ -125,9 +125,11 @@ The `output_qa/` module grows:
 
 ```text
 output_qa/
-  checks.py      <- extend CheckResult: add severity, violation_type, confidence
-  scoring.py     <- weighted_score(), ViolationWeights config
-  runner.py      <- return weighted score alongside passed: bool
+  result.py      <- CheckResult with optional violation_type, severity, confidence
+  checks.py      <- output-only structural checks
+  source_checks.py <- source-fidelity checks requiring the original document
+  scoring.py     <- weighted scorecard and rank helpers
+  runner.py      <- QAReport and run_all()
   hard_gates.py  <- fast disqualification checks (blank, coverage collapse)
 ```
 
