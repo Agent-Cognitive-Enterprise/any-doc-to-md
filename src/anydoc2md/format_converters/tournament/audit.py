@@ -92,8 +92,13 @@ def run_post_selection_audit_loop(
             continue
 
         attempts += 1
+        # Audit the same effective candidate Markdown that selection scored and
+        # the CLI publishes: index_fixed.md when present, else raw index.md.
+        # Otherwise the judge could penalize raw output that was never selected.
+        fixed_md = candidate.staging_dir / "index_fixed.md"
+        candidate_md = fixed_md if fixed_md.exists() else candidate.staging_dir / "index.md"
         audit_pdf_path = render_markdown_to_audit_pdf(
-            candidate.staging_dir / "index.md",
+            candidate_md,
             candidate.staging_dir / "audit_candidate.pdf",
         )
         verdict = judge_candidate_against_source(

@@ -31,6 +31,12 @@ from anydoc2md.format_converters.tournament.selector import (
 )
 from anydoc2md.llm_judge import JudgeVerdict, JudgeViolation
 from anydoc2md.output_qa.scoring import ScoreCard
+from anydoc2md.paragraph_repair.application import (
+    PARAGRAPH_REPAIR_REPORT_JSON,
+    PARAGRAPH_REPAIRED_MD,
+    apply_paragraph_continuity_repair,
+    paragraph_repair_candidate_is_current,
+)
 from anydoc2md.settings import AUDIT_MODE_AUTO, AUDIT_MODE_LIGHT, JudgeSettings
 
 MOCK_BASE = "anydoc2md.format_converters.tournament.orchestrator"
@@ -88,6 +94,34 @@ def _adapter_result(name: str, staging_root: Path, md: str = "# Doc") -> Adapter
         timing_ms=10,
         status="ok",
     )
+
+
+def _row_sliced_fixture() -> str:
+    rows = [
+        "The inspection team arrived at the north intake",
+        "after the first alarm and found that the overflow",
+        "channel was carrying shallow water across the grated",
+        "walkway while the upstream valve remained partially",
+        "open and the temporary pump continued cycling",
+        "every few minutes without recording a stable",
+        "pressure reading.",
+        "The operator reported that the same pattern",
+        "had appeared during the previous storm and that",
+        "the manual log showed brief pressure drops",
+        "near the east manifold whenever the backup",
+        "generator switched load.",
+        "Because the site has limited lighting",
+        "the team marked the affected panels with tape",
+        "and postponed nonessential work until daylight.",
+        "A follow up review should compare the sensor",
+        "timestamps with pump starts and check whether",
+        "the valve actuator is drifting under load",
+        "before the next forecasted rain event.",
+        "The maintenance lead asked that the morning crew",
+        "verify the bypass pump before reopening the intake",
+        "and record any new vibration near the manifold.",
+    ]
+    return "\n\n".join(rows) + "\n"
 
 
 def _verdict(name: str, confidence: str = "high") -> JudgeVerdict:
@@ -400,6 +434,155 @@ class TestOrchestratorFlow:
         assert result.winner == "inhouse"
         assert result.judge_verdict is None
         assert result.audit_mode == AUDIT_MODE_LIGHT
+
+    def test_stale_index_fixed_is_cleared_before_selection(self, tmp_path: Path) -> None:
+        source_path = tmp_path / "doc.pdf"
+        source_path.write_bytes(b"%PDF-1.4")
+        staging_root = tmp_path / "staging"
+        adapter_dir = staging_root / "inhouse"
+        adapter_dir.mkdir(parents=True)
+        (adapter_dir / "index.md").write_text("# Fresh", encoding="utf-8")
+        stale = adapter_dir / "index_fixed.md"
+        stale.write_text("stale published output from a prior run", encoding="utf-8")
+        selection = _selection("inhouse")
+        audit_result = _audit_result(winner="inhouse", verdict=_verdict("inhouse"))
+
+        with patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament",
+                   return_value=[_adapter_result("inhouse", staging_root, md="# Fresh")]), \
+             patch(f"{MOCK_BASE}.select_candidate", return_value=selection), \
+             patch(f"{MOCK_BASE}.run_post_selection_audit_loop", return_value=audit_result):
+            run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=["inhouse"],
+                judge_settings=_judge_settings(),
+                promote=False,
+            )
+
+        # No fix files exist, so apply_fix_extensions is a no-op; without the
+        # Stage 2.3 guard the stale fixed output would survive into selection.
+        assert not stale.exists()
+        assert (adapter_dir / "index.md").read_text(encoding="utf-8") == "# Fresh"
+        assert not (adapter_dir / PARAGRAPH_REPAIRED_MD).exists()
+        assert not (adapter_dir / PARAGRAPH_REPAIR_REPORT_JSON).exists()
+
+    def test_paragraph_repair_runs_before_selection_and_promotes_fixed(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        source_path = tmp_path / "doc.txt"
+        source_path.write_text("source content", encoding="utf-8")
+        staging_root = tmp_path / "staging"
+        raw_text = _row_sliced_fixture()
+        adapter_result = _adapter_result("inhouse", staging_root, md=raw_text)
+        selection = _selection("inhouse")
+
+        def _select_after_repair(source, root, adapters, *, near_tie_threshold):
+            adapter_dir = root / "inhouse"
+            repaired = adapter_dir / PARAGRAPH_REPAIRED_MD
+            fixed = adapter_dir / "index_fixed.md"
+            assert paragraph_repair_candidate_is_current(adapter_dir) is True
+            assert fixed.read_text(encoding="utf-8") == repaired.read_text(encoding="utf-8")
+            assert fixed.read_text(encoding="utf-8") != raw_text
+            assert (adapter_dir / "index.md").read_text(encoding="utf-8") == raw_text
+            return selection
+
+        with patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament", return_value=[adapter_result]), \
+             patch(f"{MOCK_BASE}.select_candidate", side_effect=_select_after_repair):
+            result = run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=["inhouse"],
+                audit_mode=AUDIT_MODE_LIGHT,
+                promote=False,
+            )
+
+        assert result.winner == "inhouse"
+
+    def test_paragraph_repair_off_clears_current_candidate_before_selection(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        source_path = tmp_path / "doc.txt"
+        source_path.write_text("source content", encoding="utf-8")
+        staging_root = tmp_path / "staging"
+        raw_text = _row_sliced_fixture()
+        adapter_result = _adapter_result("inhouse", staging_root, md=raw_text)
+        adapter_dir = staging_root / "inhouse"
+        report = apply_paragraph_continuity_repair("inhouse", adapter_dir, source_path)
+        assert report.accepted is True
+        assert paragraph_repair_candidate_is_current(adapter_dir) is True
+        (adapter_dir / "index_fixed.md").write_text("stale fixed output", encoding="utf-8")
+        selection = _selection("inhouse")
+
+        def _select_after_disabled_repair(source, root, adapters, *, near_tie_threshold):
+            adapter_dir = root / "inhouse"
+            assert not (adapter_dir / PARAGRAPH_REPAIRED_MD).exists()
+            assert not (adapter_dir / PARAGRAPH_REPAIR_REPORT_JSON).exists()
+            assert not (adapter_dir / "index_fixed.md").exists()
+            assert (adapter_dir / "index.md").read_text(encoding="utf-8") == raw_text
+            return selection
+
+        with patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament", return_value=[adapter_result]), \
+             patch(f"{MOCK_BASE}.select_candidate", side_effect=_select_after_disabled_repair):
+            result = run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=["inhouse"],
+                audit_mode=AUDIT_MODE_LIGHT,
+                promote=False,
+                paragraph_repair="off",
+            )
+
+        assert result.winner == "inhouse"
+
+    def test_project_fix_extension_runs_after_paragraph_repair(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        source_path = tmp_path / "doc.txt"
+        source_path.write_text("source content", encoding="utf-8")
+        staging_root = tmp_path / "staging"
+        raw_text = _row_sliced_fixture()
+        adapter_result = _adapter_result("inhouse", staging_root, md=raw_text)
+        (staging_root / "fix_extension.py").write_text(
+            "def apply_fix_extension(source_path, staging_dir, converter_name):\n"
+            "    md = staging_dir / 'index.md'\n"
+            "    md.write_text(md.read_text(encoding='utf-8') + ' APPENDED', encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        selection = _selection("inhouse")
+        scores = iter([10.0, 5.0])
+
+        def _build_scorecard(_report, adapter_name):
+            return _scorecard(adapter_name, next(scores, 5.0))
+
+        def _select_after_fix(source, root, adapters, *, near_tie_threshold):
+            adapter_dir = root / "inhouse"
+            repaired_text = (adapter_dir / PARAGRAPH_REPAIRED_MD).read_text(
+                encoding="utf-8"
+            )
+            fixed_text = (adapter_dir / "index_fixed.md").read_text(encoding="utf-8")
+            assert fixed_text == repaired_text + " APPENDED"
+            assert (adapter_dir / "index.md").read_text(encoding="utf-8") == raw_text
+            return selection
+
+        with patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament", return_value=[adapter_result]), \
+             patch("anydoc2md.fix_application.build_scorecard", side_effect=_build_scorecard), \
+             patch(f"{MOCK_BASE}.select_candidate", side_effect=_select_after_fix):
+            result = run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=["inhouse"],
+                audit_mode=AUDIT_MODE_LIGHT,
+                promote=False,
+            )
+
+        assert result.winner == "inhouse"
 
 
 class TestPromotionBehavior:

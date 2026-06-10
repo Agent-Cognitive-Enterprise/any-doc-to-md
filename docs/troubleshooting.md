@@ -35,6 +35,37 @@ PY
 This smoke should not require optional converter binaries, API keys, cloud LLM
 credits, local model weights, or private documents.
 
+## Paragraph Fragmentation Warnings
+
+Symptom:
+
+```text
+paragraph_not_row_sliced: Likely row-sliced paragraph fragmentation detected.
+```
+
+This warning means programmatic QA found prose that looks like visual rows split
+into separate Markdown paragraphs. It is not a hard gate. The warning adds a
+modest score penalty so cleaner candidates are preferred, and the built-in
+paragraph-continuity repair may remove the warning by publishing an accepted
+`index_fixed.md`. The detector uses Latin-script lowercase and continuation-word
+signals, so it can miss fragmentation in caseless scripts or languages outside
+those heuristics.
+
+The warning is independent of `--paragraph-repair`. It always uses conservative
+default thresholds, so running with `--paragraph-repair off` still reports
+row-sliced prose — `off` disables the auto-fix, not the quality signal. Repair
+clears the warning only by fixing the content (publishing a clean
+`index_fixed.md`), never by suppressing the check.
+
+Checks:
+
+- Compare the adapter's raw staging `index.md` with `index_fixed.md` when one
+  exists.
+- Re-run with `--paragraph-repair off` only when you need to inspect raw adapter
+  Markdown or confirm whether repair changed the published output.
+- If the warning is a false positive, keep the source synthetic and minimal in
+  the bug report; include the bounded QA details, not private document text.
+
 ## PyMuPDF Notes
 
 `PyMuPDF` is a required runtime dependency because ADTM's default PDF path uses

@@ -8,6 +8,11 @@ from types import ModuleType
 
 from anydoc2md.output_qa.runner import run_all
 from anydoc2md.output_qa.scoring import build_scorecard
+from anydoc2md.paragraph_repair.application import (
+    PARAGRAPH_REPAIRED_MD,
+    paragraph_repair_candidate_is_current,
+)
+from anydoc2md.staging_hygiene import remove_path
 
 
 def apply_fix_extensions(
@@ -18,61 +23,90 @@ def apply_fix_extensions(
 ) -> None:
     """Apply staged fix extensions to one adapter's output.
 
+    The starting "best text" is a trusted current-run paragraph-repair candidate
+    (`index_paragraph_repaired.md`, validated by
+    `paragraph_repair_candidate_is_current`) when one is present, otherwise the
+    raw adapter `index.md`. Project-local fixes therefore build on built-in
+    repair instead of discarding it.
+
     For each fix file (sorted): apply it to the current text, score the result,
     keep it only if the QA score strictly improves (lower is better). Fixes
     accumulate — each fix sees the output of the previous accepted fix.
 
     Writes index_fixed.md to adapter_staging_dir when at least one fix improved
-    the score. Restores index.md to its original content regardless. Removes a
-    stale index_fixed.md from a prior run when no fix improves the score.
+    the score, or when a trusted repaired base was used (so built-in repair is
+    promoted into the selectable fixed-output slot even if no fix improves it).
+    Restores index.md to its original raw content regardless. Removes a stale
+    index_fixed.md from a prior run when neither condition holds, including
+    missing-index direct-call paths.
     """
     index_md = adapter_staging_dir / "index.md"
+    fixed_file = adapter_staging_dir / "index_fixed.md"
     if not index_md.exists():
-        return
-
-    fix_files = _find_fix_files(staging_root)
-    if not fix_files:
+        remove_path(fixed_file)
         return
 
     original_text = index_md.read_text(encoding="utf-8")
 
-    base_report = run_all(adapter_staging_dir, source_path)
-    base_score = build_scorecard(base_report, adapter_name).total_score
+    had_trusted_candidate = paragraph_repair_candidate_is_current(adapter_staging_dir)
+    if had_trusted_candidate:
+        base_text = (adapter_staging_dir / PARAGRAPH_REPAIRED_MD).read_text(encoding="utf-8")
+    else:
+        base_text = original_text
 
-    current_score = base_score
-    current_text = original_text
+    fix_files = _find_fix_files(staging_root)
+    if not fix_files:
+        # No project-local fixes: this function owns index_fixed.md, so clear the
+        # slot type-agnostically (file/symlink/stale directory), then promote a
+        # trusted repaired base if one is present.
+        remove_path(fixed_file)
+        if had_trusted_candidate:
+            fixed_file.write_text(base_text, encoding="utf-8")
+        return
+
+    # run_all scores index.md, so stage the base text there before scoring it
+    # (a no-op when the base already is the raw index.md). The finally below
+    # restores index.md to the raw original regardless of how this block exits,
+    # including if base scoring raises while a repaired base is staged.
+    current_text = base_text
     improved = False
+    try:
+        if had_trusted_candidate:
+            index_md.write_text(base_text, encoding="utf-8")
+        base_report = run_all(adapter_staging_dir, source_path)
+        current_score = build_scorecard(base_report, adapter_name).total_score
 
-    for fix_file in fix_files:
-        index_md.write_text(current_text, encoding="utf-8")
-        try:
-            _run_fix_hook(fix_file, source_path, adapter_staging_dir, adapter_name)
-        except Exception:
+        for fix_file in fix_files:
             index_md.write_text(current_text, encoding="utf-8")
-            continue
+            try:
+                _run_fix_hook(fix_file, source_path, adapter_staging_dir, adapter_name)
+            except Exception:
+                index_md.write_text(current_text, encoding="utf-8")
+                continue
 
-        candidate_text = index_md.read_text(encoding="utf-8")
-        try:
-            candidate_report = run_all(adapter_staging_dir, source_path)
-            candidate_score = build_scorecard(candidate_report, adapter_name).total_score
-        except Exception:
-            index_md.write_text(current_text, encoding="utf-8")
-            continue
+            candidate_text = index_md.read_text(encoding="utf-8")
+            try:
+                candidate_report = run_all(adapter_staging_dir, source_path)
+                candidate_score = build_scorecard(candidate_report, adapter_name).total_score
+            except Exception:
+                index_md.write_text(current_text, encoding="utf-8")
+                continue
 
-        if candidate_score < current_score:
-            current_text = candidate_text
-            current_score = candidate_score
-            improved = True
-        else:
-            index_md.write_text(current_text, encoding="utf-8")
+            if candidate_score < current_score:
+                current_text = candidate_text
+                current_score = candidate_score
+                improved = True
+            else:
+                index_md.write_text(current_text, encoding="utf-8")
+    finally:
+        index_md.write_text(original_text, encoding="utf-8")
 
-    index_md.write_text(original_text, encoding="utf-8")
-
-    fixed_file = adapter_staging_dir / "index_fixed.md"
-    if improved:
+    # Clear the slot type-agnostically (file/symlink/stale directory) before
+    # promoting the chosen text, so a stale non-file slot cannot survive or make
+    # the write raise for direct callers.
+    remove_path(fixed_file)
+    if improved or had_trusted_candidate:
         fixed_file.write_text(current_text, encoding="utf-8")
-    elif fixed_file.exists():
-        fixed_file.unlink()
 
 
 def _find_fix_files(staging_root: Path) -> list[Path]:

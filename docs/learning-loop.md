@@ -123,6 +123,7 @@ from anydoc2md.output_qa.checks import check_caption_near_image
 result = check_caption_near_image(markdown_text)
 assert result.status == "fail"
 assert result.name == "caption_near_image"
+assert result.violation_type == "caption_detachment"
 ```
 
 If the issue came from an LLM audit first, the finding would look like this:
@@ -217,6 +218,9 @@ def check_vendor_caption_contract(md_text):
             "fail",
             "Figure caption is not near an image.",
             failures,
+            violation_type="caption_detachment",
+            severity="major",
+            confidence=0.80,
         )
     return CheckResult(
         "vendor_caption_contract",
@@ -229,6 +233,11 @@ def check_vendor_caption_contract(md_text):
 `fix-extensions/*.py` can patch staging output for that document family.
 Keep these hooks small, deterministic, and boring. Clever fixes are hard to
 trust.
+
+The structured fields on `CheckResult` are optional and additive. Existing
+checks that only return `name`, `layer`, `status`, `message`, and `details`
+remain valid; setting `violation_type`, `severity`, and `confidence` makes
+reports easier for remediation tooling to group without changing scoring.
 
 Fix hooks are applied to every adapter's output after conversion — not just
 inhouse. ADTM runs each fix, scores the result, and keeps it only when the

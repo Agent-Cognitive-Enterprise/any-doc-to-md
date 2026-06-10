@@ -5,6 +5,10 @@ from pathlib import Path
 
 from anydoc2md.converter_benchmark_matrix import build_converter_benchmark_matrix
 from anydoc2md.format_converters.tournament.orchestrator import run_full_tournament
+from anydoc2md.paragraph_repair.application import (
+    PARAGRAPH_REPAIRED_MD,
+    PARAGRAPH_REPAIR_REPORT_JSON,
+)
 from anydoc2md.settings import AUDIT_MODE_LIGHT
 
 
@@ -13,6 +17,7 @@ def test_public_benchmark_corpus_runs_default_light_benchmark(tmp_path: Path) ->
     sources = [
         repo_root / "examples/benchmark-corpus/field-note.txt",
         repo_root / "examples/benchmark-corpus/ops-brief.txt",
+        repo_root / "examples/benchmark-corpus/row-sliced-note.txt",
         repo_root / "src/anydoc2md/probe_assets/probe_source_reference.pdf",
     ]
     staging_root = tmp_path / "public-benchmark"
@@ -26,13 +31,25 @@ def test_public_benchmark_corpus_runs_default_light_benchmark(tmp_path: Path) ->
         )
         assert result.winner == "inhouse"
         assert result.winner_staging_dir is not None
+        if source.name == "row-sliced-note.txt":
+            assert (result.winner_staging_dir / "index_fixed.md").exists()
+            assert (result.winner_staging_dir / PARAGRAPH_REPAIRED_MD).exists()
+            assert (result.winner_staging_dir / PARAGRAPH_REPAIR_REPORT_JSON).exists()
+            repaired_md = (result.winner_staging_dir / "index_fixed.md").read_text(
+                encoding="utf-8"
+            )
+            assert (
+                "The inspection team arrived at the north intake after the first alarm"
+                in repaired_md
+            )
         qa_report = result.winner_staging_dir / "qa_report.json"
         qa_report.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
 
     matrix = build_converter_benchmark_matrix(staging_root, sources_dir=repo_root)
 
-    assert matrix["document_count"] == 3
+    assert matrix["document_count"] == 4
     document_ids = {row["document_id"] for row in matrix["documents"]}
     assert "examples/benchmark-corpus/field-note.txt" in document_ids
     assert "examples/benchmark-corpus/ops-brief.txt" in document_ids
+    assert "examples/benchmark-corpus/row-sliced-note.txt" in document_ids
     assert "src/anydoc2md/probe_assets/probe_source_reference.pdf" in document_ids

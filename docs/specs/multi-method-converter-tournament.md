@@ -38,14 +38,20 @@ Implemented today:
 - `auto` vs `light` audit modes, where `auto` falls back to score-only selection if no judge is configured
 - persisted ADTM findings under project-local `.any-doc-to-md/` state when the host project enables it
 - staged project-local `qa_extension.py` and `fix_extension.py` hooks loaded from `.any-doc-to-md/` in read-only consumer mode
-- score-guarded fix extension application to every adapter's output before scoring (`fix_application.py`), writing `index_fixed.md` only when a fix strictly improves QA score; selector and winner promotion prefer `index_fixed.md`
+- deterministic built-in paragraph-continuity repair before project-local fix extensions, enabled by default in `auto` mode and disabled with `paragraph_repair="off"` / `--paragraph-repair off`
+- warning-level QA/scoring visibility for row-sliced paragraph fragmentation, using the same deterministic detector as built-in paragraph repair
+- additive structured QA issue metadata (`violation_type`, `severity`, and
+  `confidence`) on built-in warning/failure `CheckResult` payloads; scoring
+  still uses the existing per-check/status weights
+- score-guarded fix extension application to every adapter's output before scoring (`fix_application.py`), writing `index_fixed.md` when a fix strictly improves QA score or to promote a trusted built-in paragraph-repair candidate, and clearing a stale `index_fixed.md` when neither holds; selector, post-selection audit, and winner promotion prefer `index_fixed.md`
 - per-adapter timing table printed to CLI output after conversion
 - wall-clock timeout guard in tournament runner — hung adapters produce a `timeout` error result
 - winner promotion into a stable `winner/` staging dir
 
 Still planned, not implemented yet:
 
-- the richer violation schema described below (`severity`, `violation_type`, `confidence` per programmatic check)
+- migrating QA ranking from the current per-check/status score table to the
+  richer violation-weight formula described below
 - coding-agent execution of remediation retries inside the package runtime
 - automated coding-agent extension authoring from judge findings
 - coding-agent maintainer-vs-read-only operating modes
@@ -74,11 +80,11 @@ Do **not** optimise for pixel-perfect layout recreation. Semantic flow matters; 
 ```text
 Stage 0: Document classification
 Stage 1: Multi-method conversion tournament (run N converters in parallel)
-Stage 2: Apply fix extensions to each adapter's output (score-guarded; writes index_fixed.md when improved)
+Stage 2: Clean stale fixed-output artifacts, run built-in paragraph repair, then apply fix extensions (score-guarded; writes index_fixed.md when a fix improves the score or to promote a trusted built-in paragraph-repair candidate, else clears a stale one)
 Stage 3: Hard disqualification gates (blank output, major content loss, etc.)
 Stage 4: Weighted QA scoring (uses index_fixed.md when present; structured violation report per candidate)
 Stage 5: Candidate selection (lowest weighted score, log losers)
-Stage 6: LLM source-fidelity audit of the selected candidate
+Stage 6: LLM source-fidelity audit of the selected candidate (uses index_fixed.md when present)
 Stage 7: Penalty/rescore current candidate and continue only if it no longer leads
 Stage 8: Fix-learning loop (coding agent codifies failures as tests + rules)
 Stage 9: Human escalation (if max retries exhausted)
@@ -107,7 +113,7 @@ anydoc2md/
     audit.py         <- source-vs-rendered-candidate LLM audit loop
     remediation.py   <- findings -> remediation plan
     # existing modules unchanged:
-    base.py          <- ConversionResult (extend with severity on CheckResult)
+    base.py          <- ConversionResult
     pdf_converter.py
     docx_converter.py
     html_converter.py
@@ -119,9 +125,11 @@ The `output_qa/` module grows:
 
 ```text
 output_qa/
-  checks.py      <- extend CheckResult: add severity, violation_type, confidence
-  scoring.py     <- weighted_score(), ViolationWeights config
-  runner.py      <- return weighted score alongside passed: bool
+  result.py      <- CheckResult with optional violation_type, severity, confidence
+  checks.py      <- output-only structural checks
+  source_checks.py <- source-fidelity checks requiring the original document
+  scoring.py     <- weighted scorecard and rank helpers
+  runner.py      <- QAReport and run_all()
   hard_gates.py  <- fast disqualification checks (blank, coverage collapse)
 ```
 
@@ -254,7 +262,13 @@ Hard-gate failures are logged as `status: "hard_fail"` in the QA result and excl
 
 ## Stage 3: Weighted QA scoring
 
-QA produces a structured violation report per candidate.
+QA produces a structured report per candidate. Built-in issue results now carry
+additive `violation_type`, `severity`, and `confidence` fields when a check
+warns or fails; pass results and extension results without metadata keep the
+legacy `name`/`layer`/`status`/`message`/`details` shape. The current runtime
+still scores with the existing per-check/status score table. The violation
+weight formula below remains the target scoring design, not the active ranking
+formula.
 
 ### Violation classes and weights
 
@@ -289,6 +303,24 @@ candidate_score =
 ```
 
 Lower score is better.
+
+The current implementation also includes an additive warning-level
+`paragraph_not_row_sliced` QA check. It reuses the deterministic paragraph
+repair detector, emits only bounded numeric signal details plus sample line
+numbers, and carries a modest document-level score penalty so unrepaired
+row-sliced prose is less likely to win without becoming a hard gate. The
+detector uses Latin-script lowercase and continuation-word heuristics, so this
+warning is intentionally conservative but language-uneven: it may miss
+fragmentation in caseless scripts or languages whose continuation patterns are
+not represented by the current heuristics.
+
+The check is independent of the `paragraph_repair` mode. It always scores with
+conservative default thresholds, so `paragraph_repair="off"` still surfaces the
+warning rather than auto-fixing it; repair removes the warning only by producing
+a clean `index_fixed.md` that selection then scores. The check exposes an
+optional settings override for direct callers, but the tournament never threads
+repair settings into scoring — keeping the quality signal orthogonal to whether
+repair ran.
 
 ---
 

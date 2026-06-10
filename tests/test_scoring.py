@@ -21,6 +21,7 @@ from anydoc2md.output_qa.runner import QAReport
 from anydoc2md.output_qa.scoring import (
     CHECK_WEIGHTS,
     DEFAULT_CHECK_WEIGHT,
+    DOCUMENT_LEVEL_CHECK_MULTIPLIERS,
     MAX_VIOLATION_MULTIPLIER,
     SEVERITY_WEIGHTS,
     ScoreCard,
@@ -84,6 +85,21 @@ class TestScoreCheck:
         at_cap = _check("no_double_bullets", "fail",
                         [str(i) for i in range(MAX_VIOLATION_MULTIPLIER)])
         assert score_check(capped) == pytest.approx(score_check(at_cap))
+
+    def test_document_level_check_uses_fixed_multiplier(self) -> None:
+        c1 = _check("paragraph_not_row_sliced", "warn", ["signals"])
+        c2 = _check(
+            "paragraph_not_row_sliced",
+            "warn",
+            [str(i) for i in range(MAX_VIOLATION_MULTIPLIER)],
+        )
+        expected = (
+            CHECK_WEIGHTS["paragraph_not_row_sliced"]
+            * SEVERITY_WEIGHTS["warn"]
+            * DOCUMENT_LEVEL_CHECK_MULTIPLIERS["paragraph_not_row_sliced"]
+        )
+        assert score_check(c1) == pytest.approx(expected)
+        assert score_check(c2) == pytest.approx(expected)
 
     def test_unknown_check_uses_default_weight(self) -> None:
         c = _check("brand_new_check", "fail")

@@ -16,6 +16,7 @@ The current public fixture set is:
 
 - `examples/benchmark-corpus/field-note.txt`
 - `examples/benchmark-corpus/ops-brief.txt`
+- `examples/benchmark-corpus/row-sliced-note.txt`
 - `src/anydoc2md/probe_assets/probe_source_reference.pdf`
 
 ## Prerequisites
@@ -50,6 +51,7 @@ from anydoc2md.settings import AUDIT_MODE_LIGHT
 sources = [
     Path("examples/benchmark-corpus/field-note.txt"),
     Path("examples/benchmark-corpus/ops-brief.txt"),
+    Path("examples/benchmark-corpus/row-sliced-note.txt"),
     Path("src/anydoc2md/probe_assets/probe_source_reference.pdf"),
 ]
 staging_root = Path("/tmp/adtm-public-benchmark-repro")
@@ -87,16 +89,20 @@ sed -n '1,160p' /tmp/adtm-public-benchmark-repro/matrix.md
 
 Expected stable properties:
 
-- `documents` is `3`
+- `documents` is `4`
 - `cloud_cost_usd` is `$0` for the light-mode converter run
 - adapter rows contain only `inhouse` unless explicit adapters are requested
 - `quality_tier` combines programmatic score with hard-gate pass rate
 - the current public text fixtures land in `unknown pages`, while the committed
   probe PDF lands in `2-10 pages`
+- `row-sliced-note.txt` publishes a deterministic paragraph-repair candidate
+  through `index_fixed.md` in the winner staging directory
 - exact seconds and pages/sec vary by hardware, OS, Python, and dependencies
 
 The latest dated public-fixture example snapshot lives at
 [`docs/benchmarks/public-fixture-corpus-2026-04-27.md`](benchmarks/public-fixture-corpus-2026-04-27.md).
+That snapshot predates `row-sliced-note.txt`, so its document count remains a
+historical measurement rather than the current fixture count.
 
 Do not commit `/tmp/adtm-public-benchmark-repro` or other generated benchmark
 staging roots.

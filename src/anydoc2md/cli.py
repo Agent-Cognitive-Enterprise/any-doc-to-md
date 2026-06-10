@@ -15,7 +15,12 @@ from anydoc2md.format_converters.tournament.runner import (
 )
 from anydoc2md.remediation_authoring import author_project_local_scaffolds
 from anydoc2md.scaffold_staging import stage_project_scaffolds
-from anydoc2md.settings import AUDIT_MODE_LIGHT, VALID_AUDIT_MODES
+from anydoc2md.settings import (
+    AUDIT_MODE_LIGHT,
+    PARAGRAPH_REPAIR_AUTO,
+    VALID_AUDIT_MODES,
+    VALID_PARAGRAPH_REPAIR_MODES,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -130,6 +135,15 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Audit mode. Default: light, no LLM judge required.",
     )
     convert.add_argument(
+        "--paragraph-repair",
+        choices=sorted(VALID_PARAGRAPH_REPAIR_MODES),
+        default=PARAGRAPH_REPAIR_AUTO,
+        help=(
+            "Built-in paragraph continuity repair mode. Default: auto; use off"
+            " to leave accepted adapter Markdown un-repaired."
+        ),
+    )
+    convert.add_argument(
         "--timeout-s",
         type=int,
         default=600,
@@ -192,6 +206,7 @@ def _convert(args: argparse.Namespace) -> int:
         adapters=adapters,
         audit_mode=args.audit_mode,
         timeout_s=args.timeout_s,
+        paragraph_repair=args.paragraph_repair,
     )
     _write_result_json(output_dir, result.to_dict())
     _save_findings(anydoc2md_dir, source, result)
