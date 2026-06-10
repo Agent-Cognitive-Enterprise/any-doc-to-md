@@ -185,7 +185,8 @@ The CLI writes:
 
 - `index.md`
 - `images/` when the winning adapter extracts images
-- `anydoc2md-result.json`
+- `anydoc2md-result.json` with selection, audit, timing, and per-adapter run
+  status/error evidence
 - `.any-doc-to-md/staging/` under the output directory unless `--staging-dir`
   is supplied
 
@@ -471,19 +472,22 @@ through these stages:
    row-sliced paragraph-fragmentation check. Built-in issue results include
    optional structured metadata (`violation_type`, `severity`, `confidence`) in
    addition to the legacy check fields.
-6. Select the current leading candidate.
-7. Render the candidate Markdown to an audit PDF.
-8. For PDF sources, run deterministic source-vs-candidate checks to localize
+6. Preserve full per-adapter run status in the result JSON and exclude
+   timed-out/errored adapter runs from selection, even if a late staging file
+   appears after timeout cleanup.
+7. Select the current leading candidate.
+8. Render the candidate Markdown to an audit PDF.
+9. For PDF sources, run deterministic source-vs-candidate checks to localize
    suspicious windows; for non-PDF sources, build a bounded source evidence
    packet.
-9. If PDF checks find suspect windows, ask the LLM to review only those narrow
+10. If PDF checks find suspect windows, ask the LLM to review only those narrow
    issue packets. If they find nothing suspicious, accept the PDF audit without
    an LLM call. Non-PDF sources still use the bounded evidence-packet prompt.
-10. If the judge finds major issues, optionally build a remediation plan, persist
+11. If the judge finds major issues, optionally build a remediation plan, persist
     findings in `.any-doc-to-md/`, penalize and rescore the candidate, and
     retry with the next ranked candidate only if the rescored candidate is no
     longer leading.
-11. If the candidate passes the audit, promote it to `winner/`, optionally
+12. If the candidate passes the audit, promote it to `winner/`, optionally
     persist host-project findings, and accept the winner.
 
 The high-level idea is:

@@ -36,8 +36,8 @@ This produces:
 - `<output_dir>/index.md` — the converted Markdown
 - `<output_dir>/images/` — extracted images referenced from `index.md` (present
   only when the source document contains images that were successfully extracted)
-- `<output_dir>/anydoc2md-result.json` — full tournament result including any
-  judge findings
+- `<output_dir>/anydoc2md-result.json` — full tournament result including
+  selection, per-adapter run status/error evidence, and any judge findings
 - `<project_dir>/.any-doc-to-md/llm-findings/<source_filename>.json` — judge
   verdict and remediation plan (only when findings exist)
 - `<project_dir>/.any-doc-to-md/qa-extensions/<source_filename>.py` — QA check
@@ -51,6 +51,9 @@ Read `<output_dir>/anydoc2md-result.json`. Check:
 
 ```json
 {
+  "adapter_results": [
+    { "method_name": "inhouse", "status": "ok" }
+  ],
   "judge_verdict": { "violations": [...] },
   "escalated": false
 }

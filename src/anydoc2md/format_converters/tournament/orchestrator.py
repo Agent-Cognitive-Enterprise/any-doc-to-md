@@ -101,6 +101,12 @@ class TournamentResult:
             "remediation_plan": self.remediation_plan.to_dict() if self.remediation_plan else None,
             "audit_history": [audit.to_dict() for audit in self.audit_history],
             "audit_mode": self.audit_mode,
+            # Full per-adapter run status (status/error_message/timing/exit_code)
+            # for every adapter, including those excluded from selection because
+            # they timed out or errored. Selection only ranks run-succeeded
+            # adapters, so this is the authoritative record of why an adapter is
+            # absent from selection.ranked/disqualified.
+            "adapter_results": [r.to_dict() for r in self.adapter_results],
             "adapter_timing_ms": {
                 r.method_name: r.timing_ms for r in self.adapter_results
             },
@@ -169,6 +175,18 @@ def run_full_tournament(
         source_path, staging_root, adapter_names, timeout_s=timeout_s,
     )
 
+    # Only adapters the runner reported as succeeded ("ok") may be repaired,
+    # scored, selected, or promoted. A timed-out adapter's worker thread can
+    # still be running after run_tournament returns — the wall-clock timeout
+    # shuts the pool down with wait=False — and write a late index.md into its
+    # staging dir after the runner cleared it. Keying the stages below on the
+    # presence of on-disk artifacts instead of the returned status would let
+    # that resurrected output be repaired, scored, and published as if it had
+    # succeeded. AdapterResult.status is the authoritative signal here, so a
+    # timed-out/errored adapter is excluded regardless of what is on disk.
+    run_succeeded = {r.method_name for r in adapter_results if r.status == "ok"}
+    selectable_names = [name for name in adapter_names if name in run_succeeded]
+
     # Stage 2.3: clear stale generated fixed-output artifacts before any current-run
     #            fix-extension, selection, or publishing stage inspects the slot, so a
     #            rerun into a reused staging dir cannot select/publish a prior run's
@@ -180,7 +198,7 @@ def run_full_tournament(
     # Stage 2.5: apply fix extensions to each adapter's output (in-place),
     #            composing any trusted repair candidate into index_fixed.md.
     disabled_repair_settings = ParagraphRepairSettings(enabled=False)
-    for name in adapter_names:
+    for name in selectable_names:
         adapter_dir = staging_root / name
         if (adapter_dir / "index.md").exists():
             prepare_adapter_fixed_output_slot(adapter_dir)
@@ -195,8 +213,9 @@ def run_full_tournament(
                 apply_paragraph_continuity_repair(name, adapter_dir, source_path)
             apply_fix_extensions(name, adapter_dir, staging_root, source_path)
 
-    # Stage 3: gate + score → select winner (uses index_fixed.md when present)
-    selection = select_candidate(source_path, staging_root, adapter_names,
+    # Stage 3: gate + score → select winner (uses index_fixed.md when present).
+    # Only run-succeeded adapters are eligible; see the run_succeeded note above.
+    selection = select_candidate(source_path, staging_root, selectable_names,
                                  near_tie_threshold=near_tie_threshold)
 
     # Stage 4: audit the selected candidate, then retry lower-ranked candidates if needed.

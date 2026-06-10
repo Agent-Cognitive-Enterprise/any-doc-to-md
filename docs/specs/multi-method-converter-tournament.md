@@ -332,10 +332,18 @@ Selection policy:
 
 - choose the lowest-scoring surviving candidate
 - log disqualified and losing candidates
+- preserve full per-adapter run status in `TournamentResult.to_dict()["adapter_results"]`
+- exclude adapters whose runner-written `adapter_result.json` records a non-`ok`
+  status before scoring any Markdown in that staging directory
 - keep ranking order for retry
 - stop early only if no viable candidates remain
 
-The score-selected leader is only a candidate until the source-fidelity audit passes. The runtime now exposes `select_candidate`, while keeping `select_winner` as a backward-compatible alias.
+The score-selected leader is only a candidate until the source-fidelity audit
+passes. The runtime now exposes `select_candidate`, while keeping
+`select_winner` as a backward-compatible alias. Direct selector callers may
+still provide staging-only adapter directories for legacy workflows; when an
+`adapter_result.json` sidecar exists, its non-success status is authoritative so
+late files from timed-out workers are not scored.
 
 ### Corpus benchmark matrix
 

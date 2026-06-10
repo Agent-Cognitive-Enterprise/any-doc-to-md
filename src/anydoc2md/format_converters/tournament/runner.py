@@ -119,6 +119,13 @@ def run_tournament(
         except concurrent.futures.TimeoutError:
             timed_out = True
     finally:
+        # On timeout we deliberately do not block on still-running workers
+        # (wait=False): a hung adapter must not stall the whole pipeline. A
+        # surviving worker may therefore write a late index.md into its staging
+        # dir after the cleanup below. That is safe because run_full_tournament
+        # filters adapters by AdapterResult.status before repair/scoring/selection;
+        # select_candidate also honors a runner-written non-ok adapter_result.json
+        # sidecar for direct callers.
         pool.shutdown(wait=not timed_out, cancel_futures=timed_out)
 
     from anydoc2md.format_converters.adapters.base import error_result

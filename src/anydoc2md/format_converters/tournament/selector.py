@@ -21,6 +21,7 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -158,6 +159,11 @@ def select_candidate(
     Adapters whose staging dir has no index.md are automatically disqualified
     by the index_md_exists gate.
 
+    Selection is primarily driven by on-disk artifacts. When a runner-written
+    adapter_result.json is present, its non-ok status is authoritative and
+    disqualifies the adapter before any Markdown is scored. This prevents a
+    timed-out adapter's late index.md write from being selected by direct callers.
+
     Args:
         source_path:        Original source document (for Layer 2 checks).
         staging_root:       Parent dir containing per-adapter staging dirs.
@@ -173,6 +179,11 @@ def select_candidate(
 
     for name in adapter_names:
         staging_dir = staging_root / name
+        status_gate = _adapter_run_status_gate(staging_dir)
+        if status_gate is not None:
+            gate_results[name] = [status_gate]
+            continue
+
         gates = run_hard_gates(staging_dir, source_path)
         gate_results[name] = gates
 
@@ -197,6 +208,44 @@ def select_candidate(
 
     return select_from_results(
         scorecards, gate_results, near_tie_threshold=near_tie_threshold,
+    )
+
+
+def _adapter_run_status_gate(staging_dir: Path) -> HardGateResult | None:
+    """Disqualify staging dirs whose runner sidecar records a non-success run.
+
+    Missing or malformed sidecars preserve the older staging-only selector
+    behavior. A well-formed non-ok sidecar is trusted over any late Markdown file
+    in the same directory.
+    """
+    sidecar = staging_dir / "adapter_result.json"
+    if not sidecar.is_file():
+        return None
+    try:
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    status = payload.get("status")
+    if status == "ok":
+        return None
+    if not isinstance(status, str) or not status:
+        return None
+
+    message = payload.get("error_message")
+    if not isinstance(message, str) or not message:
+        message = payload.get("stderr")
+    if not isinstance(message, str):
+        message = ""
+    reason = f"Adapter run status is {status!r}."
+    if message:
+        reason = f"{reason} {message[:300]}"
+    return HardGateResult(
+        gate_name="adapter_run_status",
+        passed=False,
+        reason=reason,
     )
 
 

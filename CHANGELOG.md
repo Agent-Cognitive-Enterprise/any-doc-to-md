@@ -8,7 +8,7 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 _(nothing yet)_
 
-## 0.1.2 — 2026-06-10
+## 0.1.3 — 2026-06-10
 
 ### Added
 
@@ -30,6 +30,9 @@ _(nothing yet)_
   optional `violation_type`, `severity`, and `confidence` fields are emitted for
   consumers that need issue classification. Legacy pass-shaped check payloads
   and extension results without explicit metadata remain unchanged.
+
+- `anydoc2md-result.json` now includes top-level `adapter_results` with full
+  per-adapter run status, timing, exit code, and error-message evidence.
 
 ### Changed
 
@@ -55,6 +58,10 @@ _(nothing yet)_
   waiting for a blocked adapter thread to finish. Python cannot kill a running
   thread, so full late-write isolation still requires a process-level adapter
   boundary.
+
+- Direct selector calls now honor a runner-written `adapter_result.json` sidecar:
+  if it records a non-`ok` status, that adapter is disqualified before any
+  Markdown is scored, even if a late `index.md` exists on disk.
 
 ## 0.1.1 — 2026-04-29
 

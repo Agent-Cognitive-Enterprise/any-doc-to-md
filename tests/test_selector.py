@@ -9,6 +9,7 @@ containing a valid index.md, exercising the full gate → score → select chain
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -271,6 +272,37 @@ class TestSelectWinner:
         by_name = {card.adapter_name: card for card in result.ranked}
         assert by_name["clean"].check_scores["paragraph_not_row_sliced"] == 0.0
         assert by_name["fragmented"].check_scores["paragraph_not_row_sliced"] > 0.0
+
+    def test_non_ok_adapter_result_sidecar_disqualifies_late_index_md(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        _staging(tmp_path, "late_timeout")
+        (tmp_path / "late_timeout" / "adapter_result.json").write_text(
+            json.dumps({
+                "method_name": "late_timeout",
+                "status": "timeout",
+                "error_message": "Adapter did not complete within wall-clock timeout",
+            }),
+            encoding="utf-8",
+        )
+
+        result = select_winner(None, tmp_path, ["late_timeout"])
+
+        assert result.winner is None
+        assert result.ranked == []
+        assert "late_timeout" in result.disqualified
+        assert "timeout" in result.disqualified["late_timeout"]
+
+    def test_missing_adapter_result_sidecar_preserves_staging_only_selection(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        _staging(tmp_path, "legacy")
+
+        result = select_winner(None, tmp_path, ["legacy"])
+
+        assert result.winner == "legacy"
 
 
 def _row_sliced_fixture() -> str:

@@ -220,6 +220,7 @@ class TestTournamentResultContract:
             "judge_verdict",
             "audit_history",
             "audit_mode",
+            "adapter_results",
             "adapter_timing_ms",
             "escalated",
         ):
@@ -236,7 +237,10 @@ class TestOrchestratorFlow:
 
         with patch(f"{MOCK_BASE}.default_adapter_names", return_value=["inhouse"]) as adapters_mock, \
              patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
-             patch(f"{MOCK_BASE}.run_tournament", return_value=[]) as tournament_mock, \
+             patch(f"{MOCK_BASE}.run_tournament",
+                   return_value=[_adapter_result("inhouse", staging_root)]) as tournament_mock, \
+             patch(f"{MOCK_BASE}.apply_paragraph_continuity_repair"), \
+             patch(f"{MOCK_BASE}.apply_fix_extensions"), \
              patch(f"{MOCK_BASE}.select_candidate", return_value=selection) as selector_mock, \
              patch(f"{MOCK_BASE}.run_post_selection_audit_loop", return_value=audit_result) as audit_mock:
             run_full_tournament(
@@ -272,7 +276,10 @@ class TestOrchestratorFlow:
 
         with patch(f"{MOCK_BASE}.default_adapter_names") as default_mock, \
              patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
-             patch(f"{MOCK_BASE}.run_tournament", return_value=[]) as tournament_mock, \
+             patch(f"{MOCK_BASE}.run_tournament",
+                   return_value=[_adapter_result(n, staging_root) for n in adapters]) as tournament_mock, \
+             patch(f"{MOCK_BASE}.apply_paragraph_continuity_repair"), \
+             patch(f"{MOCK_BASE}.apply_fix_extensions"), \
              patch(f"{MOCK_BASE}.select_candidate", return_value=selection) as selector_mock, \
              patch(f"{MOCK_BASE}.run_post_selection_audit_loop", return_value=audit_result):
             run_full_tournament(
@@ -583,6 +590,126 @@ class TestOrchestratorFlow:
             )
 
         assert result.winner == "inhouse"
+
+    def test_timed_out_adapter_late_write_is_not_selected_or_promoted(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        # A timed-out adapter's worker thread can keep running after
+        # run_tournament returns and write a late index.md into its staging dir.
+        # Selection must key on AdapterResult.status, not on that resurrected
+        # file, and publish only the genuinely-succeeded adapter.
+        source_path = tmp_path / "doc.pdf"
+        source_path.write_bytes(b"%PDF-1.4")
+        staging_root = tmp_path / "staging"
+
+        inhouse = _adapter_result("inhouse", staging_root, md="# Inhouse")
+
+        docling_dir = staging_root / "docling"
+        docling_dir.mkdir(parents=True, exist_ok=True)
+        (docling_dir / "index.md").write_text(
+            "# Late write from a timed-out worker", encoding="utf-8"
+        )
+        docling = AdapterResult(
+            method_name="docling",
+            method_version="1",
+            command_invoked="",
+            exit_code=-1,
+            staging_dir=docling_dir,
+            timing_ms=1,
+            status="timeout",
+            error_message="Adapter did not complete within wall-clock timeout",
+        )
+
+        captured: dict[str, list[str]] = {}
+
+        def _capture_select(source, root, adapters, *, near_tie_threshold):
+            captured["adapters"] = list(adapters)
+            return _selection("inhouse")
+
+        with patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament", return_value=[inhouse, docling]), \
+             patch(f"{MOCK_BASE}.apply_paragraph_continuity_repair") as repair_mock, \
+             patch(f"{MOCK_BASE}.apply_fix_extensions") as fix_mock, \
+             patch(f"{MOCK_BASE}.select_candidate", side_effect=_capture_select):
+            result = run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=["inhouse", "docling"],
+                audit_mode=AUDIT_MODE_LIGHT,
+                promote=True,
+            )
+
+        # The timed-out adapter is never offered to selection...
+        assert captured["adapters"] == ["inhouse"]
+        # ...nor repaired/fixed, despite the late index.md on disk.
+        repaired = [call.args[0] for call in repair_mock.call_args_list]
+        fixed = [call.args[0] for call in fix_mock.call_args_list]
+        assert "docling" not in repaired
+        assert "docling" not in fixed
+        # The published winner is the succeeded output, not the late write.
+        assert result.winner == "inhouse"
+        assert (
+            (staging_root / WINNER_DIR_NAME / "index.md").read_text(encoding="utf-8")
+            == "# Inhouse"
+        )
+        # Excluding the timed-out adapter from selection must not erase its
+        # evidence from the serialized result.
+        serialized = result.to_dict()
+        docling_entry = next(
+            entry for entry in serialized["adapter_results"]
+            if entry["method_name"] == "docling"
+        )
+        assert docling_entry["status"] == "timeout"
+        assert "wall-clock timeout" in docling_entry["error_message"]
+
+    def test_all_timed_out_adapters_yield_no_winner_despite_on_disk_output(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        source_path = tmp_path / "doc.pdf"
+        source_path.write_bytes(b"%PDF-1.4")
+        staging_root = tmp_path / "staging"
+
+        adapter_dir = staging_root / "inhouse"
+        adapter_dir.mkdir(parents=True, exist_ok=True)
+        (adapter_dir / "index.md").write_text("# Late write", encoding="utf-8")
+        timed_out = AdapterResult(
+            method_name="inhouse",
+            method_version="1",
+            command_invoked="",
+            exit_code=-1,
+            staging_dir=adapter_dir,
+            timing_ms=1,
+            status="timeout",
+            error_message="Adapter did not complete within wall-clock timeout",
+        )
+
+        captured: dict[str, list[str]] = {}
+
+        def _capture_select(source, root, adapters, *, near_tie_threshold):
+            captured["adapters"] = list(adapters)
+            return _selection()  # no eligible adapters → no winner
+
+        with patch(f"{MOCK_BASE}.classify", return_value=_traits()), \
+             patch(f"{MOCK_BASE}.run_tournament", return_value=[timed_out]), \
+             patch(f"{MOCK_BASE}.apply_paragraph_continuity_repair") as repair_mock, \
+             patch(f"{MOCK_BASE}.apply_fix_extensions") as fix_mock, \
+             patch(f"{MOCK_BASE}.select_candidate", side_effect=_capture_select):
+            result = run_full_tournament(
+                source_path,
+                staging_root,
+                adapters=["inhouse"],
+                audit_mode=AUDIT_MODE_LIGHT,
+                promote=True,
+            )
+
+        assert captured["adapters"] == []
+        repair_mock.assert_not_called()
+        fix_mock.assert_not_called()
+        assert result.winner is None
+        assert result.winner_staging_dir is None
+        assert not (staging_root / WINNER_DIR_NAME).exists()
 
 
 class TestPromotionBehavior:
