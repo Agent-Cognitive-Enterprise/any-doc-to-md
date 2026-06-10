@@ -8,6 +8,54 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 _(nothing yet)_
 
+## 0.1.2 — 2026-06-10
+
+### Added
+
+- **Deterministic paragraph-continuity repair** for row-sliced Markdown prose.
+  Default conversions now run a local, quality-gated repair before
+  project-local fix extensions. Accepted repairs preserve raw adapter
+  `index.md`, publish through `index_fixed.md`, and write bounded repair
+  evidence sidecars in staging.
+
+- **Repair opt-out** via `--paragraph-repair off` in the CLI and
+  `paragraph_repair="off"` for `run_full_tournament(...)`. Existing CLI and
+  module calls remain compatible.
+
+- **Row-sliced paragraph QA visibility** through the warning-level
+  `paragraph_not_row_sliced` check and modest score penalty, so unrepaired
+  fragmented prose is less likely to win without becoming a hard gate.
+
+- **Structured QA issue metadata** on built-in warning/failure results:
+  optional `violation_type`, `severity`, and `confidence` fields are emitted for
+  consumers that need issue classification. Legacy pass-shaped check payloads
+  and extension results without explicit metadata remain unchanged.
+
+### Changed
+
+- Fix extensions now build on a trusted paragraph-repair candidate when one is
+  present, while keeping the raw adapter output available for inspection.
+
+- Selection, publishing, and post-selection audit consistently evaluate the
+  effective candidate Markdown (`index_fixed.md` when present).
+
+- The public benchmark corpus includes a row-sliced text fixture that proves the
+  default repair path through the real CLI/in-house/tournament pipeline.
+
+### Fixed
+
+- Stale generated staging artifacts are cleared more aggressively before reruns
+  and after failed adapter runs, preventing prior outputs from being selected or
+  published accidentally.
+
+- Paragraph-repair and staging cleanup now handle files, directories, symlinks,
+  broken symlinks, and concurrent cleanup races safely.
+
+- Tournament wall-clock timeout handling now returns a timeout result without
+  waiting for a blocked adapter thread to finish. Python cannot kill a running
+  thread, so full late-write isolation still requires a process-level adapter
+  boundary.
+
 ## 0.1.1 — 2026-04-29
 
 ### Fixed
