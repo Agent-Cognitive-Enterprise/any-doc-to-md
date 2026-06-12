@@ -36,6 +36,7 @@ class AdapterResult:
     status: str                   # "ok" | "error" | "timeout" | "unsupported"
     stderr: str = ""              # truncated to 2000 chars
     error_message: str = ""       # human-readable summary when status != "ok"
+    warnings: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def markdown_path(self) -> Path:
@@ -56,7 +57,7 @@ class AdapterResult:
         return ""
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "method_name": self.method_name,
             "method_version": self.method_version,
             "command_invoked": self.command_invoked,
@@ -68,6 +69,9 @@ class AdapterResult:
             "error_message": self.error_message,
             "markdown_chars": len(self.markdown_text),
         }
+        if self.warnings:
+            payload["warnings"] = list(self.warnings)
+        return payload
 
     def save_result_json(self) -> None:
         """Write adapter_result.json into staging_dir for later inspection."""

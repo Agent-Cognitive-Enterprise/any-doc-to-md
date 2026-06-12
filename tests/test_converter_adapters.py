@@ -32,6 +32,7 @@ from anydoc2md.format_converters.adapters.base import (
     run_subprocess,
 )
 from anydoc2md.format_converters.adapters import docling, inhouse, markitdown, marker, pandoc
+from anydoc2md.format_converters.base import ConversionResult
 from anydoc2md.format_converters.tournament.runner import (
     DEFAULT_ADAPTERS,
     _ADAPTER_MODULES,
@@ -116,6 +117,18 @@ class TestAdapterResult:
         for key in ("method_name", "method_version", "command_invoked",
                     "exit_code", "timing_ms", "status", "markdown_chars"):
             assert key in d
+        assert "warnings" not in d
+
+    def test_to_dict_includes_nonempty_warnings(self, tmp_path: Path) -> None:
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        r = AdapterResult(
+            method_name="x", method_version="1", command_invoked="cmd",
+            exit_code=0, staging_dir=staging, timing_ms=5, status="ok",
+            warnings=("first warning", "second warning"),
+        )
+
+        assert r.to_dict()["warnings"] == ["first warning", "second warning"]
 
     def test_save_result_json_writes_file(self, tmp_path: Path) -> None:
         staging = tmp_path / "staging"
@@ -208,6 +221,31 @@ class TestInhouseAdapter:
         src = _txt_source(tmp_path)
         r = inhouse.run(src, tmp_path / "staging")
         assert r.timing_ms >= 0
+
+    def test_preserves_converter_warnings(self, tmp_path: Path) -> None:
+        src = _txt_source(tmp_path)
+        staging = tmp_path / "staging"
+
+        class WarningConverter:
+            @staticmethod
+            def convert(source_path: Path, staging_dir: Path) -> ConversionResult:
+                _ = source_path
+                staging_dir.mkdir(parents=True, exist_ok=True)
+                (staging_dir / "index.md").write_text("# Converted\n", encoding="utf-8")
+                return ConversionResult(
+                    staging_dir=staging_dir,
+                    title="Converted",
+                    source_url="doc.txt",
+                    image_count=0,
+                    warnings=("table detector skipped malformed Markdown table",),
+                )
+
+        with patch.object(inhouse, "get_converter", return_value=WarningConverter):
+            result = inhouse.run(src, staging)
+
+        payload = json.loads((staging / "adapter_result.json").read_text())
+        assert result.warnings == ("table detector skipped malformed Markdown table",)
+        assert payload["warnings"] == ["table detector skipped malformed Markdown table"]
 
     def test_supports_returns_true_for_txt(self) -> None:
         assert inhouse.supports(Path("doc.txt")) is True

@@ -3,19 +3,33 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import fitz
 
 from anydoc2md.format_converters._pdf_blocks import (
     ImageBlock,
+    TableBlock,
     TextBlock,
     block_column,
     clean_line,
     detect_block_kind,
     page_avg_font,
 )
+from anydoc2md.format_converters._pdf_tables import extract_page_tables
 from anydoc2md.format_converters.base import IMAGES_DIRNAME
+
+TABLE_EXTRACTION_PYMUPDF = "pymupdf"
+TABLE_EXTRACTION_OFF = "off"
+
+
+@dataclass(frozen=True)
+class PdfExtractionResult:
+    text_blocks: list[TextBlock]
+    image_blocks: list[ImageBlock]
+    table_blocks: list[TableBlock]
+    warnings: tuple[str, ...] = field(default_factory=tuple)
 
 
 def extract_pdf_blocks(
@@ -25,42 +39,96 @@ def extract_pdf_blocks(
     column_split_ratio: float,
     min_text_len: int,
 ) -> tuple[list[TextBlock], list[ImageBlock]]:
+    result = extract_pdf_blocks_v2(
+        pdf_path,
+        images_dir,
+        column_split_ratio=column_split_ratio,
+        min_text_len=min_text_len,
+        table_extraction=TABLE_EXTRACTION_OFF,
+    )
+    return result.text_blocks, result.image_blocks
+
+
+def extract_pdf_blocks_v2(
+    pdf_path: Path,
+    images_dir: Path,
+    *,
+    column_split_ratio: float,
+    min_text_len: int,
+    table_extraction: str | bool = TABLE_EXTRACTION_PYMUPDF,
+    table_markdown_clean: bool = False,
+    table_markdown_fill_empty: bool = True,
+) -> PdfExtractionResult:
     images_dir.mkdir(parents=True, exist_ok=True)
     doc = fitz.open(str(pdf_path))
 
     text_blocks: list[TextBlock] = []
     image_blocks: list[ImageBlock] = []
+    table_blocks: list[TableBlock] = []
+    warnings: list[str] = []
     seen_hashes: set[str] = set()
 
-    for page_num, page in enumerate(doc, start=1):
-        page_dict = page.get_text("dict")
-        page_avg = page_avg_font(page_dict)
-        page_width = page.rect.width
-
-        text_blocks.extend(
-            _extract_page_text_blocks(
-                page_dict=page_dict,
-                page_num=page_num,
-                page_avg=page_avg,
-                page_width=page_width,
-                column_split_ratio=column_split_ratio,
-                min_text_len=min_text_len,
-            )
+    mode = _normalize_table_extraction_mode(table_extraction)
+    if mode not in {TABLE_EXTRACTION_PYMUPDF, TABLE_EXTRACTION_OFF}:
+        warnings.append(
+            f"unsupported table_extraction mode {table_extraction!r}; "
+            "table extraction disabled"
         )
-        image_blocks.extend(
-            _extract_page_images(
-                doc=doc,
-                page=page,
-                page_num=page_num,
-                images_dir=images_dir,
-                page_width=page_width,
-                column_split_ratio=column_split_ratio,
-                seen_hashes=seen_hashes,
-            )
-        )
+        mode = TABLE_EXTRACTION_OFF
 
-    doc.close()
-    return text_blocks, image_blocks
+    try:
+        for page_num, page in enumerate(doc, start=1):
+            page_dict = page.get_text("dict")
+            page_avg = page_avg_font(page_dict)
+            page_width = page.rect.width
+
+            text_blocks.extend(
+                _extract_page_text_blocks(
+                    page_dict=page_dict,
+                    page_num=page_num,
+                    page_avg=page_avg,
+                    page_width=page_width,
+                    column_split_ratio=column_split_ratio,
+                    min_text_len=min_text_len,
+                )
+            )
+            image_blocks.extend(
+                _extract_page_images(
+                    doc=doc,
+                    page=page,
+                    page_num=page_num,
+                    images_dir=images_dir,
+                    page_width=page_width,
+                    column_split_ratio=column_split_ratio,
+                    seen_hashes=seen_hashes,
+                )
+            )
+            if mode == TABLE_EXTRACTION_PYMUPDF:
+                page_tables, page_warnings = extract_page_tables(
+                    page,
+                    page_num=page_num,
+                    page_width=page_width,
+                    column_split_ratio=column_split_ratio,
+                    clean=table_markdown_clean,
+                    fill_empty=table_markdown_fill_empty,
+                )
+                table_blocks.extend(page_tables)
+                warnings.extend(page_warnings)
+    finally:
+        doc.close()
+
+    return PdfExtractionResult(
+        text_blocks=text_blocks,
+        image_blocks=image_blocks,
+        table_blocks=table_blocks,
+        warnings=tuple(warnings),
+    )
+
+
+def _normalize_table_extraction_mode(value: str | bool) -> str:
+    if isinstance(value, bool):
+        return TABLE_EXTRACTION_PYMUPDF if value else TABLE_EXTRACTION_OFF
+    return str(value).strip().lower()
 
 
 def _extract_page_text_blocks(

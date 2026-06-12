@@ -662,6 +662,14 @@ It differs from the external adapters in two important ways:
 2. It uses the package's own conversion logic directly, so layout decisions,
    normalization behavior, and staging semantics stay under package control.
 
+For PDFs, the in-house path uses PyMuPDF table detection to emit detected ruled
+tables as native Markdown tables by default. To preserve legacy flattened table
+text for one document, add this to that document's `document.override.yaml`:
+
+```yaml
+table_extraction: off
+```
+
 The external adapters are useful as competing opinions in the tournament.
 The in-house path is useful as the package-controlled baseline.
 

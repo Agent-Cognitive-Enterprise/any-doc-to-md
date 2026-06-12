@@ -49,7 +49,10 @@ def run(
 
     try:
         converter = get_converter(source_path)
-        converter.convert(source_path, staging_dir)
+        conversion_result = converter.convert(source_path, staging_dir)
+        conversion_warnings = tuple(
+            getattr(conversion_result, "warnings", ()) or ()
+        )
         timing_ms = int((time.monotonic() - t0) * 1000)
     except Exception as exc:
         timing_ms = int((time.monotonic() - t0) * 1000)
@@ -69,6 +72,7 @@ def run(
         staging_dir=staging_dir,
         timing_ms=timing_ms,
         status="ok",
+        warnings=conversion_warnings,
     )
     result.save_result_json()
     return result

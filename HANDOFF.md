@@ -8,93 +8,88 @@ APIs, with no heavy optional converter added to the default path.
 
 ## Completed in this session
 
-- Created `docs/progress/20260612.md` for the new
+- Created and maintained `docs/progress/20260612.md` for the
   `correct-tables-conversion` branch.
-- Recorded the planning-only table-fidelity objective, constraints, proposed
-  test texts, and first SABRE slice.
-- Updated the planning note after red-team review to clarify that synthetic PDF
-  fixtures must draw ruled grid tables with plain cell text, not literal pipe
-  characters.
-- Confirmed the branch was clean before creating the progress file.
-- Verified current code shape at a high level: PDF conversion is currently
-  text/image only, existing pipe-looking text tables are emitted as fenced code,
-  and document overrides already provide a compatible opt-out mechanism.
-- Implemented Slice 1: added `TableBlock`, made the PDF assembler accept
-  optional table blocks without changing existing callers, and added a focused
-  sort-order test.
-- Fixed Slice 1 review findings: explicit table blocks now suppress overlapping
-  flattened text in the assembler, `Table N.` captions attach to same-page table
-  blocks, and tests cover no-op empty table blocks, native table rendering,
-  caption placement, and duplicate suppression.
-- Fixed a follow-up review finding: captions are only relocated to hug an image
-  or table when they are already adjacent to it in reading order. A caption
-  separated from its target by intervening body text now stays in its natural
-  position instead of leapfrogging that text. Covered by a new regression test.
-- Implemented Slice 2: added isolated PyMuPDF page-table extraction helper and
-  focused tests, without wiring it into full PDF conversion.
-- Applied red-team residual fixes to Slice 2: removed the unused
-  `TableBlock.warning` field (per-table problems are surfaced through the
-  helper's returned warnings list, not on the block), loosened the brittle
-  exact-bbox test assertion to a 1pt tolerance, and added branch tests for the
-  undersized-table filter, non-int dimensions, `to_markdown` failures (direct
-  and no-arg fallback), and malformed-bbox handling.
+- Implemented Slice 1: added `TableBlock`, optional assembler table plumbing,
+  native table formatting, table-aware caption placement, and duplicate
+  flattened-text suppression when explicit table blocks are supplied.
+- Implemented Slice 2: added isolated PyMuPDF page-table extraction helper in
+  `_pdf_tables.py`, including Markdown-shape validation and nonfatal warnings.
+- Applied Slice 2 review fixes: removed dead per-table warning state and added
+  branch coverage for malformed/undersized tables and `to_markdown()` failures.
+- Implemented Slice 3: added `PdfExtractionResult` and
+  `extract_pdf_blocks_v2(...)`, preserved the old `extract_pdf_blocks()`
+  two-tuple wrapper, and wired table blocks into `pdf_converter.convert(...)`.
+- Made in-house PDF conversion emit PyMuPDF-detected ruled tables as native
+  Markdown by default, with `table_extraction: off` as a per-document opt-out.
+- Fixed the YAML compatibility bug where unquoted `table_extraction: off` loads
+  as boolean `False`; extraction mode normalization now treats `False` as off.
+- Applied Slice 3 review fixes: converter warnings now flow through the
+  in-house adapter into `AdapterResult` / `adapter_result.json`, Markdown table
+  validation checks row widths before creating suppressing `TableBlock`s, and
+  the private `_extract` facade alias has the expected lint suppression.
+- Updated tests and docs for the default-on table behavior and opt-out.
 
 ## Current status
 
-Slice 2 is implemented and tested. A page-level table extraction helper exists,
-but it is not wired into `pdf_converter` yet. No CLI behavior, converter
-behavior, staging shape, or default output contract has changed.
+Slice 3 and its red-team residual fixes are implemented and tested but
+uncommitted. Default PDF output can now change for PyMuPDF-detected ruled
+tables: native Markdown tables are emitted and overlapping flattened cell text
+is suppressed. Existing CLI/module calls remain compatible, and
+`extract_pdf_blocks(...)` still returns the old two-tuple.
 
 ## Next step
 
-Slice 2 red-team review is done and its residual fixes are applied. Next,
-implement Slice 3: `PdfExtractionResult` / `extract_pdf_blocks_v2(...)` plus PDF
-converter wiring, while preserving the old `extract_pdf_blocks()` two-tuple
-behavior.
+Run SABRE red-team review of the Slice 3 residual fixes. If no blocker is
+found, continue with the next slice from the branch plan, likely the optional
+table extraction report/audit evidence slice.
 
 ## Important files
 
 - `docs/progress/20260612.md`
+- `CHANGELOG.md`
+- `README.md`
+- `docs/adapter-guide.md`
+- `docs/troubleshooting.md`
+- `docs/specs/multi-method-converter-tournament.md`
 - `src/anydoc2md/format_converters/_pdf_blocks.py`
 - `src/anydoc2md/format_converters/_pdf_assemble.py`
 - `src/anydoc2md/format_converters/_pdf_extract.py`
 - `src/anydoc2md/format_converters/_pdf_tables.py`
+- `src/anydoc2md/format_converters/adapters/base.py`
+- `src/anydoc2md/format_converters/adapters/inhouse.py`
 - `src/anydoc2md/format_converters/pdf_converter.py`
+- `tests/test_converter_adapters.py`
 - `tests/test_pdf_converter_refactor.py`
 - `tests/test_pdf_tables.py`
 
 ## Notes for next session
 
-- Do not make table extraction default-on before duplicate flattened text
-  suppression is implemented.
-- First implementation scope is PyMuPDF-detected tables, especially ruled grid
-  tables. Borderless aligned tables remain out of scope until a later slice
-  explicitly changes and tests the `find_tables(...)` strategy.
-- Keep existing `extract_pdf_blocks()` two-tuple compatibility.
-- Prefer generated synthetic PDF fixtures in tests; a local PyMuPDF probe during
-  planning recognized a simple drawn grid table and produced native Markdown.
-  Fixtures should draw grid lines and insert plain cell text; do not insert
-  literal pipe-delimited table text.
-- When PyMuPDF emits a `TableBlock`, it should take precedence over overlapping
+- First implementation scope is PyMuPDF-detected ruled tables. Borderless
+  aligned tables remain out of scope until a later slice deliberately changes
+  and tests `find_tables(...)` strategy.
+- When PyMuPDF emits a `TableBlock`, it takes precedence over overlapping
   flattened text. When PyMuPDF detects no table, the existing literal-pipe
-  `block_kind == "table"` fenced-code fallback stays unchanged unless a separate
-  slice changes it deliberately.
-- Planned opt-out key: `table_extraction: off`.
+  `block_kind == "table"` fenced-code fallback stays unchanged unless a
+  separate slice changes it deliberately.
+- No table extraction sidecar report exists yet. Slice 3 now propagates
+  extraction warnings through `ConversionResult.warnings` and the in-house
+  adapter's `AdapterResult.warnings`, so they are visible in
+  `adapter_result.json` and top-level result JSON `adapter_results`.
 - The prior 0.1.3 release handoff recorded TestPyPI/production publishing as
   not run. That release work is deliberately deferred outside this table branch
   unless the maintainer says it has been completed.
-- Slice 1 verification:
-  - `python -m py_compile src/anydoc2md/format_converters/_pdf_blocks.py src/anydoc2md/format_converters/_pdf_assemble.py tests/test_pdf_converter_refactor.py`: passed.
-  - `python -m pytest tests/test_pdf_converter_refactor.py -q`: 8 passed.
-  - `python -m pytest -q`: 652 passed.
+- Slice 3 verification:
+  - `python -m py_compile src/anydoc2md/format_converters/_pdf_extract.py src/anydoc2md/format_converters/pdf_converter.py tests/test_pdf_tables.py`: passed.
+  - `python -m pytest tests/test_pdf_tables.py tests/test_pdf_converter_refactor.py -q`: 31 passed.
+  - `python -m pytest -q`: 675 passed.
   - `git diff --check`: passed.
-- Slice 2 verification (including red-team residual fixes):
-  - `python -m py_compile src/anydoc2md/format_converters/_pdf_tables.py tests/test_pdf_tables.py`: passed.
-  - `python -m pytest tests/test_pdf_tables.py -q`: 16 passed.
-  - `python -m pytest tests/test_pdf_tables.py tests/test_pdf_converter_refactor.py -q`: 24 passed.
-  - `python -m pytest -q`: 668 passed.
+- Slice 3 residual-fix verification:
+  - `python -m py_compile src/anydoc2md/format_converters/_pdf_tables.py src/anydoc2md/format_converters/_pdf_extract.py src/anydoc2md/format_converters/pdf_converter.py src/anydoc2md/format_converters/adapters/base.py src/anydoc2md/format_converters/adapters/inhouse.py tests/test_pdf_tables.py tests/test_converter_adapters.py`: passed.
+  - `python -m pytest tests/test_pdf_tables.py tests/test_converter_adapters.py tests/test_pdf_converter_refactor.py -q`: 81 passed.
+  - `python -m pytest -q`: 681 passed.
   - `git diff --check`: passed.
 
 ## Last updated
 
-2026-06-12 05:04 UTC
+2026-06-12 06:47 UTC

@@ -2,13 +2,17 @@
 PDF → Markdown converter.
 
 Extracts text blocks and images from a PDF using PyMuPDF, handles multi-column
-layout, attaches figure captions to their images, filters running page headers,
-and writes index.md + images/ to the staging directory.
+layout, emits detected ruled tables as native Markdown tables, attaches figure
+captions to their images, filters running page headers, and writes
+index.md + images/ to the staging directory.
 
 Overrides (via document.override.yaml or explicit dict):
     column_split_ratio      float   0.55   x > page_width * ratio → right column
     min_text_len            int    10      discard blocks shorter than this
     running_header_min_pages int   3       heading on ≥N pages → running header
+    table_extraction        str    pymupdf pymupdf|off
+    table_markdown_clean    bool   false   pass clean=... to Table.to_markdown()
+    table_markdown_fill_empty bool true    pass fill_empty=... to Table.to_markdown()
 """
 from __future__ import annotations
 
@@ -18,7 +22,8 @@ from typing import Any
 from anydoc2md.format_converters._pdf_assemble import assemble_markdown as _assemble
 from anydoc2md.format_converters._pdf_blocks import ImageBlock as _ImageBlock  # noqa: F401
 from anydoc2md.format_converters._pdf_blocks import TextBlock as _TextBlock  # noqa: F401
-from anydoc2md.format_converters._pdf_extract import extract_pdf_blocks as _extract
+from anydoc2md.format_converters._pdf_extract import extract_pdf_blocks as _extract  # noqa: F401
+from anydoc2md.format_converters._pdf_extract import extract_pdf_blocks_v2 as _extract_v2
 from anydoc2md.format_converters.base import (
     INDEX_FILENAME,
     ConversionResult,
@@ -51,24 +56,34 @@ def convert(
     column_split_ratio: float = float(cfg.get("column_split_ratio", 0.55))
     min_text_len: int = int(cfg.get("min_text_len", 10))
     running_header_min_pages: int = int(cfg.get("running_header_min_pages", 3))
+    table_extraction = cfg.get("table_extraction", "pymupdf")
+    table_markdown_clean: bool = _bool_override(cfg.get("table_markdown_clean"), False)
+    table_markdown_fill_empty: bool = _bool_override(
+        cfg.get("table_markdown_fill_empty"),
+        True,
+    )
 
     resolved_title = title or source_path.stem.replace("_", " ")
     resolved_url = resolve_source_reference(source_path, source_url)
 
     images_dir = staging_dir / "images"
-    text_blocks, image_blocks = _extract(
+    extraction = _extract_v2(
         source_path,
         images_dir,
         column_split_ratio=column_split_ratio,
         min_text_len=min_text_len,
+        table_extraction=table_extraction,
+        table_markdown_clean=table_markdown_clean,
+        table_markdown_fill_empty=table_markdown_fill_empty,
     )
 
     md = _assemble(
         resolved_title,
         resolved_url,
-        text_blocks,
-        image_blocks,
+        extraction.text_blocks,
+        extraction.image_blocks,
         running_header_min_pages,
+        table_blocks=extraction.table_blocks,
     )
 
     (staging_dir / INDEX_FILENAME).write_text(md, encoding="utf-8")
@@ -77,5 +92,20 @@ def convert(
         staging_dir=staging_dir,
         title=resolved_title,
         source_url=resolved_url,
-        image_count=len(image_blocks),
+        image_count=len(extraction.image_blocks),
+        warnings=extraction.warnings,
     )
+
+
+def _bool_override(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return bool(value)

@@ -6,7 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-_(nothing yet)_
+### Added
+
+- The in-house PDF converter now emits PyMuPDF-detected ruled tables as native
+  Markdown tables by default. Use `table_extraction: off` in
+  `document.override.yaml` to preserve legacy flattened table text for a
+  specific document.
 
 ## 0.1.3 — 2026-06-10
 

@@ -112,14 +112,30 @@ Some PyMuPDF table/layout APIs can print a recommendation similar to:
 Consider using the pymupdf_layout package for a greatly improved page layout analysis.
 ```
 
-ADTM's classifier now suppresses the noisy recommendation before bounded table
-heuristics. Do not add `pymupdf-layout` or PyMuPDF4LLM-style layout stacks to
-the default install to silence this warning. A 2026-04-23 local test found no
-default quality win large enough to justify the license and performance
-footprint.
+ADTM suppresses the noisy recommendation before bounded table heuristics. Do not
+add `pymupdf-layout` or PyMuPDF4LLM-style layout stacks to the default install
+to silence this warning. A 2026-04-23 local test found no default quality win
+large enough to justify the license and performance footprint.
 
 Policy: keep those layout packages explicit and opt-in only, with exact version,
 license, model, dependency, and benchmark notes.
+
+### PDF Table Markdown Looks Wrong
+
+The default `inhouse` PDF path emits PyMuPDF-detected ruled tables as native
+Markdown tables. This is best-effort structural extraction, not OCR and not a
+universal table detector. Scanned tables, borderless aligned text, merged cells,
+and unusual ruling lines may still flatten or degrade.
+
+For one problematic document, disable native table extraction with a staged
+`document.override.yaml`:
+
+```yaml
+table_extraction: off
+```
+
+This preserves the legacy flattened table text for that document while keeping
+the normal fast `inhouse` path for other PDFs.
 
 ### Slow Large PDFs
 
@@ -264,7 +280,7 @@ If Markdown references images but files are missing:
 - Inspect `<staging>/<adapter>/index.md` for image paths.
 - Inspect `<staging>/<adapter>/images/`.
 - Inspect `<staging>/<adapter>/adapter_result.json` for `status`,
-  `error_message`, and `stderr`.
+  `error_message`, `stderr`, and any converter `warnings`.
 - Try `docling` or `marker` explicitly for image-heavy PDFs when their license
   and install footprint are acceptable.
 - Report a minimal synthetic reproduction if the adapter claims success but

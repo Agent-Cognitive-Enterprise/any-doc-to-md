@@ -4,7 +4,14 @@ from pathlib import Path
 
 import pytest
 
+from anydoc2md.format_converters import pdf_converter
 from anydoc2md.format_converters._pdf_blocks import TableBlock
+from anydoc2md.format_converters._pdf_extract import (
+    PdfExtractionResult,
+    extract_pdf_blocks,
+    extract_pdf_blocks_v2,
+)
+from anydoc2md.format_converters.base import OVERRIDE_FILENAME
 from anydoc2md.format_converters._pdf_tables import (
     extract_page_tables,
     looks_like_markdown_table,
@@ -13,6 +20,10 @@ from anydoc2md.format_converters._pdf_tables import (
 
 def test_looks_like_markdown_table_accepts_gfm_table() -> None:
     assert looks_like_markdown_table("|A|B|\n|---|---|\n|1|2|")
+    assert looks_like_markdown_table(
+        "|A|B|\n|---|---|\n|1|2|",
+        expected_col_count=2,
+    )
 
 
 @pytest.mark.parametrize(
@@ -21,12 +32,21 @@ def test_looks_like_markdown_table_accepts_gfm_table() -> None:
         "",
         "not a table",
         "|A|B|",
+        "|A|B|\n|---|---|",
         "|A|B|\n|bad|bad|",
+        "|A|B|\n|---|---|\n|1|2|3|",
         "A | B\n--- ---",
     ],
 )
 def test_looks_like_markdown_table_rejects_non_tables(markdown: str) -> None:
     assert not looks_like_markdown_table(markdown)
+
+
+def test_looks_like_markdown_table_rejects_wrong_expected_column_count() -> None:
+    assert not looks_like_markdown_table(
+        "|A|B|\n|---|---|\n|1|2|",
+        expected_col_count=3,
+    )
 
 
 def test_extract_page_tables_warns_when_find_tables_missing() -> None:
@@ -65,6 +85,26 @@ def test_extract_page_tables_filters_malformed_markdown() -> None:
             markdown="not a table",
             row_count=3,
             col_count=3,
+        )
+    ])
+
+    tables, warnings = extract_page_tables(
+        page,
+        page_num=1,
+        page_width=612.0,
+        column_split_ratio=0.55,
+    )
+
+    assert tables == []
+    assert warnings == ["page 1 table 1: ignored malformed Markdown table"]
+
+
+def test_extract_page_tables_filters_mismatched_body_columns() -> None:
+    page = _FakePage([
+        _FakeTable(
+            markdown="|A|B|\n|---|---|\n|1|2|3|",
+            row_count=2,
+            col_count=2,
         )
     ])
 
@@ -222,6 +262,235 @@ def test_extract_page_tables_reads_generated_ruled_grid_pdf(
     assert "|---|---|---|" in table.markdown
     assert "|Pump A|Stable|Rina|" in table.markdown
     assert "|Valve B|Watch|Omar|" in table.markdown
+
+
+def test_extract_pdf_blocks_v2_returns_table_blocks_for_generated_pdf(
+    tmp_path: Path,
+) -> None:
+    fitz = pytest.importorskip("fitz")
+    pdf_path = tmp_path / "ruled-table.pdf"
+    _write_ruled_table_pdf(pdf_path, fitz)
+
+    result = extract_pdf_blocks_v2(
+        pdf_path,
+        tmp_path / "images",
+        column_split_ratio=0.55,
+        min_text_len=1,
+    )
+
+    assert isinstance(result, PdfExtractionResult)
+    assert result.warnings == ()
+    assert result.text_blocks
+    assert result.image_blocks == []
+    assert len(result.table_blocks) == 1
+    assert "|Component|Status|Owner|" in result.table_blocks[0].markdown
+
+
+def test_extract_pdf_blocks_legacy_wrapper_preserves_two_tuple(
+    tmp_path: Path,
+) -> None:
+    fitz = pytest.importorskip("fitz")
+    pdf_path = tmp_path / "ruled-table.pdf"
+    _write_ruled_table_pdf(pdf_path, fitz)
+
+    result = extract_pdf_blocks(
+        pdf_path,
+        tmp_path / "images",
+        column_split_ratio=0.55,
+        min_text_len=1,
+    )
+
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+    text_blocks, image_blocks = result
+    assert text_blocks
+    assert image_blocks == []
+
+
+def test_extract_pdf_blocks_v2_can_disable_table_extraction(
+    tmp_path: Path,
+) -> None:
+    fitz = pytest.importorskip("fitz")
+    pdf_path = tmp_path / "ruled-table.pdf"
+    _write_ruled_table_pdf(pdf_path, fitz)
+
+    result = extract_pdf_blocks_v2(
+        pdf_path,
+        tmp_path / "images",
+        column_split_ratio=0.55,
+        min_text_len=1,
+        table_extraction="off",
+    )
+
+    assert result.table_blocks == []
+    assert result.warnings == ()
+
+
+def test_extract_pdf_blocks_v2_warns_on_unknown_table_mode(
+    tmp_path: Path,
+) -> None:
+    fitz = pytest.importorskip("fitz")
+    pdf_path = tmp_path / "ruled-table.pdf"
+    _write_ruled_table_pdf(pdf_path, fitz)
+
+    result = extract_pdf_blocks_v2(
+        pdf_path,
+        tmp_path / "images",
+        column_split_ratio=0.55,
+        min_text_len=1,
+        table_extraction="mystery",
+    )
+
+    assert result.table_blocks == []
+    assert result.warnings == (
+        "unsupported table_extraction mode 'mystery'; table extraction disabled",
+    )
+
+
+def test_pdf_converter_emits_native_table_by_default(
+    tmp_path: Path,
+) -> None:
+    fitz = pytest.importorskip("fitz")
+    pdf_path = tmp_path / "ruled-table.pdf"
+    staging = tmp_path / "staging"
+    _write_ruled_table_pdf(pdf_path, fitz)
+
+    result = pdf_converter.convert(pdf_path, staging)
+    markdown = result.index_md.read_text(encoding="utf-8")
+
+    assert result.warnings == ()
+    assert "*Table 1. Equipment status by owner.*" in markdown
+    assert "|Component|Status|Owner|" in markdown
+    assert "|---|---|---|" in markdown
+    assert "|Pump A|Stable|Rina|" in markdown
+    assert "|Valve B|Watch|Omar|" in markdown
+    assert markdown.count("Pump A") == 1
+    assert markdown.count("Valve B") == 1
+    assert "After the table, this paragraph must survive." in markdown
+
+
+def test_pdf_converter_table_extraction_off_preserves_legacy_text_only_output(
+    tmp_path: Path,
+) -> None:
+    fitz = pytest.importorskip("fitz")
+    pdf_path = tmp_path / "ruled-table.pdf"
+    staging = tmp_path / "staging"
+    _write_ruled_table_pdf(pdf_path, fitz)
+    staging.mkdir()
+    (staging / OVERRIDE_FILENAME).write_text(
+        "table_extraction: off\n",
+        encoding="utf-8",
+    )
+
+    result = pdf_converter.convert(pdf_path, staging)
+    markdown = result.index_md.read_text(encoding="utf-8")
+
+    assert result.warnings == ()
+    assert "|Component|Status|Owner|" not in markdown
+    assert "|---|---|---|" not in markdown
+    assert "Pump A" in markdown
+    assert "Valve B" in markdown
+
+
+def test_pdf_converter_returns_table_extraction_warnings(
+    tmp_path: Path,
+) -> None:
+    fitz = pytest.importorskip("fitz")
+    pdf_path = tmp_path / "ruled-table.pdf"
+    staging = tmp_path / "staging"
+    _write_ruled_table_pdf(pdf_path, fitz)
+
+    result = pdf_converter.convert(
+        pdf_path,
+        staging,
+        overrides={"table_extraction": "bad"},
+    )
+
+    assert result.warnings == (
+        "unsupported table_extraction mode 'bad'; table extraction disabled",
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "default", "expected"),
+    [
+        (None, True, True),
+        (None, False, False),
+        (True, False, True),
+        (False, True, False),
+        ("1", False, True),
+        ("true", False, True),
+        ("True", False, True),
+        (" YES ", False, True),
+        ("on", False, True),
+        ("0", True, False),
+        ("false", True, False),
+        ("No", True, False),
+        ("off", True, False),
+        ("maybe", False, True),  # unknown non-empty string -> bool("maybe")
+        ("", True, False),  # empty string -> bool("") is False, ignores default
+        (1, False, True),
+        (0, True, False),
+        ([], True, False),
+    ],
+)
+def test_bool_override_parses_supported_forms(
+    value: object, default: bool, expected: bool
+) -> None:
+    assert pdf_converter._bool_override(value, default) is expected
+
+
+def test_pdf_converter_threads_table_markdown_overrides(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _spy(source_path: Path, images_dir: Path, **kwargs: object) -> PdfExtractionResult:
+        captured.update(kwargs)
+        return PdfExtractionResult(text_blocks=[], image_blocks=[], table_blocks=[])
+
+    monkeypatch.setattr(pdf_converter, "_extract_v2", _spy)
+
+    pdf_converter.convert(
+        tmp_path / "doc.pdf",
+        tmp_path / "staging",
+        overrides={
+            "table_markdown_clean": "yes",
+            "table_markdown_fill_empty": "off",
+        },
+    )
+
+    assert captured["table_markdown_clean"] is True
+    assert captured["table_markdown_fill_empty"] is False
+
+
+def test_extract_page_tables_forwards_clean_and_fill_empty() -> None:
+    class _RecordingTable:
+        bbox = (72.0, 130.0, 382.0, 214.0)
+        row_count = 2
+        col_count = 2
+
+        def __init__(self) -> None:
+            self.calls: list[dict[str, bool]] = []
+
+        def to_markdown(self, *, clean: bool = False, fill_empty: bool = True) -> str:
+            self.calls.append({"clean": clean, "fill_empty": fill_empty})
+            return "|A|B|\n|---|---|\n|1|2|"
+
+    table = _RecordingTable()
+    blocks, warnings = extract_page_tables(
+        _FakePage([table]),
+        page_num=1,
+        page_width=612.0,
+        column_split_ratio=0.55,
+        clean=True,
+        fill_empty=False,
+    )
+
+    assert warnings == []
+    assert len(blocks) == 1
+    assert table.calls == [{"clean": True, "fill_empty": False}]
 
 
 def _write_ruled_table_pdf(path: Path, fitz_module) -> None:

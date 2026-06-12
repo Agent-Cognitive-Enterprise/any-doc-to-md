@@ -84,6 +84,13 @@ LibreOffice if you need those formats:
 sudo apt-get install libreoffice-core libreoffice-writer
 ```
 
+For PDFs, detected ruled tables are emitted as native Markdown tables by
+default through PyMuPDF table extraction. Disable this per document with:
+
+```yaml
+table_extraction: off
+```
+
 Use it for normal conversions and for CI smoke tests. It is not a proof that
 external adapters are unnecessary; it is the best current default based on the
 dated benchmark evidence.
