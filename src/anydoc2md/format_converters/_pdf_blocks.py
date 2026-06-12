@@ -58,7 +58,6 @@ class TableBlock:
     col_count: int
     column: int
     source: str = "pymupdf"
-    warning: str = ""
     y_mid: float = field(init=False)
 
     def __post_init__(self) -> None:
