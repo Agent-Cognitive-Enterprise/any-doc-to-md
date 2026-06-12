@@ -2,7 +2,7 @@
 
 ## Current objective
 
-Plan the table-fidelity branch before implementation. Target behavior is native
+Implement the table-fidelity branch in SABRE slices. Target behavior is native
 Markdown table preservation in the fast `inhouse` PDF path using PyMuPDF table
 APIs, with no heavy optional converter added to the default path.
 
@@ -19,19 +19,29 @@ APIs, with no heavy optional converter added to the default path.
 - Verified current code shape at a high level: PDF conversion is currently
   text/image only, existing pipe-looking text tables are emitted as fenced code,
   and document overrides already provide a compatible opt-out mechanism.
+- Implemented Slice 1: added `TableBlock`, made the PDF assembler accept
+  optional table blocks without changing existing callers, and added a focused
+  sort-order test.
+- Fixed Slice 1 review findings: explicit table blocks now suppress overlapping
+  flattened text in the assembler, `Table N.` captions attach to same-page table
+  blocks, and tests cover no-op empty table blocks, native table rendering,
+  caption placement, and duplicate suppression.
+- Fixed a follow-up review finding: captions are only relocated to hug an image
+  or table when they are already adjacent to it in reading order. A caption
+  separated from its target by intervening body text now stays in its natural
+  position instead of leapfrogging that text. Covered by a new regression test.
 
 ## Current status
 
-Planning only. No table extraction source code, tests, CLI behavior, converter
-behavior, staging shape, or output contract has been changed yet. The only
-branch files changed are planning/handoff files.
+Slice 1 plus review fixes are implemented and tested. No table extraction source
+code has been added yet, and no CLI behavior, converter behavior, staging shape,
+or default output contract has changed.
 
 ## Next step
 
-After explicit approval, implement Slice 1: add `TableBlock`, make
-`assemble_markdown(...)` accept optional table blocks without changing output
-when none are supplied, update sort typing, and add a focused sort-order unit
-test.
+Run a brief red-team check of the Slice 1 review fixes. If clean, implement
+Slice 2: add a PyMuPDF page-table extraction helper and focused tests without
+integrating it into full PDF conversion yet.
 
 ## Important files
 
@@ -62,8 +72,12 @@ test.
 - The prior 0.1.3 release handoff recorded TestPyPI/production publishing as
   not run. That release work is deliberately deferred outside this table branch
   unless the maintainer says it has been completed.
-- No tests were run in this planning-only task.
+- Slice 1 verification:
+  - `python -m py_compile src/anydoc2md/format_converters/_pdf_blocks.py src/anydoc2md/format_converters/_pdf_assemble.py tests/test_pdf_converter_refactor.py`: passed.
+  - `python -m pytest tests/test_pdf_converter_refactor.py -q`: 8 passed.
+  - `python -m pytest -q`: 652 passed.
+  - `git diff --check`: passed.
 
 ## Last updated
 
-2026-06-12 00:29 UTC
+2026-06-12 04:13 UTC

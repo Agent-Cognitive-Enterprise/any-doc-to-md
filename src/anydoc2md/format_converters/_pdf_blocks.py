@@ -49,6 +49,22 @@ class TextBlock:
         self.y_mid = (self.bbox[1] + self.bbox[3]) / 2
 
 
+@dataclass
+class TableBlock:
+    page: int
+    bbox: tuple[float, float, float, float]
+    markdown: str
+    row_count: int
+    col_count: int
+    column: int
+    source: str = "pymupdf"
+    warning: str = ""
+    y_mid: float = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.y_mid = (self.bbox[1] + self.bbox[3]) / 2
+
+
 def clean_line(line: str) -> str:
     return WHITESPACE_RE.sub(" ", line).strip()
 
@@ -65,7 +81,7 @@ def block_column(bbox: tuple, page_width: float, ratio: float) -> int:
     return 1 if bbox[0] > page_width * ratio else 0
 
 
-def sort_key(block: TextBlock | ImageBlock) -> tuple[int, int, float]:
+def sort_key(block: TextBlock | ImageBlock | TableBlock) -> tuple[int, int, float]:
     return (block.page, block.column, block.y_mid)
 
 
