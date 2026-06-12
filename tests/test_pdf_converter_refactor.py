@@ -250,6 +250,38 @@ def test_assemble_markdown_suppresses_text_inside_table_bbox() -> None:
     assert "After the table, this paragraph must survive." in markdown
 
 
+def test_assemble_markdown_honors_table_text_suppression_threshold() -> None:
+    flattened_cell = TextBlock(
+        page=1,
+        bbox=(84.0, 142.0, 130.0, 158.0),
+        text="Pump A",
+        block_kind="paragraph",
+        avg_font_size=10.0,
+        column=0,
+    )
+    table = TableBlock(
+        page=1,
+        bbox=(72.0, 130.0, 382.0, 214.0),
+        markdown="|Component|Status|\n|---|---|\n|Pump A|Stable|",
+        row_count=2,
+        col_count=2,
+        column=0,
+    )
+
+    markdown = assemble_markdown(
+        "Report",
+        "report.pdf",
+        [flattened_cell],
+        [],
+        running_header_min_pages=3,
+        table_blocks=[table],
+        table_text_suppression_overlap=1.01,
+    )
+
+    assert "|Pump A|Stable|" in markdown
+    assert markdown.count("Pump A") == 2
+
+
 def test_assemble_markdown_keeps_caption_in_reading_order_when_not_adjacent() -> None:
     caption = TextBlock(
         page=1,

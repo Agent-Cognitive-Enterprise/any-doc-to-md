@@ -13,12 +13,15 @@ Overrides (via document.override.yaml or explicit dict):
     table_extraction        str    pymupdf pymupdf|off
     table_markdown_clean    bool   false   pass clean=... to Table.to_markdown()
     table_markdown_fill_empty bool true    pass fill_empty=... to Table.to_markdown()
+    table_text_suppression_overlap float 0.65
+        suppress flattened text at/above this bbox overlap
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
+from anydoc2md.format_converters._pdf_assemble import TABLE_TEXT_SUPPRESSION_OVERLAP
 from anydoc2md.format_converters._pdf_assemble import assemble_markdown as _assemble
 from anydoc2md.format_converters._pdf_blocks import ImageBlock as _ImageBlock  # noqa: F401
 from anydoc2md.format_converters._pdf_blocks import TextBlock as _TextBlock  # noqa: F401
@@ -62,6 +65,9 @@ def convert(
         cfg.get("table_markdown_fill_empty"),
         True,
     )
+    table_text_suppression_overlap: float = float(
+        cfg.get("table_text_suppression_overlap", TABLE_TEXT_SUPPRESSION_OVERLAP)
+    )
 
     resolved_title = title or source_path.stem.replace("_", " ")
     resolved_url = resolve_source_reference(source_path, source_url)
@@ -84,6 +90,7 @@ def convert(
         extraction.image_blocks,
         running_header_min_pages,
         table_blocks=extraction.table_blocks,
+        table_text_suppression_overlap=table_text_suppression_overlap,
     )
 
     (staging_dir / INDEX_FILENAME).write_text(md, encoding="utf-8")

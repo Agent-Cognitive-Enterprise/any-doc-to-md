@@ -91,6 +91,9 @@ default through PyMuPDF table extraction. Disable this per document with:
 table_extraction: off
 ```
 
+If a table bbox is unusually broad or narrow, advanced users can tune duplicate
+text suppression with `table_text_suppression_overlap` (default `0.65`).
+
 Use it for normal conversions and for CI smoke tests. It is not a proof that
 external adapters are unnecessary; it is the best current default based on the
 dated benchmark evidence.

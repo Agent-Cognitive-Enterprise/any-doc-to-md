@@ -392,6 +392,26 @@ def test_pdf_converter_table_extraction_off_preserves_legacy_text_only_output(
     assert "Valve B" in markdown
 
 
+def test_pdf_converter_threads_table_text_suppression_overlap_override(
+    tmp_path: Path,
+) -> None:
+    fitz = pytest.importorskip("fitz")
+    pdf_path = tmp_path / "ruled-table.pdf"
+    staging = tmp_path / "staging"
+    _write_ruled_table_pdf(pdf_path, fitz)
+
+    result = pdf_converter.convert(
+        pdf_path,
+        staging,
+        overrides={"table_text_suppression_overlap": 1.01},
+    )
+    markdown = result.index_md.read_text(encoding="utf-8")
+
+    assert result.warnings == ()
+    assert "|Pump A|Stable|Rina|" in markdown
+    assert markdown.count("Pump A") > 1
+
+
 def test_pdf_converter_returns_table_extraction_warnings(
     tmp_path: Path,
 ) -> None:

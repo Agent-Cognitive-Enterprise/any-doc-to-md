@@ -670,6 +670,13 @@ text for one document, add this to that document's `document.override.yaml`:
 table_extraction: off
 ```
 
+Advanced tuning can change how aggressively overlapping flattened PDF text is
+suppressed once a native table is emitted:
+
+```yaml
+table_text_suppression_overlap: 0.65
+```
+
 The external adapters are useful as competing opinions in the tournament.
 The in-house path is useful as the package-controlled baseline.
 

@@ -28,21 +28,23 @@ APIs, with no heavy optional converter added to the default path.
   in-house adapter into `AdapterResult` / `adapter_result.json`, Markdown table
   validation checks row widths before creating suppressing `TableBlock`s, and
   the private `_extract` facade alias has the expected lint suppression.
+- Implemented Slice 4: completed the remaining planned suppression work by
+  adding `table_text_suppression_overlap` as a documented per-document override
+  while preserving the existing default `0.65` duplicate-text threshold.
 - Updated tests and docs for the default-on table behavior and opt-out.
 
 ## Current status
 
-Slice 3 and its red-team residual fixes are implemented and tested but
-uncommitted. Default PDF output can now change for PyMuPDF-detected ruled
-tables: native Markdown tables are emitted and overlapping flattened cell text
-is suppressed. Existing CLI/module calls remain compatible, and
-`extract_pdf_blocks(...)` still returns the old two-tuple.
+Slice 4 is implemented and tested but uncommitted. Default PDF output can now
+change for PyMuPDF-detected ruled tables: native Markdown tables are emitted and
+overlapping flattened cell text is suppressed. Existing CLI/module calls remain
+compatible, and `extract_pdf_blocks(...)` still returns the old two-tuple.
 
 ## Next step
 
-Run SABRE red-team review of the Slice 3 residual fixes. If no blocker is
-found, continue with the next slice from the branch plan, likely the optional
-table extraction report/audit evidence slice.
+Run SABRE red-team review of Slice 4. If no blocker is found, continue with the
+next slice from the branch plan, likely the optional table extraction
+report/audit evidence slice.
 
 ## Important files
 
@@ -89,7 +91,12 @@ table extraction report/audit evidence slice.
   - `python -m pytest tests/test_pdf_tables.py tests/test_converter_adapters.py tests/test_pdf_converter_refactor.py -q`: 81 passed.
   - `python -m pytest -q`: 681 passed.
   - `git diff --check`: passed.
+- Slice 4 verification:
+  - `python -m py_compile src/anydoc2md/format_converters/_pdf_assemble.py src/anydoc2md/format_converters/pdf_converter.py tests/test_pdf_converter_refactor.py tests/test_pdf_tables.py`: passed.
+  - `python -m pytest tests/test_pdf_converter_refactor.py tests/test_pdf_tables.py tests/test_converter_adapters.py -q`: 103 passed.
+  - `python -m pytest -q`: 703 passed.
+  - `git diff --check`: passed.
 
 ## Last updated
 
-2026-06-12 06:47 UTC
+2026-06-12 07:30 UTC

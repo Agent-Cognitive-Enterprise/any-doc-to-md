@@ -137,6 +137,15 @@ table_extraction: off
 This preserves the legacy flattened table text for that document while keeping
 the normal fast `inhouse` path for other PDFs.
 
+If the native table is right but nearby text is suppressed too aggressively or
+not aggressively enough, tune the overlap threshold:
+
+```yaml
+table_text_suppression_overlap: 0.65
+```
+
+Higher values suppress less text; lower values suppress more text.
+
 ### Slow Large PDFs
 
 Large PDFs can be slow even with the default adapter. If the run is unexpectedly

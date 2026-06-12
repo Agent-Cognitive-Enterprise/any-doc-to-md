@@ -141,7 +141,7 @@ output_qa/
 
 | Converter | Status | License | Primary use case | CLI |
 |---|---|---|---|---|
-| In-house | default | Internal | First-class baseline; package-native converters; PyMuPDF-detected PDF tables emit as native Markdown by default with `table_extraction: off` opt-out | existing `pdf_converter`, `html_converter`, etc. |
+| In-house | default | Internal | First-class baseline; package-native converters; PyMuPDF-detected PDF tables emit as native Markdown by default with `table_extraction: off` opt-out and `table_text_suppression_overlap` tuning | existing `pdf_converter`, `html_converter`, etc. |
 | MarkItDown | first-class optional | MIT | Text-oriented broad converter; useful as explicit fallback | `markitdown input.pdf -o output.md` |
 | Docling | first-class optional | MIT | General high-fidelity (PDF, DOCX, tables); benchmark showed wins but large-PDF cost needs routing/caps | `docling input.pdf --to md --output ./out` |
 | Unstructured | first-class optional | Apache-2.0 | Broad partitioning baseline; text-first PDF fallback plus OCR/table-aware ecosystem | subprocess-backed Unstructured partitioners |

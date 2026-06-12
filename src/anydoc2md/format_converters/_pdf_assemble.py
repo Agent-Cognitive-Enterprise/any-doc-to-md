@@ -24,10 +24,16 @@ def assemble_markdown(
     image_blocks: list[ImageBlock],
     running_header_min_pages: int,
     table_blocks: list[TableBlock] | None = None,
+    *,
+    table_text_suppression_overlap: float = TABLE_TEXT_SUPPRESSION_OVERLAP,
 ) -> str:
     table_blocks = list(table_blocks or [])
     if table_blocks:
-        text_blocks = _suppress_table_text_blocks(text_blocks, table_blocks)
+        text_blocks = _suppress_table_text_blocks(
+            text_blocks,
+            table_blocks,
+            overlap_threshold=table_text_suppression_overlap,
+        )
     text_blocks = _filter_running_headers(text_blocks, running_header_min_pages)
     heading_map = _build_heading_map(text_blocks)
 
@@ -197,23 +203,31 @@ def _caption_adjacent_to_target(
 def _suppress_table_text_blocks(
     text_blocks: list[TextBlock],
     table_blocks: list[TableBlock],
+    *,
+    overlap_threshold: float = TABLE_TEXT_SUPPRESSION_OVERLAP,
 ) -> list[TextBlock]:
     return [
         block for block in text_blocks
-        if not _is_text_inside_table(block, table_blocks)
+        if not _is_text_inside_table(
+            block,
+            table_blocks,
+            overlap_threshold=overlap_threshold,
+        )
     ]
 
 
 def _is_text_inside_table(
     text_block: TextBlock,
     table_blocks: list[TableBlock],
+    *,
+    overlap_threshold: float = TABLE_TEXT_SUPPRESSION_OVERLAP,
 ) -> bool:
     if is_caption(text_block.text):
         return False
     return any(
         _center_inside(text_block.bbox, table.bbox)
         and _overlap_ratio_against_text(text_block.bbox, table.bbox)
-        >= TABLE_TEXT_SUPPRESSION_OVERLAP
+        >= overlap_threshold
         for table in table_blocks
         if table.page == text_block.page
     )
