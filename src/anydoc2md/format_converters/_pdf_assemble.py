@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import re
+from anydoc2md.format_converters._pdf_page_furniture import filter_page_furniture
+from anydoc2md.format_converters._pdf_heading_roles import (
+    FIGURE_REFERENCE, major_numbered_titles, align_promoted_heading_levels,
+)
 
 from anydoc2md.format_converters._pdf_blocks import (
     LIST_MARKER_RE,
@@ -23,6 +27,8 @@ def assemble_markdown(
 ) -> str:
     text_blocks = _filter_running_headers(text_blocks, running_header_min_pages)
     heading_map = _build_heading_map(text_blocks)
+    major_titles = major_numbered_titles(text_blocks)
+    heading_map = align_promoted_heading_levels(text_blocks, major_titles, heading_map)
 
     all_blocks: list[TextBlock | ImageBlock] = list(text_blocks) + list(image_blocks)
     all_blocks.sort(key=sort_key)
@@ -39,7 +45,7 @@ def assemble_markdown(
         if isinstance(block, ImageBlock):
             lines.append(_fmt_image(block))
         else:
-            lines.append(_fmt_block(block, heading_map))
+            lines.append(_fmt_block(block, heading_map, major_titles))
 
     return "\n".join(lines)
 
@@ -48,21 +54,7 @@ def _filter_running_headers(
     text_blocks: list[TextBlock],
     min_pages: int,
 ) -> list[TextBlock]:
-    heading_pages: dict[str, set[int]] = {}
-    for block in text_blocks:
-        if block.block_kind == "heading":
-            key = " ".join(block.text.split()).lower()
-            heading_pages.setdefault(key, set()).add(block.page)
-    running = {key for key, pages in heading_pages.items() if len(pages) >= min_pages}
-    if not running:
-        return text_blocks
-    return [
-        block for block in text_blocks
-        if not (
-            block.block_kind == "heading"
-            and " ".join(block.text.split()).lower() in running
-        )
-    ]
+    return filter_page_furniture(text_blocks, min_pages)
 
 
 def _attach_captions(
@@ -149,9 +141,14 @@ def _fmt_list(text: str) -> str:
     return "\n".join(f"- {item}" for item in items) + "\n"
 
 
-def _fmt_block(block: TextBlock, heading_map: dict[float, str]) -> str:
+def _fmt_block(block: TextBlock, heading_map: dict[float, str], major_titles: set[int] | None = None) -> str:
+    single = " ".join(block.text.split())
+    if major_titles and id(block) in major_titles:
+        bucket = round(block.avg_font_size * 2) / 2
+        return f"{heading_map[bucket]} {single}\n"
     if block.block_kind == "heading":
-        single = " ".join(block.text.split())
+        if FIGURE_REFERENCE.match(single):
+            return single + "\n"
         bucket = round(block.avg_font_size * 2) / 2
         closest = min(heading_map.keys(), key=lambda size: abs(size - bucket), default=None)
         prefix = heading_map.get(closest, "##") if closest is not None else "##"

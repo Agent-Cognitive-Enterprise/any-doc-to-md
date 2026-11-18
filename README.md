@@ -147,6 +147,17 @@ cloud LLM judge or external converter. Deterministic paragraph-continuity
 repair runs by default before project-local fix extensions; use
 `--paragraph-repair off` when you need to compare raw adapter Markdown.
 
+PDF-native image codecs such as JPEG 2000 are normalized to PNG for browser
+inspection. PDF text defaults to `min_text_len=1`; explicit overrides still apply.
+Exact repeated text in the outer 10% margins, including side navigation strips,
+and consistent page-number sequences are filtered across at least three pages
+(or the higher `running_header_min_pages` override). Changing numbered headings
+and units are not normalized together. Repeated real headings near a margin can
+still be mistaken for furniture: inspect every removal before release.
+`removed-blocks.json` records original filtered text, page, bounds and reason;
+`skipped-images.json` records image failures. This is reflowed Markdown, not a
+pixel-identical recreation of PDF pages.
+
 Run the same package-only smoke conversion from Python:
 
 ```bash
@@ -472,6 +483,24 @@ through these stages:
    row-sliced paragraph-fragmentation check. Built-in issue results include
    optional structured metadata (`violation_type`, `severity`, `confidence`) in
    addition to the legacy check fields.
+   Text-integrity QA also warns on U+FFFD and unexpected C0/C1 controls,
+   retaining line numbers/code points without rewriting the source. A warning
+   is not source clearance and does not automatically disqualify a candidate.
+   PDF furniture filtering retains the canonical first/larger semantic heading;
+   numbered large-title families and subsequent equally prominent headings
+   become peer sections instead of inheriting an earlier module. Promotions
+   use individual block identity, not identical smaller TOC text; uniform
+   running-only headings are not preserved as real titles. Typography heuristics
+   still require source review.
+   Equal-size peers are within 0.25pt of their numbered family; larger parents
+   keep their original level. Promoted sizes reserve lower levels for smaller
+   subsections instead of colliding with the existing typography map. A larger
+   heading size counts as an intermediate parent (Part > Chapter > Exercise N:)
+   only when at least two of its headings each introduce their own family
+   members; one-off covers and single-letter diagram labels never do.
+   Known limitation: without a promoted numbered family, the typography map
+   still assigns at most three heading levels, so a fourth distinct heading
+   size shares the third level.
 6. Preserve full per-adapter run status in the result JSON and exclude
    timed-out/errored adapter runs from selection, even if a late staging file
    appears after timeout cleanup.

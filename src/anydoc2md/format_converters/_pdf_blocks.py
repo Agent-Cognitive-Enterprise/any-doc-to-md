@@ -43,6 +43,8 @@ class TextBlock:
     block_kind: str
     avg_font_size: float
     column: int
+    page_height: float = 0
+    page_width: float = 0
     y_mid: float = field(init=False)
 
     def __post_init__(self) -> None:

@@ -28,8 +28,10 @@ from anydoc2md.output_qa.checks import (
     check_text_coverage,
 )
 from anydoc2md.project_extensions import load_qa_extension
+from anydoc2md.output_qa.text_integrity import check_text_integrity
 
 _LAYER1_CHECKS_MD_ONLY = [
+    check_text_integrity,
     check_no_double_bullets,
     check_numbered_list_sequential,
     check_heading_not_fragmented,

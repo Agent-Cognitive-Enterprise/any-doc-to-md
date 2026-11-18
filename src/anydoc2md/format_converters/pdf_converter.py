@@ -7,10 +7,12 @@ and writes index.md + images/ to the staging directory.
 
 Overrides (via document.override.yaml or explicit dict):
     column_split_ratio      float   0.55   x > page_width * ratio → right column
-    min_text_len            int    10      discard blocks shorter than this
-    running_header_min_pages int   3       heading on ≥N pages → running header
+    min_text_len            int    1       preserve nonempty text by default
+    running_header_min_pages int   3       repeated edge furniture on ≥N pages
 """
 from __future__ import annotations
+
+import json
 
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,7 @@ from anydoc2md.format_converters._pdf_assemble import assemble_markdown as _asse
 from anydoc2md.format_converters._pdf_blocks import ImageBlock as _ImageBlock  # noqa: F401
 from anydoc2md.format_converters._pdf_blocks import TextBlock as _TextBlock  # noqa: F401
 from anydoc2md.format_converters._pdf_extract import extract_pdf_blocks as _extract
+from anydoc2md.format_converters._pdf_page_furniture import removed_block_audit
 from anydoc2md.format_converters.base import (
     INDEX_FILENAME,
     ConversionResult,
@@ -49,20 +52,25 @@ def convert(
     cfg = load_overrides(staging_dir, overrides)
 
     column_split_ratio: float = float(cfg.get("column_split_ratio", 0.55))
-    min_text_len: int = int(cfg.get("min_text_len", 10))
+    min_text_len: int = int(cfg.get("min_text_len", 1))
     running_header_min_pages: int = int(cfg.get("running_header_min_pages", 3))
 
     resolved_title = title or source_path.stem.replace("_", " ")
     resolved_url = resolve_source_reference(source_path, source_url)
 
     images_dir = staging_dir / "images"
-    text_blocks, image_blocks = _extract(
+    text_blocks, image_blocks, extraction_drops = _extract(
         source_path,
         images_dir,
         column_split_ratio=column_split_ratio,
         min_text_len=min_text_len,
     )
 
+    audit_path = staging_dir / "removed-blocks.json"
+    audit_path.write_text(
+        json.dumps(extraction_drops + removed_block_audit(text_blocks, running_header_min_pages),
+                   ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
+    )
     md = _assemble(
         resolved_title,
         resolved_url,

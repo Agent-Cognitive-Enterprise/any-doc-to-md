@@ -8,6 +8,50 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 _(nothing yet)_
 
+## 0.3.0 — 2026-11-18
+
+### Added
+
+- Write `removed-blocks.json` with original text, page, bounds and reasons for
+  text filtered by an explicit length override, decorative punctuation or
+  audited repeated edge furniture.
+- Write `skipped-images.json` with page/xref/reason diagnostics for isolated PDF
+  image extraction or transcoding failures.
+- Flag replacement characters and unexpected controls with line numbers and
+  code points in output QA. Warnings preserve text and require source review;
+  they do not silently repair content or assert it is publishable.
+
+### Changed
+
+- Lower the default PDF `min_text_len` from 10 to 1 to preserve nonempty
+  labels, headings, units and quantities. Explicit overrides remain supported.
+
+### Fixed
+
+- Preserve larger Part headings above numbered Chapters and reserve smaller
+  subsection levels when promoting numbered families, avoiding level collisions.
+- Keep a promoted numbered family nested below a recurring intermediate parent
+  (for example Part > Chapter > "Exercise N:") instead of lifting it to the
+  parent's level. A larger size qualifies only when at least two of its headings
+  each introduce family members, so one-off covers and diagram letters do not.
+- Bound promoted numbered families at equally prominent non-family headings,
+  including Skills and Glossary, and bind promotions to block identity rather
+  than identical smaller TOC text. Uniform running-only labels are not retained
+  merely because the extractor classified them as headings.
+- Convert PDF-native image codecs, including JPEG 2000, to browser-renderable
+  PNG before hashing and publishing image assets.
+- Remove exact repeated margin/navigation text and sequential page numbers
+  across at least `running_header_min_pages` pages (minimum three), grouped by
+  stable edge position. Only separator-delimited leading/trailing page numbers
+  vary; changing Step N headings, embedded digits and units stay distinct.
+  Record each removal for source inspection rather than claiming perfect
+  furniture classification.
+- Preserve the first strongest real heading when removing its running copies,
+  including headings that share a margin band with smaller repeated labels.
+- Keep larger numbered title families as peer sections above smaller headings;
+  covers and figure labels no longer consume all heading ranks. Narrative
+  figure/table references are not emitted as section headings.
+
 ## 0.1.3 — 2026-06-10
 
 ### Added
